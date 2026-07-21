@@ -1846,7 +1846,7 @@ export class StyleTemplates {
   } {
     const templates: Record<StyleType, ReturnType<typeof StyleTemplates.getTemplate>> = {
       pop: {
-        instruments: ["piano", "acousticGuitar", "bass", "drumKit", "synth"],
+        instruments: ["piano", "acousticGuitar", "bass", "drumKit", "synth", "violin", "cello", "flute"],
         densityBySection: { intro: 0.3, verse: 0.5, preChorus: 0.7, chorus: 0.9, bridge: 0.6, outro: 0.3 },
         drumPatterns: {
           basic: [36, 0, 42, 0, 38, 0, 42, 0],
@@ -1856,7 +1856,7 @@ export class StyleTemplates {
         swingAmount: 0.0,
       },
       rock: {
-        instruments: ["electricGuitar", "bass", "drumKit", "synth"],
+        instruments: ["electricGuitar", "bass", "drumKit", "synth", "cello", "saxophone"],
         densityBySection: { intro: 0.4, verse: 0.7, preChorus: 0.8, chorus: 1.0, bridge: 0.7, outro: 0.4 },
         drumPatterns: {
           basic: [36, 0, 42, 42, 38, 0, 42, 0],
@@ -1866,7 +1866,7 @@ export class StyleTemplates {
         swingAmount: 0.0,
       },
       jazz: {
-        instruments: ["piano", "bass", "drumKit", "saxophone"],
+        instruments: ["piano", "bass", "drumKit", "saxophone", "violin", "cello", "flute"],
         densityBySection: { intro: 0.3, verse: 0.6, preChorus: 0.7, chorus: 0.8, bridge: 0.7, outro: 0.3 },
         drumPatterns: {
           basic: [36, 0, 42, 42, 36, 0, 42, 42],
@@ -1876,7 +1876,7 @@ export class StyleTemplates {
         swingAmount: 0.3,
       },
       electronic: {
-        instruments: ["synth", "bass", "drumKit"],
+        instruments: ["synth", "bass", "drumKit", "piano", "cello"],
         densityBySection: { intro: 0.2, verse: 0.6, preChorus: 0.8, chorus: 1.0, bridge: 0.5, outro: 0.2 },
         drumPatterns: {
           basic: [36, 0, 42, 0, 36, 0, 42, 0],
@@ -1886,14 +1886,14 @@ export class StyleTemplates {
         swingAmount: 0.0,
       },
       classical: {
-        instruments: ["piano", "violin", "cello", "flute"],
+        instruments: ["piano", "violin", "cello", "flute", "bass"],
         densityBySection: { intro: 0.3, verse: 0.5, preChorus: 0.6, chorus: 0.9, bridge: 0.6, outro: 0.3 },
         drumPatterns: { basic: [], fill: [] },
         scale: "major",
         swingAmount: 0.0,
       },
       folk: {
-        instruments: ["acousticGuitar", "flute", "bass"],
+        instruments: ["acousticGuitar", "flute", "bass", "violin", "cello"],
         densityBySection: { intro: 0.3, verse: 0.5, preChorus: 0.6, chorus: 0.8, bridge: 0.5, outro: 0.3 },
         drumPatterns: {
           basic: [36, 0, 42, 0, 38, 0, 42, 0],
@@ -1903,7 +1903,7 @@ export class StyleTemplates {
         swingAmount: 0.1,
       },
       chinese: {
-        instruments: ["guzheng", "erhu", "dizi", "luoGu", "pipa", "xiao"],
+        instruments: ["guzheng", "erhu", "dizi", "luoGu", "pipa", "xiao", "yangQin", "suoNa"],
         densityBySection: { intro: 0.2, verse: 0.4, preChorus: 0.6, chorus: 0.85, bridge: 0.6, outro: 0.2 },
         drumPatterns: {
           basic: [36, 0, 42, 42, 38, 0, 42, 42],
@@ -1913,7 +1913,7 @@ export class StyleTemplates {
         swingAmount: 0.05,
       },
       rnb: {
-        instruments: ["piano", "bass", "drumKit", "synth", "saxophone"],
+        instruments: ["piano", "bass", "drumKit", "synth", "saxophone", "violin", "cello"],
         densityBySection: { intro: 0.3, verse: 0.6, preChorus: 0.8, chorus: 0.9, bridge: 0.7, outro: 0.3 },
         drumPatterns: {
           basic: [36, 0, 42, 0, 36, 42, 38, 42],
@@ -1923,7 +1923,7 @@ export class StyleTemplates {
         swingAmount: 0.15,
       },
       metal: {
-        instruments: ["electricGuitar", "bass", "drumKit", "synth"],
+        instruments: ["electricGuitar", "bass", "drumKit", "synth", "cello"],
         densityBySection: { intro: 0.5, verse: 0.8, preChorus: 0.9, chorus: 1.0, bridge: 0.8, outro: 0.5 },
         drumPatterns: {
           basic: [36, 36, 42, 42, 38, 38, 42, 42],
@@ -1933,7 +1933,7 @@ export class StyleTemplates {
         swingAmount: 0.0,
       },
       blues: {
-        instruments: ["electricGuitar", "bass", "drumKit", "saxophone"],
+        instruments: ["electricGuitar", "bass", "drumKit", "saxophone", "piano", "violin"],
         densityBySection: { intro: 0.3, verse: 0.5, preChorus: 0.6, chorus: 0.8, bridge: 0.6, outro: 0.3 },
         drumPatterns: {
           basic: [36, 0, 42, 0, 36, 0, 42, 0],
@@ -2048,6 +2048,24 @@ export class ArrangementEngine {
         );
         const mList = result.get(melodyInst) ?? [];
         result.set(melodyInst, mList.concat(melodyEvents));
+      }
+
+      // 5.5 对位旋律层（Chorus / Bridge 密度高时添加第二旋律线）
+      if ((section.type === 'chorus' || section.type === 'bridge') && density > 0.6) {
+        const counterInst = template.instruments.find((i) =>
+          ["cello", "flute", "saxophone", "synth", "erhu"].includes(i)
+        );
+        if (counterInst && counterInst !== melodyInst) {
+          const counterEvents = this.generateCounterpoint(
+            section.chordProgression,
+            currentTime,
+            section.bars,
+            beatDur,
+            density
+          );
+          const cList = result.get(counterInst) ?? [];
+          result.set(counterInst, cList.concat(counterEvents));
+        }
       }
 
       // 6. 中国风特殊处理：加花、滑音
@@ -2191,6 +2209,40 @@ export class ArrangementEngine {
           duration: 0.2,
           velocity: 0.4,
           slideTo: passing[i] + pentOffset + 2,
+        });
+      }
+    }
+    return events;
+  }
+
+  /**
+   * 对位旋律生成 — 与主旋律形成三度/六度平行或反向进行
+   */
+  private generateCounterpoint(
+    progression: ChordEvent[],
+    sectionStart: number,
+    bars: number,
+    beatDur: number,
+    density: number
+  ): NoteEvent[] {
+    const events: NoteEvent[] = [];
+    const scale = [0, 2, 4, 5, 7, 9, 11];
+    // 对位使用更稀疏的节奏，与主旋律错开
+    const notesPerBar = Math.max(1, Math.floor(1 + density * 2));
+    for (const chord of progression) {
+      const chordStart = sectionStart + chord.startBar * 4 * beatDur;
+      const chordMidis = AudioUtils.chordToMidi(chord.root, chord.quality);
+      for (let n = 0; n < notesPerBar * chord.durationBars; n++) {
+        const step = (n + 0.5) / notesPerBar; // 错开半拍
+        // 优先选择和弦内音下方三度或六度
+        const chordTone = chordMidis[Math.floor(Math.random() * chordMidis.length)];
+        const interval = Math.random() > 0.5 ? -3 : -8; // 下方三度或十度
+        const midi = chordTone + interval;
+        events.push({
+          midi,
+          startTime: chordStart + step * beatDur,
+          duration: beatDur * 0.6,
+          velocity: 0.35 + Math.random() * 0.2, // 更轻柔
         });
       }
     }
@@ -2547,22 +2599,43 @@ export default class RealisticArrangerEngine {
  */
 export function generateStandardSections(
   keyRoot: number,
-  barsPerSection: number = 8
+  barsPerSection: number = 8,
+  style: StyleType = 'pop'
 ): Section[] {
-  const majorQualities: ChordQuality[] = ["major", "minor", "minor", "major", "major", "minor", "dom7", "major"];
-  const progression = majorQualities.map((q, i) => ({
+  // 丰富和弦进行：根据风格选择不同级数和弦品质
+  const richQualitiesMap: Record<string, ChordQuality[]> = {
+    pop:    ["major", "minor", "min7", "major", "dom7", "minor", "min7", "maj7"],
+    rock:   ["major", "minor", "minor", "major", "dom7", "minor", "dom7", "major"],
+    jazz:   ["maj7", "min7", "min7", "maj7", "dom7", "min7", "m7b5", "dom7"],
+    rnb:    ["maj7", "min7", "min9", "maj7", "dom7", "minor", "min7", "maj7"],
+    blues:  ["dom7", "dom7", "dom7", "dom7", "dom7", "dom7", "dom7", "dom7"],
+    folk:   ["major", "minor", "major", "major", "major", "minor", "dom7", "major"],
+    classical: ["major", "minor", "min7", "major", "dom7", "minor", "dim", "major"],
+    chinese: ["major", "minor", "major", "major", "minor", "minor", "major", "major"],
+    electronic: ["minor", "min7", "major", "min7", "minor", "min7", "dom7", "minor"],
+    metal:  ["minor", "dim", "major", "minor", "minor", "dim", "major", "minor"],
+  };
+  const qualities = richQualitiesMap[style] || richQualitiesMap.pop;
+  const progression = qualities.map((q, i) => ({
     startBar: i * 2,
     durationBars: 2,
     root: keyRoot + [0, 2, 4, 5, 7, 9, 11, 0][i],
     quality: q,
   }));
 
+  // 转调：Bridge 升全音（或半音）增加张力
+  const bridgeProgression = progression.slice(4, 6).map(ch => ({
+    ...ch,
+    root: ch.root + 2, // 升全音
+    quality: ch.quality === 'minor' ? 'min7' : 'maj7' as ChordQuality,
+  }));
+
   return [
     { type: "intro", bars: 4, chordProgression: progression.slice(0, 2) },
     { type: "verse", bars: barsPerSection, chordProgression: progression },
-    { type: "preChorus", bars: 4, chordProgression: progression.slice(2, 4) },
+    { type: "preChorus", bars: 4, chordProgression: progression.slice(2, 6) },
     { type: "chorus", bars: barsPerSection, chordProgression: progression },
-    { type: "bridge", bars: 4, chordProgression: progression.slice(4, 6) },
+    { type: "bridge", bars: 4, chordProgression: bridgeProgression },
     { type: "outro", bars: 4, chordProgression: progression.slice(0, 2) },
   ];
 }
@@ -3834,7 +3907,7 @@ export function createArrangement(
 ): MultiTrackOutput {
   const engine = new RealisticArrangerEngine();
   const root = parseKeyToMidi(key);
-  const sections = generateStandardSections(root, barsPerSection);
+  const sections = generateStandardSections(root, barsPerSection, style);
   return engine.generate({ key, bpm, style, emotion, sections });
 }
 
