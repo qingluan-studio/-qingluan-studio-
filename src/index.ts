@@ -21,6 +21,16 @@ import * as VocalSynthesis from './synthesis/vocalSynthesis.js';
 import RealisticVoiceEngine, { WavExporter, getAllVowelsForVoice, createDefaultRenderConfig } from './synthesis/realisticVoice.js';
 import RealisticArrangerEngine, { exportArrangementToWav, StyleTemplates } from './composition/realisticArranger.js';
 import { generateLyrics, generateFoodLyrics, generateEmotionLyrics, generateCharacterLyrics, formatLyrics } from './composition/lyricGenerator.js';
+import {
+  CognitiveInvariantEngine,
+  CognitiveMirrorEngine,
+  FeedbackStore,
+  AutoLearner,
+  AgentOrchestrator,
+  SimpleAgent,
+  MemoryBank,
+  CognitiveClosedLoop,
+} from './engines/cognitiveEngine.js';
 import * as AudioEffects from './effects/audioEffects.js';
 import * as Visualizer from './visualization/musicVisualizer.js';
 
@@ -342,6 +352,98 @@ app.post('/api/lyrics/character', async (c) => {
       formatted: formatLyrics(output),
       stats: output.stats,
     });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ======== 模块2c: 认知涌现引擎 API ========
+const ceeFeedbackStore = new FeedbackStore();
+const ceeAutoLearner = new AutoLearner(ceeFeedbackStore);
+const ceeMemoryBank = new MemoryBank();
+const ceeOrchestrator = new AgentOrchestrator();
+const ceeClosedLoop = new CognitiveClosedLoop();
+
+// 注册虚拟Agent
+ceeOrchestrator.registerAgent(new SimpleAgent('作曲家', 'composer', ['composer'], async () => ({ status: 'composed', melody: 'C4 D4 E4 F4' })));
+ceeOrchestrator.registerAgent(new SimpleAgent('编曲师', 'arranger', ['arranger'], async () => ({ status: 'arranged', tracks: 4 })));
+ceeOrchestrator.registerAgent(new SimpleAgent('作词家', 'lyricist', ['lyricist'], async () => ({ status: 'written', lines: 8 })));
+
+app.get('/api/cee/status', (c) => {
+  return c.json({
+    feedback: ceeFeedbackStore.getStats(),
+    memory: ceeMemoryBank.getStats(),
+    insights: ceeAutoLearner.insights.slice(-5),
+    bestSnapshot: ceeAutoLearner.bestSnapshot,
+  });
+});
+
+app.post('/api/cee/evaluate', async (c) => {
+  const body = await c.req.json<{ text: string; type?: 'lyrics' | 'melody' }>();
+  try {
+    const engine = new CognitiveInvariantEngine();
+    let result: any;
+    if (body.type === 'melody') {
+      const notes = body.text.split(/\s+/);
+      const durs = new Array(notes.length).fill(0.25);
+      result = engine.evaluateMelody(notes, durs);
+    } else {
+      result = engine.evaluateLyrics(body.text);
+    }
+    ceeAutoLearner.recordPerformance('cee_eval', { type: body.type }, result.scores.overall, { text: body.text.slice(0, 50) });
+    return c.json(result);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/cee/feedback', async (c) => {
+  const body = await c.req.json<{ score: number; message?: string; tags?: string[] }>();
+  try {
+    const record = ceeFeedbackStore.add(body.score, 'explicit', body.message || '', {}, body.tags || []);
+    const insights = ceeAutoLearner.analyze();
+    return c.json({ record, insights, stats: ceeFeedbackStore.getStats() });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/cee/memory', async (c) => {
+  const body = await c.req.json<{ type: string; content: any; tags: string[]; importance: number }>();
+  try {
+    const id = ceeMemoryBank.store({
+      type: body.type as any,
+      content: body.content,
+      tags: body.tags,
+      importance: body.importance,
+    });
+    return c.json({ id, stats: ceeMemoryBank.getStats() });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/cee/memory/search', (c) => {
+  const query = c.req.query('q') || '';
+  const type = c.req.query('type') || undefined;
+  return c.json({ results: ceeMemoryBank.search(query, type) });
+});
+
+app.post('/api/cee/orchestrate', async (c) => {
+  const body = await c.req.json<{ goal: string; params?: Record<string, any> }>();
+  try {
+    const result = await ceeOrchestrator.run(body.goal, body.params || {});
+    return c.json(result);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/cee/optimize', async (c) => {
+  const body = await c.req.json<{ lyrics: string; maxIterations?: number }>();
+  try {
+    const result = await ceeClosedLoop.evaluateAndOptimizeLyrics(body.lyrics, body.maxIterations || 3);
+    return c.json(result);
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }

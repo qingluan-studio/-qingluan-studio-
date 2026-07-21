@@ -219,6 +219,7 @@
   <div class="tab" data-panel="realistic">真人声</div>
   <div class="tab" data-panel="arranger">伴奏</div>
   <div class="tab" data-panel="lyrics">歌词</div>
+  <div class="tab" data-panel="cognitive">认知</div>
 </div>
 
 <div class="content">
@@ -642,6 +643,88 @@
     </div>
   </div>
 
+  <!-- 认知涌现引擎面板 -->
+  <div class="panel" id="cognitive">
+    <div class="card">
+      <h3>🧠 认知涌现引擎 (CEE)</h3>
+      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">T6不变量评估 · T1镜像生成 · 自学习 · 多智能体编排 · 记忆银行</p>
+
+      <div class="form-group">
+        <label>功能</label>
+        <select id="ceeMode" onchange="toggleCeeMode()">
+          <option value="evaluate">T6 质量评估</option>
+          <option value="optimize">认知闭环优化</option>
+          <option value="feedback">反馈学习</option>
+          <option value="orchestrate">多智能体编排</option>
+          <option value="status">系统状态</option>
+        </select>
+      </div>
+
+      <!-- 评估 -->
+      <div id="ceeEvaluate">
+        <div class="form-group">
+          <label>评估类型</label>
+          <select id="ceeEvalType">
+            <option value="lyrics">歌词</option>
+            <option value="melody">旋律</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>内容</label>
+          <textarea id="ceeEvalText" rows="4" placeholder="粘贴歌词或旋律音符(空格分隔)..."></textarea>
+        </div>
+        <button class="btn" onclick="ceeEvaluate()">📊 评估</button>
+      </div>
+
+      <!-- 优化 -->
+      <div id="ceeOptimize" style="display:none">
+        <div class="form-group">
+          <label>歌词</label>
+          <textarea id="ceeOptText" rows="4" placeholder="输入歌词进行认知闭环优化..."></textarea>
+        </div>
+        <button class="btn" onclick="ceeOptimize()">🔄 闭环优化</button>
+      </div>
+
+      <!-- 反馈 -->
+      <div id="ceeFeedback" style="display:none">
+        <div class="form-group">
+          <label>评分 (0-1)</label>
+          <input type="number" id="ceeScore" value="0.8" min="0" max="1" step="0.1">
+        </div>
+        <div class="form-group">
+          <label>留言</label>
+          <input type="text" id="ceeMsg" placeholder="可选反馈信息">
+        </div>
+        <div class="form-group">
+          <label>标签</label>
+          <input type="text" id="ceeTags" placeholder="逗号分隔，如: 歌词,中国风">
+        </div>
+        <button class="btn" onclick="ceeFeedback()">💬 提交反馈</button>
+      </div>
+
+      <!-- 编排 -->
+      <div id="ceeOrchestrate" style="display:none">
+        <div class="form-group">
+          <label>目标</label>
+          <select id="ceeGoal">
+            <option value="作曲旋律">作曲旋律</option>
+            <option value="人声合成">人声合成</option>
+            <option value="伴奏编曲">伴奏编曲</option>
+          </select>
+        </div>
+        <button class="btn" onclick="ceeOrchestrate()">🤖 智能编排</button>
+      </div>
+
+      <!-- 状态 -->
+      <div id="ceeStatus" style="display:none">
+        <button class="btn" onclick="ceeStatus()">📈 查看状态</button>
+      </div>
+
+      <div class="loading" id="ceeLoading"><span>认知引擎运行中...</span></div>
+      <pre class="result" id="ceeResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+    </div>
+  </div>
+
 </div>
 
 <div class="footer">青鸾数字音频工作站 v2.0 · 纯代码 · 零外部付费API</div>
@@ -1012,6 +1095,119 @@ async function generateLyrics() {
     }
   } catch (e) {
     result.textContent = '网络错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+// 认知引擎模式切换
+function toggleCeeMode() {
+  const mode = document.getElementById('ceeMode').value;
+  document.getElementById('ceeEvaluate').style.display = mode === 'evaluate' ? 'block' : 'none';
+  document.getElementById('ceeOptimize').style.display = mode === 'optimize' ? 'block' : 'none';
+  document.getElementById('ceeFeedback').style.display = mode === 'feedback' ? 'block' : 'none';
+  document.getElementById('ceeOrchestrate').style.display = mode === 'orchestrate' ? 'block' : 'none';
+  document.getElementById('ceeStatus').style.display = mode === 'status' ? 'block' : 'none';
+}
+
+async function ceeEvaluate() {
+  const loading = document.getElementById('ceeLoading');
+  const result = document.getElementById('ceeResult');
+  loading.classList.add('show');
+  result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/cee/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: document.getElementById('ceeEvalText').value,
+        type: document.getElementById('ceeEvalType').value,
+      }),
+    });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    floatNote();
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+async function ceeOptimize() {
+  const loading = document.getElementById('ceeLoading');
+  const result = document.getElementById('ceeResult');
+  loading.classList.add('show');
+  result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/cee/optimize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lyrics: document.getElementById('ceeOptText').value }),
+    });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    floatNote();
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+async function ceeFeedback() {
+  const loading = document.getElementById('ceeLoading');
+  const result = document.getElementById('ceeResult');
+  loading.classList.add('show');
+  result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/cee/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        score: parseFloat(document.getElementById('ceeScore').value),
+        message: document.getElementById('ceeMsg').value,
+        tags: document.getElementById('ceeTags').value.split(',').map(s => s.trim()).filter(Boolean),
+      }),
+    });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    floatNote();
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+async function ceeOrchestrate() {
+  const loading = document.getElementById('ceeLoading');
+  const result = document.getElementById('ceeResult');
+  loading.classList.add('show');
+  result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/cee/orchestrate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal: document.getElementById('ceeGoal').value }),
+    });
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    floatNote();
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+async function ceeStatus() {
+  const loading = document.getElementById('ceeLoading');
+  const result = document.getElementById('ceeResult');
+  loading.classList.add('show');
+  result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/cee/status`);
+    const data = await res.json();
+    result.textContent = JSON.stringify(data, null, 2);
+    floatNote();
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
   }
   loading.classList.remove('show');
 }
