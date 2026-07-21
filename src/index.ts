@@ -20,6 +20,7 @@ import AIComposerEngine from './composition/aiComposer.js';
 import * as VocalSynthesis from './synthesis/vocalSynthesis.js';
 import RealisticVoiceEngine, { WavExporter, getAllVowelsForVoice, createDefaultRenderConfig } from './synthesis/realisticVoice.js';
 import RealisticArrangerEngine, { exportArrangementToWav, StyleTemplates } from './composition/realisticArranger.js';
+import { generateLyrics, generateFoodLyrics, generateEmotionLyrics, generateCharacterLyrics, formatLyrics } from './composition/lyricGenerator.js';
 import * as AudioEffects from './effects/audioEffects.js';
 import * as Visualizer from './visualization/musicVisualizer.js';
 
@@ -249,6 +250,97 @@ app.post('/api/arranger/generate', async (c) => {
     return c.body(new Uint8Array(wav), 200, {
       'Content-Type': 'audio/wav',
       'Content-Disposition': `attachment; filename="${style}_${emotion}.wav"`,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ======== 模块2b: 智能歌词生成 API ========
+app.get('/api/lyrics/themes', (c) => {
+  return c.json({
+    themes: ['food','nature','city','season','love','farewell','dream'],
+    emotions: ['joy','sorrow','anger','fear','longing','loneliness','hope','nostalgia'],
+    perspectives: ['first','second','third'],
+    styles: ['modern','classical','poetic','narrative'],
+  });
+});
+
+app.post('/api/lyrics/generate', async (c) => {
+  const body = await c.req.json<{
+    theme?: string;
+    emotion?: string;
+    perspective?: string;
+    object?: string;
+    length?: number;
+    style?: string;
+    temperature?: number;
+  }>();
+  try {
+    const output = generateLyrics({
+      theme: body.theme,
+      emotion: body.emotion,
+      perspective: body.perspective,
+      object: body.object,
+      length: body.length || 4,
+      style: body.style || 'modern',
+      temperature: body.temperature ?? 0.7,
+    });
+    return c.json({
+      title: output.title,
+      sections: output.sections,
+      emotionFlow: output.emotionFlow,
+      formatted: formatLyrics(output),
+      stats: output.stats,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/lyrics/food', async (c) => {
+  const body = await c.req.json<{ food: string; emotion?: string; perspective?: string }>();
+  try {
+    const output = generateFoodLyrics(body.food, body.emotion, body.perspective);
+    return c.json({
+      title: output.title,
+      sections: output.sections,
+      formatted: formatLyrics(output),
+      stats: output.stats,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/lyrics/emotion', async (c) => {
+  const body = await c.req.json<{ emotion: string; perspective?: string }>();
+  try {
+    const output = generateEmotionLyrics(body.emotion, body.perspective);
+    return c.json({
+      title: output.title,
+      sections: output.sections,
+      formatted: formatLyrics(output),
+      stats: output.stats,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/lyrics/character', async (c) => {
+  const body = await c.req.json<{
+    character: string;
+    emotion: string;
+    perspective?: string;
+  }>();
+  try {
+    const output = generateCharacterLyrics(body.character, body.emotion, body.perspective || 'first');
+    return c.json({
+      title: output.title,
+      sections: output.sections,
+      formatted: formatLyrics(output),
+      stats: output.stats,
     });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);

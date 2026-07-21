@@ -218,6 +218,7 @@
   <div class="tab" data-panel="visual">可视化</div>
   <div class="tab" data-panel="realistic">真人声</div>
   <div class="tab" data-panel="arranger">伴奏</div>
+  <div class="tab" data-panel="lyrics">歌词</div>
 </div>
 
 <div class="content">
@@ -502,6 +503,142 @@
       <div class="loading" id="arrLoading"><span>多轨物理建模渲染中...</span></div>
       <div id="arrPlayer"></div>
       <div class="result" id="arrResult"></div>
+    </div>
+  </div>
+
+  <!-- 智能歌词面板 -->
+  <div class="panel" id="lyrics">
+    <div class="card">
+      <h3>📝 智能歌词生成</h3>
+      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">根据事物/食物/感情/人物情绪生成中文歌词 · 混沌选词 · 分形结构 · 马尔可夫情感流</p>
+
+      <div class="form-group">
+        <label>生成模式</label>
+        <select id="lyricMode" onchange="toggleLyricMode()">
+          <option value="general">通用创作</option>
+          <option value="food">食物主题</option>
+          <option value="emotion">情感主题</option>
+          <option value="character">人物叙事</option>
+        </select>
+      </div>
+
+      <!-- 通用模式 -->
+      <div id="lyricGeneral">
+        <div class="form-group">
+          <label>主题</label>
+          <select id="lyricTheme">
+            <option value="love">爱情</option>
+            <option value="nature">自然</option>
+            <option value="city">城市</option>
+            <option value="season">季节</option>
+            <option value="farewell">离别</option>
+            <option value="dream">梦境</option>
+            <option value="food">食物</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>情感</label>
+          <select id="lyricEmotion">
+            <option value="joy">欢喜</option>
+            <option value="sorrow">忧伤</option>
+            <option value="anger">愤怒</option>
+            <option value="fear">恐惧</option>
+            <option value="longing">思念</option>
+            <option value="loneliness">孤独</option>
+            <option value="hope">希望</option>
+            <option value="nostalgia">怀旧</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>人物视角</label>
+          <select id="lyricPersp">
+            <option value="first">第一人称（我）</option>
+            <option value="second">第二人称（你）</option>
+            <option value="third">第三人称（他/她）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>具体事物（可选）</label>
+          <input type="text" id="lyricObject" placeholder="如：火锅、樱花、地铁站">
+        </div>
+      </div>
+
+      <!-- 食物模式 -->
+      <div id="lyricFood" style="display:none">
+        <div class="form-group">
+          <label>食物名称</label>
+          <input type="text" id="lyricFoodName" value="火锅" placeholder="如：火锅、小笼包、月饼">
+        </div>
+        <div class="form-group">
+          <label>情感</label>
+          <select id="lyricFoodEmotion">
+            <option value="nostalgia">怀旧</option>
+            <option value="joy">欢喜</option>
+            <option value="sorrow">忧伤</option>
+            <option value="longing">思念</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 情感模式 -->
+      <div id="lyricEmotionDiv" style="display:none">
+        <div class="form-group">
+          <label>核心情感</label>
+          <select id="lyricEmoCore">
+            <option value="joy">欢喜</option>
+            <option value="sorrow">忧伤</option>
+            <option value="anger">愤怒</option>
+            <option value="fear">恐惧</option>
+            <option value="longing">思念</option>
+            <option value="loneliness">孤独</option>
+            <option value="hope">希望</option>
+            <option value="nostalgia">怀旧</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 人物模式 -->
+      <div id="lyricCharacter" style="display:none">
+        <div class="form-group">
+          <label>人物描述</label>
+          <input type="text" id="lyricCharDesc" value="独行的旅人" placeholder="如：独行的旅人、老街的裁缝">
+        </div>
+        <div class="form-group">
+          <label>人物情感</label>
+          <select id="lyricCharEmo">
+            <option value="longing">思念</option>
+            <option value="loneliness">孤独</option>
+            <option value="joy">欢喜</option>
+            <option value="sorrow">忧伤</option>
+            <option value="hope">希望</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>叙述视角</label>
+          <select id="lyricCharPersp">
+            <option value="first">第一人称</option>
+            <option value="second">第二人称</option>
+            <option value="third">第三人称</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>风格</label>
+        <select id="lyricStyle">
+          <option value="modern">现代</option>
+          <option value="classical">古典</option>
+          <option value="poetic">诗意</option>
+          <option value="narrative">叙事</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>段落数</label>
+        <input type="number" id="lyricLength" value="4" min="2" max="8">
+      </div>
+      <button class="btn" onclick="generateLyrics()">✨ 生成歌词</button>
+      <div class="loading" id="lyricLoading"><span>AI 作词中...</span></div>
+      <pre class="result" id="lyricResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
     </div>
   </div>
 
@@ -805,6 +942,76 @@ async function generateArranger() {
     floatNote();
   } catch (e) {
     result.textContent = '错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+// 歌词生成模式切换
+function toggleLyricMode() {
+  const mode = document.getElementById('lyricMode').value;
+  document.getElementById('lyricGeneral').style.display = mode === 'general' ? 'block' : 'none';
+  document.getElementById('lyricFood').style.display = mode === 'food' ? 'block' : 'none';
+  document.getElementById('lyricEmotionDiv').style.display = mode === 'emotion' ? 'block' : 'none';
+  document.getElementById('lyricCharacter').style.display = mode === 'character' ? 'block' : 'none';
+}
+
+// 歌词生成
+async function generateLyrics() {
+  const loading = document.getElementById('lyricLoading');
+  const result = document.getElementById('lyricResult');
+  loading.classList.add('show');
+  result.textContent = '';
+
+  const mode = document.getElementById('lyricMode').value;
+  let endpoint = '/api/lyrics/generate';
+  let body = {};
+
+  try {
+    if (mode === 'general') {
+      body = {
+        theme: document.getElementById('lyricTheme').value,
+        emotion: document.getElementById('lyricEmotion').value,
+        perspective: document.getElementById('lyricPersp').value,
+        object: document.getElementById('lyricObject').value || undefined,
+        length: parseInt(document.getElementById('lyricLength').value),
+        style: document.getElementById('lyricStyle').value,
+      };
+    } else if (mode === 'food') {
+      endpoint = '/api/lyrics/food';
+      body = {
+        food: document.getElementById('lyricFoodName').value,
+        emotion: document.getElementById('lyricFoodEmotion').value,
+        perspective: document.getElementById('lyricPersp')?.value || 'first',
+      };
+    } else if (mode === 'emotion') {
+      endpoint = '/api/lyrics/emotion';
+      body = {
+        emotion: document.getElementById('lyricEmoCore').value,
+        perspective: document.getElementById('lyricPersp')?.value || 'first',
+      };
+    } else if (mode === 'character') {
+      endpoint = '/api/lyrics/character';
+      body = {
+        character: document.getElementById('lyricCharDesc').value,
+        emotion: document.getElementById('lyricCharEmo').value,
+        perspective: document.getElementById('lyricCharPersp').value,
+      };
+    }
+
+    const res = await fetch(`${API}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) {
+      result.textContent = '错误: ' + data.error;
+    } else {
+      result.textContent = data.formatted;
+      floatNote();
+    }
+  } catch (e) {
+    result.textContent = '网络错误: ' + e.message;
   }
   loading.classList.remove('show');
 }
