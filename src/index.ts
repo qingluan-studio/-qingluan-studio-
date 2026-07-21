@@ -39,6 +39,10 @@ import {
 } from './synthesis/flawlessSynthesizer.js';
 import * as AudioEffects from './effects/audioEffects.js';
 import * as Visualizer from './visualization/musicVisualizer.js';
+import {
+  CognitiveEmergenceMusicEngine,
+  emergenceToPlayable,
+} from './engines/emergenceMusic.js';
 
 const app = new Hono();
 
@@ -65,7 +69,7 @@ app.get('/api/health', (c) => {
     status: 'ok',
     name: '青鸾数字音频工作站',
     version: '2.0.0',
-    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization'],
+    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic'],
   });
 });
 
@@ -913,6 +917,84 @@ function generatePlaceholderLyrics(count: number): string[] {
   const pool = ['啦', '啊', '哦', '嗯', '咪', '呜', '咿', '呀', '哈', '嘿'];
   return Array.from({ length: count }, () => pool[Math.floor(Math.random() * pool.length)]);
 }
+
+// ======== 模块6: 认知涌现音乐引擎 API ========
+const emergenceEngine = new CognitiveEmergenceMusicEngine();
+
+app.post('/api/emergence/compose', async (c) => {
+  const body = await c.req.json<{
+    style?: string;
+    key?: string;
+    bpm?: number;
+    barCount?: number;
+    emotion?: string;
+    intensity?: number;
+    seed?: number;
+  }>();
+  try {
+    const result = await emergenceEngine.compose({
+      style: body.style,
+      key: body.key,
+      bpm: body.bpm,
+      barCount: body.barCount,
+      emotion: body.emotion,
+      intensity: body.intensity,
+      seed: body.seed,
+    });
+    return c.json({
+      sessionId: result.sessionId,
+      melody: result.melody,
+      durations: result.durations,
+      scores: result.scores,
+      swarmAnalysis: result.swarmAnalysis,
+      eisbach: result.eisbachState,
+      capsuleId: result.capsuleId,
+      abilityVersion: result.abilityVersion,
+      playable: emergenceToPlayable(result),
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/emergence/loop', async (c) => {
+  const body = await c.req.json<{
+    style?: string;
+    key?: string;
+    bpm?: number;
+    barCount?: number;
+    maxIterations?: number;
+    threshold?: number;
+  }>();
+  try {
+    const results = await emergenceEngine.composeWithClosedLoop(
+      { style: body.style, key: body.key, bpm: body.bpm, barCount: body.barCount },
+      body.maxIterations || 5,
+      body.threshold || 0.65
+    );
+    return c.json({
+      iterations: results.length,
+      bestScore: Math.max(...results.map(r => r.scores.overall)),
+      finalResult: results[results.length - 1],
+      allResults: results.map(r => ({
+        sessionId: r.sessionId,
+        scores: r.scores,
+        swarmAnalysis: r.swarmAnalysis,
+        capsuleId: r.capsuleId,
+      })),
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/emergence/ability', (c) => {
+  return c.json(emergenceEngine.getAbilityMatrix());
+});
+
+app.get('/api/emergence/capsules', (c) => {
+  return c.json({ capsules: emergenceEngine.getCapsules() });
+});
 
 // ======== 启动服务 ========
 const PORT = Number(process.env.PORT) || 3220;
