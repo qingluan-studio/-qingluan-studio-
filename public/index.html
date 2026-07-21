@@ -207,7 +207,7 @@
 
 <div class="header">
   <h1>⬡ 青鸾 DAW ⬡</h1>
-  <p>AI作曲 · 歌声合成 · 效果器 · 可视化 · 手机版</p>
+  <p>AI作曲 · 真人声 · 伴奏 · 效果器 · 可视化 · 手机版</p>
 </div>
 
 <div class="tabs">
@@ -217,6 +217,7 @@
   <div class="tab" data-panel="effects">效果器</div>
   <div class="tab" data-panel="visual">可视化</div>
   <div class="tab" data-panel="realistic">真人声</div>
+  <div class="tab" data-panel="arranger">伴奏</div>
 </div>
 
 <div class="content">
@@ -446,6 +447,61 @@
       <button class="btn" onclick="synthesizeJianpu()">🎵 简谱合成</button>
       <div class="loading" id="rvJianpuLoading"><span>中国乐谱解析中...</span></div>
       <div id="rvJianpuPlayer"></div>
+    </div>
+  </div>
+
+  <!-- 真人级伴奏面板 -->
+  <div class="panel" id="arranger">
+    <div class="card">
+      <h3>🎹 真人级伴奏生成</h3>
+      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">物理建模乐器 · 中国民乐 · 人性化演奏 · 非传统技术</p>
+      <div class="form-group">
+        <label>风格</label>
+        <select id="arrStyle">
+          <option value="pop">流行 Pop</option>
+          <option value="rock">摇滚 Rock</option>
+          <option value="jazz">爵士 Jazz</option>
+          <option value="electronic">电子 Electronic</option>
+          <option value="classical">古典 Classical</option>
+          <option value="folk">民谣 Folk</option>
+          <option value="chinese" selected>中国风 Chinese</option>
+          <option value="rnb">R&B</option>
+          <option value="metal">金属 Metal</option>
+          <option value="blues">布鲁斯 Blues</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>调性</label>
+        <select id="arrKey">
+          <option value="C">C大调</option>
+          <option value="Am">A小调</option>
+          <option value="G" selected>G大调</option>
+          <option value="Em">E小调</option>
+          <option value="F">F大调</option>
+          <option value="Dm">D小调</option>
+          <option value="D">D大调</option>
+          <option value="Bm">B小调</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>情绪</label>
+        <select id="arrEmotion">
+          <option value="happy">欢快</option>
+          <option value="sad">忧伤</option>
+          <option value="tense">紧张</option>
+          <option value="relaxed">放松</option>
+          <option value="epic">史诗</option>
+          <option value="romantic" selected>浪漫</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>BPM</label>
+        <input type="number" id="arrBpm" value="90" min="40" max="240">
+      </div>
+      <button class="btn" onclick="generateArranger()">🎼 生成伴奏</button>
+      <div class="loading" id="arrLoading"><span>多轨物理建模渲染中...</span></div>
+      <div id="arrPlayer"></div>
+      <div class="result" id="arrResult"></div>
     </div>
   </div>
 
@@ -718,6 +774,37 @@ async function synthesizeJianpu() {
     floatNote();
   } catch (e) {
     player.innerHTML = '<p style="color:#ff5555;font-size:11px;">错误: ' + e.message + '</p>';
+  }
+  loading.classList.remove('show');
+}
+
+// 真人级伴奏生成
+async function generateArranger() {
+  const loading = document.getElementById('arrLoading');
+  const player = document.getElementById('arrPlayer');
+  const result = document.getElementById('arrResult');
+  loading.classList.add('show');
+  player.innerHTML = '';
+  result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/arranger/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        style: document.getElementById('arrStyle').value,
+        key: document.getElementById('arrKey').value,
+        emotion: document.getElementById('arrEmotion').value,
+        bpm: parseInt(document.getElementById('arrBpm').value),
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}"></audio>`;
+    result.textContent = `✓ 伴奏生成成功！\n风格: ${document.getElementById('arrStyle').value}\n调性: ${document.getElementById('arrKey').value}\n情绪: ${document.getElementById('arrEmotion').value}\nBPM: ${document.getElementById('arrBpm').value}\n大小: ${(blob.size / 1024 / 1024).toFixed(2)} MB`;
+    floatNote();
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
   }
   loading.classList.remove('show');
 }

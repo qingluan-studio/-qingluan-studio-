@@ -19,6 +19,7 @@ import MusicTheoryEngine from './engines/musicTheory.js';
 import AIComposerEngine from './composition/aiComposer.js';
 import * as VocalSynthesis from './synthesis/vocalSynthesis.js';
 import RealisticVoiceEngine, { WavExporter, getAllVowelsForVoice, createDefaultRenderConfig } from './synthesis/realisticVoice.js';
+import RealisticArrangerEngine, { exportArrangementToWav, StyleTemplates } from './composition/realisticArranger.js';
 import * as AudioEffects from './effects/audioEffects.js';
 import * as Visualizer from './visualization/musicVisualizer.js';
 
@@ -188,6 +189,70 @@ app.post('/api/composer/arrange', async (c) => {
 
 app.get('/api/composer/styles', (c) => {
   return c.json((AIComposerEngine as any).stylePresets || {});
+});
+
+// ======== 模块2b: 真人级伴奏 API ========
+app.get('/api/arranger/instruments', (c) => {
+  return c.json({
+    western: ['piano', 'acousticGuitar', 'electricGuitar', 'bass', 'drumKit', 'violin', 'cello', 'flute', 'saxophone', 'synth'],
+    chinese: ['guzheng', 'erhu', 'pipa', 'dizi', 'xiao', 'luoGu', 'yangQin', 'suoNa'],
+  });
+});
+
+app.get('/api/arranger/styles', (c) => {
+  return c.json({
+    styles: ['pop', 'rock', 'jazz', 'electronic', 'classical', 'folk', 'chinese', 'rnb', 'metal', 'blues'],
+    emotions: ['happy', 'sad', 'tense', 'relaxed', 'epic', 'romantic'],
+  });
+});
+
+app.post('/api/arranger/generate', async (c) => {
+  const body = await c.req.json<{
+    key?: string;
+    bpm?: number;
+    style?: string;
+    emotion?: string;
+    sections?: number;
+    sampleRate?: number;
+  }>();
+  try {
+    const engine = new RealisticArrangerEngine();
+    const style = (body.style || 'pop') as any;
+    const emotion = (body.emotion || 'happy') as any;
+    const bpm = body.bpm || 120;
+    const sections = body.sections || 4;
+
+    // 自动生成段落结构
+    const sectionTypes = ['intro', 'verse', 'chorus', 'outro'];
+    const sectionBars = [4, 8, 8, 4];
+    const arrangementSections = [];
+    for (let i = 0; i < Math.min(sections, 4); i++) {
+      arrangementSections.push({
+        type: sectionTypes[i],
+        bars: sectionBars[i],
+        chordProgression: [],
+      });
+    }
+
+    const input = {
+      key: body.key || 'C',
+      bpm,
+      style,
+      emotion,
+      sections: arrangementSections as any,
+      totalDuration: arrangementSections.reduce((s, sec) => s + sec.bars * (60 / bpm) * 4, 0),
+    };
+
+    const output = engine.generate(input as any);
+    const wav = exportArrangementToWav(output);
+
+    return c.body(new Uint8Array(wav), 200, {
+      'Content-Type': 'audio/wav',
+      'Content-Disposition': `attachment; filename="${style}_${emotion}.wav"`,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
 });
 
 // ======== 模块3: 歌声合成 API ========
