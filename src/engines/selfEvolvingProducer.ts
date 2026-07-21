@@ -26,6 +26,11 @@ import {
   MasteringChain,
   MasteringResult,
 } from './masteringChain.js';
+import {
+  ConvolutionReverb,
+  Delay,
+  ReverbType,
+} from '../effects/audioEffects.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
@@ -209,6 +214,93 @@ function enhanceWidth(buf: Float32Array, width = 0.3): Float32Array {
     out[i] = dry + wet;
   }
   return normalizeBuffer(out, 0.95) as Float32Array;
+}
+
+/** 录棚级空间效果：卷积混响 + 延迟 */
+function applySpatialEffects(
+  buf: Float32Array,
+  style: string,
+  sr: number
+): Float32Array {
+  // 根据风格选择混响类型和参数
+  let reverbType = ReverbType.Room;
+  let rt60 = 1.2;
+  let wetLevel = 0.2;
+  let delayMs = 280;
+  let feedback = 0.35;
+
+  switch (style) {
+    case 'classical':
+    case 'chinese':
+      reverbType = ReverbType.Hall;
+      rt60 = 2.2;
+      wetLevel = 0.3;
+      delayMs = 350;
+      feedback = 0.25;
+      break;
+    case 'rock':
+    case 'metal':
+      reverbType = ReverbType.Plate;
+      rt60 = 1.0;
+      wetLevel = 0.15;
+      delayMs = 180;
+      feedback = 0.3;
+      break;
+    case 'jazz':
+      reverbType = ReverbType.Room;
+      rt60 = 1.4;
+      wetLevel = 0.22;
+      delayMs = 320;
+      feedback = 0.28;
+      break;
+    case 'electronic':
+      reverbType = ReverbType.Tunnel;
+      rt60 = 1.8;
+      wetLevel = 0.28;
+      delayMs = 240;
+      feedback = 0.45;
+      break;
+    case 'folk':
+      reverbType = ReverbType.Room;
+      rt60 = 0.8;
+      wetLevel = 0.12;
+      delayMs = 200;
+      feedback = 0.2;
+      break;
+    default:
+      // pop / rnb / default
+      reverbType = ReverbType.Room;
+      rt60 = 1.2;
+      wetLevel = 0.2;
+      delayMs = 280;
+      feedback = 0.35;
+  }
+
+  // 1. 卷积混响
+  const reverb = new ConvolutionReverb(
+    { reverbType, rt60, wetLevel, dryLevel: 1 - wetLevel, preDelayMs: 20 },
+    sr
+  );
+  const reverbed = new Float32Array(buf.length) as Float32Array;
+  reverb.processBlock(buf, reverbed);
+
+  // 2. 延迟效果（为旋律添加空间深度）
+  const delay = new Delay({ delayMs, feedback, mix: 0.25, type: 'stereo' }, sr);
+  const delayed = new Float32Array(buf.length) as Float32Array;
+  for (let i = 0; i < buf.length; i++) {
+    delayed[i] = delay.processSample(reverbed[i]);
+  }
+
+  // 3. 轻微高频衰减模拟空气吸收（一阶低通）
+  const airAbsorb = new Float32Array(buf.length) as Float32Array;
+  let s = delayed[0];
+  const alpha = 0.15; // ~5kHz 柔和衰减
+  for (let i = 0; i < buf.length; i++) {
+    s += alpha * (delayed[i] - s);
+    airAbsorb[i] = s;
+  }
+
+  return normalizeBuffer(airAbsorb, 0.95) as Float32Array;
 }
 
 function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
@@ -442,6 +534,11 @@ export class SelfEvolvingMusicProducer {
         mixedPCM = brickwallLimiter(mixedPCM, 0.97, 128);
         mixedPCM = enhanceWidth(mixedPCM, 0.25);
         this.log(`混音完成: Peak=${calculatePeak(mixedPCM).toFixed(3)} RMS=${calculateRMS(mixedPCM).toFixed(3)}`);
+
+        // Step 4.5: 录棚级空间效果 (卷积混响 + 延迟 + 空气吸收)
+        this.log(`Step 4.5: 空间效果 (卷积混响 + 延迟) 风格=${currentParams.style || 'pop'}`);
+        mixedPCM = applySpatialEffects(mixedPCM, currentParams.style || 'pop', this.sampleRate);
+        this.log(`空间处理完成: Peak=${calculatePeak(mixedPCM).toFixed(3)} RMS=${calculateRMS(mixedPCM).toFixed(3)}`);
 
         // Step 5: 自我诊断
         this.log('Step 5: 自我诊断 (FlawDetector + 动态分析)');
