@@ -652,6 +652,10 @@
         <div class="icon">🌌</div>
         <span>涌现</span>
       </div>
+      <div class="quick-btn" onclick="addFuncCard('produce')">
+        <div class="icon">🚀</div>
+        <span>产音乐</span>
+      </div>
     </div>
   </div>
 
@@ -685,6 +689,7 @@
       <div class="studio-tab" data-sp="s-cognitive">认知</div>
       <div class="studio-tab" data-sp="s-flawless">无瑕疵</div>
       <div class="studio-tab" data-sp="s-emergence">涌现</div>
+      <div class="studio-tab" data-sp="s-produce">产音乐</div>
     </div>
     <div class="studio-body">
 
@@ -916,6 +921,27 @@
           <button class="s-btn" onclick="getAbilityMatrix()" style="background:rgba(91,77,255,0.1);color:var(--accent);">查看能力矩阵</button>
           <button class="s-btn" onclick="getCapsules()" style="background:rgba(91,77,255,0.1);color:var(--accent);margin-top:8px;">查看知识胶囊</button>
           <pre class="s-result" id="emAbilityResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+      </div>
+
+      <!-- 产音乐 -->
+      <div class="studio-panel" id="s-produce">
+        <div class="s-card">
+          <h3>🚀 自我进化音乐生产线</h3>
+          <div class="s-form"><label>风格</label><select id="prodStyle"><option value="pop">流行 Pop</option><option value="chinese">中国风</option><option value="rock">摇滚 Rock</option><option value="jazz">爵士 Jazz</option><option value="classical">古典 Classical</option></select></div>
+          <div class="s-form"><label>调性</label><select id="prodKey"><option value="C">C大调</option><option value="G">G大调</option><option value="Am">A小调</option><option value="F">F大调</option><option value="D">D大调</option></select></div>
+          <div class="s-form"><label>情绪</label><select id="prodEmotion"><option value="happy">欢快</option><option value="sad">忧伤</option><option value="romantic">浪漫</option><option value="tense">紧张</option><option value="epic">史诗</option></select></div>
+          <div class="s-form"><label>小节数</label><input type="number" id="prodBars" value="8" min="4" max="16"></div>
+          <div class="s-form"><label>最大尝试</label><select id="prodAttempts"><option value="1">1次</option><option value="2">2次</option><option value="3" selected>3次</option><option value="5">5次</option></select></div>
+          <button class="s-btn" onclick="generateProduce()">🚀 一键产音乐</button>
+          <div class="s-loading" id="prodLoading"><span>作曲 → 编曲 → 渲染 → 混音 → 诊断 → 修复 ...</span></div>
+          <div id="prodPlayer"></div>
+          <pre class="s-result" id="prodResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+        <div class="s-card">
+          <h3>📈 生产线状态</h3>
+          <button class="s-btn" onclick="getProduceStatus()" style="background:rgba(91,77,255,0.1);color:var(--accent);">查看进化状态</button>
+          <pre class="s-result" id="prodStatusResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
         </div>
       </div>
 
@@ -1161,6 +1187,16 @@ function addFuncCard(type) {
       <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardEmergence('${cid}')">涌现</button></div>
       <div class="result-mini" id="${cid}_res"></div>
     </div>`;
+  } else if (type === 'produce') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>🚀 一键产音乐</h4>
+      <div class="form-row"><label>风格</label><select id="${cid}_style"><option>pop</option><option>chinese</option><option>rock</option><option>jazz</option></select></div>
+      <div class="form-row"><label>调性</label><select id="${cid}_key"><option>C</option><option>G</option><option>Am</option><option>F</option></select></div>
+      <div class="form-row"><label>情绪</label><select id="${cid}_emo"><option>happy</option><option>sad</option><option>romantic</option><option>tense</option></select></div>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardProduce('${cid}')">产音乐</button></div>
+      <div id="${cid}_player"></div>
+      <div class="result-mini" id="${cid}_res"></div>
+    </div>`;
   }
   addMessage('ai', '', 'func-card', html);
 }
@@ -1325,6 +1361,28 @@ async function runCardEmergence(cid) {
     } else {
       res.textContent = `🌌 涌现作曲完成\nT6: ${d.scores?.overall?.toFixed?.(3) || d.scores?.overall}\nSwarm聚类: ${d.swarmAnalysis?.clusteringCoeff?.toFixed?.(3)}\nEisbach自信度: ${d.eisbach?.confidence?.toFixed?.(3)}\n胶囊: ${d.capsuleId?.slice(0,8)}...\n旋律: ${d.melody?.slice(0,12).join(' ')}${d.melody?.length>12?'...':''}`;
     }
+  } catch(e){ res.textContent = '错误: '+e.message; }
+}
+async function runCardProduce(cid) {
+  const style = document.getElementById(cid+'_style').value;
+  const key = document.getElementById(cid+'_key').value;
+  const emotion = document.getElementById(cid+'_emo').value;
+  const res = document.getElementById(cid+'_res');
+  const player = document.getElementById(cid+'_player');
+  res.textContent = '🚀 自我进化生产线启动...';
+  player.innerHTML = '';
+  try {
+    const r = await fetch(`${API}/api/produce`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ style, key, emotion, barCount: 8, bpm: 120, maxAttempts: 3 })
+    });
+    const d = await r.json();
+    if (d.error) { res.textContent = '错误: ' + d.error; return; }
+    const wav = Uint8Array.from(atob(d.wavBase64), c => c.charCodeAt(0));
+    const blob = new Blob([wav], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+    res.textContent = `🚀 产音乐完成！\n尝试: ${d.attempt} 次 | 修复: ${d.fixed ? '是' : '否'} | 进化: ${d.evolved ? '是' : '否'}\nT6: ${d.composition?.scores?.overall?.toFixed?.(3)}\n诊断: ${d.diagnosis?.healthy ? '健康' : d.diagnosis?.severity}\n问题: ${d.diagnosis?.issues?.join(', ') || '无'}\n日志:\n${d.productionLog?.slice(0,6).join('\n')}`;
   } catch(e){ res.textContent = '错误: '+e.message; }
 }
 
@@ -1688,6 +1746,41 @@ async function getCapsules() {
   const result = document.getElementById('emAbilityResult');
   try {
     const res = await fetch(`${API}/api/emergence/capsules`);
+    const d = await res.json();
+    result.textContent = JSON.stringify(d, null, 2).slice(0, 1200);
+  } catch(e){ result.textContent = '错误: '+e.message; }
+}
+async function generateProduce() {
+  const loading = document.getElementById('prodLoading');
+  const result = document.getElementById('prodResult');
+  const player = document.getElementById('prodPlayer');
+  loading.classList.add('show'); result.textContent = ''; player.innerHTML = '';
+  const style = document.getElementById('prodStyle').value;
+  const key = document.getElementById('prodKey').value;
+  const emotion = document.getElementById('prodEmotion').value;
+  const bars = parseInt(document.getElementById('prodBars').value);
+  const attempts = parseInt(document.getElementById('prodAttempts').value);
+  try {
+    const res = await fetch(`${API}/api/produce`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ style, key, emotion, barCount: bars, bpm: 120, maxAttempts: attempts })
+    });
+    const d = await res.json();
+    if (d.error) { result.textContent = '错误: ' + d.error; }
+    else {
+      const wav = Uint8Array.from(atob(d.wavBase64), c => c.charCodeAt(0));
+      const blob = new Blob([wav], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+      result.textContent = `🚀 产音乐完成！\n尝试: ${d.attempt} 次 | 修复: ${d.fixed ? '是' : '否'} | 进化: ${d.evolved ? '是' : '否'}\nT6: ${d.composition?.scores?.overall?.toFixed?.(3)}\n诊断: ${d.diagnosis?.healthy ? '健康' : d.diagnosis?.severity}\n问题: ${d.diagnosis?.issues?.join(', ') || '无'}\n日志:\n${d.productionLog?.slice(0,8).join('\n')}`;
+    }
+  } catch(e){ result.textContent = '错误: '+e.message; }
+  loading.classList.remove('show');
+}
+async function getProduceStatus() {
+  const result = document.getElementById('prodStatusResult');
+  try {
+    const res = await fetch(`${API}/api/produce/status`);
     const d = await res.json();
     result.textContent = JSON.stringify(d, null, 2).slice(0, 1200);
   } catch(e){ result.textContent = '错误: '+e.message; }

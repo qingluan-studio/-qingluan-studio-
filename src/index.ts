@@ -43,6 +43,10 @@ import {
   CognitiveEmergenceMusicEngine,
   emergenceToPlayable,
 } from './engines/emergenceMusic.js';
+import {
+  SelfEvolvingMusicProducer,
+  ProductionParams,
+} from './engines/selfEvolvingProducer.js';
 
 const app = new Hono();
 
@@ -69,7 +73,7 @@ app.get('/api/health', (c) => {
     status: 'ok',
     name: '青鸾数字音频工作站',
     version: '2.0.0',
-    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic'],
+    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer'],
   });
 });
 
@@ -994,6 +998,60 @@ app.get('/api/emergence/ability', (c) => {
 
 app.get('/api/emergence/capsules', (c) => {
   return c.json({ capsules: emergenceEngine.getCapsules() });
+});
+
+// ======== 模块7: 自我进化音乐生产线 API ========
+const producer = new SelfEvolvingMusicProducer();
+
+app.post('/api/produce', async (c) => {
+  const body = await c.req.json<{
+    style?: string;
+    key?: string;
+    bpm?: number;
+    barCount?: number;
+    emotion?: string;
+    intensity?: number;
+    seed?: number;
+    waveform?: string;
+    maxAttempts?: number;
+  }>();
+  try {
+    const result = await producer.produce({
+      style: body.style,
+      key: body.key,
+      bpm: body.bpm,
+      barCount: body.barCount,
+      emotion: body.emotion,
+      intensity: body.intensity,
+      seed: body.seed,
+      waveform: body.waveform,
+      maxAttempts: body.maxAttempts || 3,
+    });
+
+    const wavBlob = new Blob([result.wav], { type: 'audio/wav' });
+
+    return c.json({
+      wavSize: wavBlob.size,
+      diagnosis: result.diagnosis,
+      composition: {
+        sessionId: result.composition.sessionId,
+        melody: result.composition.melody.slice(0, 24),
+        scores: result.composition.scores,
+      },
+      attempt: result.attempt,
+      fixed: result.fixed,
+      evolved: result.evolved,
+      failed: result.failed,
+      productionLog: result.productionLog,
+      wavBase64: Buffer.from(result.wav).toString('base64'),
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/produce/status', (c) => {
+  return c.json(producer.getEvolutionReport());
 });
 
 // ======== 启动服务 ========
