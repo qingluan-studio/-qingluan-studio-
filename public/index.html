@@ -216,6 +216,7 @@
   <div class="tab" data-panel="synth">歌声</div>
   <div class="tab" data-panel="effects">效果器</div>
   <div class="tab" data-panel="visual">可视化</div>
+  <div class="tab" data-panel="realistic">真人声</div>
 </div>
 
 <div class="content">
@@ -393,12 +394,67 @@
     </div>
   </div>
 
+  <!-- 真人级人声面板 -->
+  <div class="panel" id="realistic">
+    <div class="card">
+      <h3>🎙️ 真人级人声合成</h3>
+      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">基于真实声学数据 | 混沌基频 | 分形噪声 | 物理建模</p>
+      <div class="form-group">
+        <label>性别/声道</label>
+        <select id="rvGender">
+          <option value="female">女声</option>
+          <option value="male">男声</option>
+          <option value="child">童声</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>音色</label>
+        <select id="rvTimbre">
+          <option value="warm">温暖</option>
+          <option value="bright">明亮</option>
+          <option value="hoarse">沙哑</option>
+          <option value="ethereal">空灵</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>歌词（每个字对应一个音符）</label>
+        <input type="text" id="rvLyrics" value="啦 啦 啦 啦" placeholder="如：啦 啦 啦 啦">
+      </div>
+      <div class="form-group">
+        <label>音符（空格分隔）</label>
+        <input type="text" id="rvNotes" value="C4 E4 G4 C5" placeholder="如：C4 E4 G4 C5">
+      </div>
+      <div class="form-group">
+        <label>时长（空格分隔，秒）</label>
+        <input type="text" id="rvDurations" value="0.5 0.5 0.5 0.5" placeholder="如：0.5 0.5 0.5 0.5">
+      </div>
+      <button class="btn" onclick="synthesizeRealistic()">🎙️ 合成真人声</button>
+      <div class="loading" id="rvLoading"><span>物理建模声波生成中...</span></div>
+      <div id="rvPlayer"></div>
+    </div>
+
+    <div class="card">
+      <h3>🎵 简谱合成</h3>
+      <div class="form-group">
+        <label>简谱</label>
+        <input type="text" id="rvJianpu" value="1 2 3 1 | 5 6 5 - |" placeholder="如：1 2 3 1 | 5 6 5 - |">
+      </div>
+      <div class="form-group">
+        <label>歌词（空格分隔）</label>
+        <input type="text" id="rvJianpuLyrics" value="啦 啦 啦 啦 啦 啦 啦 啦" placeholder="如：啦 啦 啦 啦">
+      </div>
+      <button class="btn" onclick="synthesizeJianpu()">🎵 简谱合成</button>
+      <div class="loading" id="rvJianpuLoading"><span>中国乐谱解析中...</span></div>
+      <div id="rvJianpuPlayer"></div>
+    </div>
+  </div>
+
 </div>
 
 <div class="footer">青鸾数字音频工作站 v2.0 · 纯代码 · 零外部付费API</div>
 
 <script>
-const API = 'http://localhost:3220';
+const API = 'http://localhost:3221';
 
 // 标签页切换
 document.querySelectorAll('.tab').forEach(t => {
@@ -608,6 +664,62 @@ function floatNote() {
   el.style.bottom = '80px';
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 1500);
+}
+
+// 真人级人声合成
+async function synthesizeRealistic() {
+  const loading = document.getElementById('rvLoading');
+  const player = document.getElementById('rvPlayer');
+  loading.classList.add('show');
+  player.innerHTML = '';
+  try {
+    const res = await fetch(`${API}/api/synth/realistic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gender: document.getElementById('rvGender').value,
+        timbre: document.getElementById('rvTimbre').value,
+        text: document.getElementById('rvLyrics').value.split(/\s+/),
+        notes: document.getElementById('rvNotes').value.split(/\s+/),
+        durations: document.getElementById('rvDurations').value.split(/\s+/).map(parseFloat),
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}"></audio>`;
+    floatNote();
+  } catch (e) {
+    player.innerHTML = '<p style="color:#ff5555;font-size:11px;">错误: ' + e.message + '</p>';
+  }
+  loading.classList.remove('show');
+}
+
+async function synthesizeJianpu() {
+  const loading = document.getElementById('rvJianpuLoading');
+  const player = document.getElementById('rvJianpuPlayer');
+  loading.classList.add('show');
+  player.innerHTML = '';
+  try {
+    const res = await fetch(`${API}/api/synth/jianpu`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gender: document.getElementById('rvGender').value,
+        timbre: document.getElementById('rvTimbre').value,
+        jianpu: document.getElementById('rvJianpu').value,
+        lyrics: document.getElementById('rvJianpuLyrics').value.split(/\s+/),
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}"></audio>`;
+    floatNote();
+  } catch (e) {
+    player.innerHTML = '<p style="color:#ff5555;font-size:11px;">错误: ' + e.message + '</p>';
+  }
+  loading.classList.remove('show');
 }
 
 // 启动时显示健康状态
