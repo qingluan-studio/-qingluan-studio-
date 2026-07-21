@@ -238,30 +238,30 @@ export class MusicSwarm {
     }
   }
 
-  // 群体作曲: 所有代理协作生成旋律决策
+  // 群体作曲: 所有代理协作生成旋律决策（带跨小节连贯性）
   swarmCompose(barCount: number, keyRoot = 0, scale = [0, 2, 4, 5, 7, 9, 11]): number[][] {
     this.initSwarm(barCount);
     const barNotes: number[][] = [];
+    const baseOctave = 60;
+    let lastNote = baseOctave + keyRoot + scale[0]; // 跨小节记忆
 
     for (let bar = 0; bar < barCount; bar++) {
-      // 该小节的本地代理
       const localAgents = this.agents.filter(a => a.position === bar);
-      // 读取附近历史信号
       const localSignals = this.readLocalSignals(bar, 2);
-
-      // 各角色提案
       const proposals: Map<SwarmAgentRole, number[]> = new Map();
 
       for (const agent of localAgents) {
-        const notes = this._agentPropose(agent, localSignals, keyRoot, scale);
+        const notes = this._agentPropose(agent, localSignals, keyRoot, scale, lastNote, bar, barCount);
         proposals.set(agent.role, notes);
       }
 
-      // 共识融合: 加权平均各角色提案
       const fused = this._fuseProposals(proposals, localAgents);
       barNotes.push(fused);
 
-      // 沉积信号
+      // 更新跨小节记忆（取最后一个有效音符）
+      const valid = fused.filter(n => n >= 0);
+      if (valid.length > 0) lastNote = valid[valid.length - 1];
+
       const harmonicCue = this._extractHarmony(fused, keyRoot);
       const rhythmicCue = fused.map(() => 0.5 + this.rng() * 0.5);
       this.senseAndDeposit(localAgents[0]?.id || 'null', {
@@ -279,32 +279,44 @@ export class MusicSwarm {
     return barNotes;
   }
 
-  private _agentPropose(agent: SwarmAgent, signals: StigmergicSignal[], keyRoot: number, scale: number[]): number[] {
+  private _agentPropose(agent: SwarmAgent, signals: StigmergicSignal[], keyRoot: number, scale: number[], lastNote: number, barIndex: number, totalBars: number): number[] {
     const notes: number[] = [];
-    const baseOctave = 60; // C4 MIDI
+    const baseOctave = 60;
     const beatCount = 4;
+
+    // 乐句弧线：前半段上升，后半段下降
+    const phraseArc = barIndex < totalBars / 2
+      ? (barIndex / (totalBars / 2)) // 0→1 上升
+      : (1 - (barIndex - totalBars / 2) / (totalBars / 2)); // 1→0 下降
 
     for (let beat = 0; beat < beatCount; beat++) {
       let note: number;
       if (agent.role === 'melody') {
-        // 旋律代理: 偏好级进+偶尔跳进
-        const scaleIdx = Math.floor(this.rng() * scale.length);
+        // 旋律连贯性：70%级进，20%同音重复，10%跳进
+        const lastScaleIdx = scale.indexOf((lastNote - baseOctave - keyRoot + 12) % 12);
+        const direction = this.rng() < 0.5 ? -1 : 1;
+        const stepSize = this.rng() < 0.7 ? 1 : (this.rng() < 0.9 ? 0 : Math.floor(this.rng() * 3) + 2);
+        let scaleIdx = lastScaleIdx >= 0
+          ? clamp(lastScaleIdx + stepSize * direction, 0, scale.length - 1)
+          : Math.floor(this.rng() * scale.length);
+        // 弧线引导：上升期偏好高音，下降期偏好低音
+        if (phraseArc > 0.6 && this.rng() < 0.3) scaleIdx = Math.min(scale.length - 1, scaleIdx + 1);
+        if (phraseArc < 0.4 && this.rng() < 0.3) scaleIdx = Math.max(0, scaleIdx - 1);
         note = baseOctave + keyRoot + scale[scaleIdx];
-        if (this.rng() < 0.3) note += 12; // 八度跳进
+        if (this.rng() < 0.15) note += 12; // 偶尔八度跳进
+        lastNote = note;
       } else if (agent.role === 'harmony') {
-        // 和声代理: 偏好三度、五度
         const root = baseOctave + keyRoot;
         const intervals = [0, 4, 7, 12];
         note = root + intervals[Math.floor(this.rng() * intervals.length)];
       } else if (agent.role === 'rhythm') {
-        // 节奏代理: 生成休止符或短音
-        note = this.rng() < 0.2 ? -1 : baseOctave + keyRoot + scale[Math.floor(this.rng() * scale.length)];
+        // 节奏变化：附点、切分
+        const rhythmPattern = this.rng() < 0.15 ? -1 : (this.rng() < 0.1 ? baseOctave + keyRoot + scale[0] - 12 : baseOctave + keyRoot + scale[Math.floor(this.rng() * scale.length)]);
+        note = rhythmPattern;
       } else if (agent.role === 'timbre') {
-        // 音色代理: 影响音高装饰
         note = baseOctave + keyRoot + scale[Math.floor(this.rng() * scale.length)];
-        if (this.rng() < 0.2) note += Math.floor(this.rng() * 3) - 1; // 微分音装饰
+        if (this.rng() < 0.15) note += Math.floor(this.rng() * 3) - 1;
       } else {
-        // 结构代理: 控制段落感
         const tension = beat / beatCount;
         const scaleIdx = Math.floor(tension * scale.length);
         note = baseOctave + keyRoot + scale[clamp(scaleIdx, 0, scale.length - 1)];

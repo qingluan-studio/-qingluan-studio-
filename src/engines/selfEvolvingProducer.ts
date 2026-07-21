@@ -122,6 +122,91 @@ function softClip(buf: Float32Array, threshold = 0.95): Float32Array {
   return out as Float32Array;
 }
 
+// ── 专业混音工具 ──
+
+/** 简单3段分频混音：低频粘合、中频清晰、高频空气感 */
+function crossoverMix(a: Float32Array, b: Float32Array, gainA = 0.65, gainB = 0.35): Float32Array {
+  const len = Math.max(a.length, b.length);
+  const out = new Float32Array(len);
+  // 一阶低通/高通作为分频器
+  const alphaLow = 0.003;   // ~200Hz
+  const alphaHigh = 0.3;    // ~20kHz
+  let lowA = 0, lowB = 0, highA = 0, highB = 0;
+  for (let i = 0; i < len; i++) {
+    const av = i < a.length ? a[i] * gainA : 0;
+    const bv = i < b.length ? b[i] * gainB : 0;
+    // 低频（粘合）
+    lowA += alphaLow * (av - lowA);
+    lowB += alphaLow * (bv - lowB);
+    const low = (lowA + lowB) * 1.1; // 轻微提升低频粘合感
+    // 中频（清晰，取最大）
+    const midA = av - lowA;
+    const midB = bv - lowB;
+    const mid = (midA + midB) * 0.9; // 轻微衰减中频避免掩蔽
+    // 高频（空气感）
+    highA += alphaHigh * ((av - lowA) - highA);
+    highB += alphaHigh * ((bv - lowB) - highB);
+    const high = (highA + highB) * 1.05; // 轻微提升高频亮度
+    out[i] = low + mid + high;
+  }
+  return normalizeBuffer(out, 0.95) as Float32Array;
+}
+
+/** 总线压缩 — 让多轨更粘合 */
+function busCompressor(buf: Float32Array, threshold = 0.5, ratio = 4, attackMs = 10, releaseMs = 100): Float32Array {
+  const sr = SAMPLE_RATE;
+  const attackCoef = Math.exp(-1 / (sr * attackMs / 1000));
+  const releaseCoef = Math.exp(-1 / (sr * releaseMs / 1000));
+  const out = new Float32Array(buf.length);
+  let env = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const v = Math.abs(buf[i]);
+    const coef = v > env ? attackCoef : releaseCoef;
+    env = v + coef * (env - v);
+    const gain = env > threshold ? Math.pow(threshold / (env + 1e-12), 1 / ratio) : 1;
+    out[i] = buf[i] * gain;
+  }
+  return out as Float32Array;
+}
+
+/** 砖墙限制器 — 防止任何削波 */
+function brickwallLimiter(buf: Float32Array, ceiling = 0.98, lookahead = 64): Float32Array {
+  const out = new Float32Array(buf.length);
+  // 简单 lookahead 峰值检测
+  const gainEnvelope = new Float32Array(buf.length);
+  let peak = 0;
+  for (let i = buf.length - 1; i >= 0; i--) {
+    const v = Math.abs(buf[i]);
+    if (v > peak) peak = v;
+    if (i < buf.length - lookahead) {
+      const future = Math.abs(buf[i + lookahead]);
+      if (future >= peak) peak = future * 0.99;
+    }
+    gainEnvelope[i] = peak > ceiling ? ceiling / peak : 1;
+  }
+  // 平滑增益包络
+  let smoothedGain = 1;
+  const smoothCoef = 0.99;
+  for (let i = 0; i < buf.length; i++) {
+    smoothedGain += smoothCoef * (gainEnvelope[i] - smoothedGain);
+    out[i] = buf[i] * smoothedGain;
+  }
+  return out as Float32Array;
+}
+
+/** 立体声宽度模拟（Mid-Side）— 单声道变宽 */
+function enhanceWidth(buf: Float32Array, width = 0.3): Float32Array {
+  // 简单 Haas 效应：延迟一个声道 10-30ms
+  const delaySamples = Math.floor(SAMPLE_RATE * 0.02); // 20ms
+  const out = new Float32Array(buf.length);
+  for (let i = 0; i < buf.length; i++) {
+    const dry = buf[i];
+    const wet = i >= delaySamples ? buf[i - delaySamples] * width : 0;
+    out[i] = dry + wet;
+  }
+  return normalizeBuffer(out, 0.95) as Float32Array;
+}
+
 function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
   const bitsPerSample = 16;
   const bytesPerSample = bitsPerSample / 8;
@@ -192,11 +277,12 @@ export class MelodyRenderer {
     melody: number[],
     durations: number[],
     waveform: string = 'triangle',
-    velocity = 0.8
+    baseVelocity = 0.8
   ): Float32Array {
-    // 计算总时长
+    // 计算总时长 + 尾部衰减余量
     let totalDur = 0;
     for (const d of durations) totalDur += d;
+    totalDur += 0.5; // 释放尾音
     const totalSamples = Math.ceil(totalDur * this.sampleRate);
     const output = new Float32Array(totalSamples);
 
@@ -205,22 +291,37 @@ export class MelodyRenderer {
       const midi = melody[i];
       const dur = durations[i] || 0.5;
       if (midi < 0) {
-        // 休止符
         currentTime += dur;
         continue;
       }
+
+      // 力度映射：旋律起伏带动力度变化
+      const vel = baseVelocity * (0.8 + 0.4 * Math.sin(i * 1.3));
+
       const freq = midiToFreq(midi);
-      const result = this.synth.synthesizeNote(freq, dur, velocity, waveform as any);
+      const result = this.synth.synthesizeNote(freq, dur, vel, waveform as any);
       const pcm = result.pcm;
       const offset = Math.floor(currentTime * this.sampleRate);
 
+      // 连奏/断奏处理：与前音的衔接
+      const prevMidi = i > 0 ? melody[i - 1] : -1;
+      const isLegato = prevMidi >= 0 && Math.abs(midi - prevMidi) <= 2;
+      const attackFade = isLegato ? 0.003 : 0.01; // 连奏更软起音
+
       for (let j = 0; j < pcm.length && offset + j < output.length; j++) {
-        output[offset + j] += pcm[j] * 0.5; // 降低主旋律音量，给伴奏留空间
+        const t = j / this.sampleRate;
+        // 软起音避免咔嗒声
+        const fadeIn = t < attackFade ? t / attackFade : 1;
+        // 释放尾音淡出（如果下一个是休止符或长间隔）
+        const nextStart = (currentTime + dur) * this.sampleRate;
+        const fadeOut = (offset + j) > nextStart - 64 ? Math.max(0, (nextStart - (offset + j)) / 64) : 1;
+        const env = fadeIn * fadeOut;
+        output[offset + j] += pcm[j] * env * 0.45; // 稍微降低主旋律占比
       }
       currentTime += dur;
     }
 
-    return normalizeBuffer(output, 0.7);
+    return normalizeBuffer(output, 0.7) as Float32Array;
   }
 }
 
@@ -327,9 +428,12 @@ export class SelfEvolvingMusicProducer {
         );
         this.log(`主旋律渲染完成: ${melodyPCM.length} 采样`);
 
-        // Step 4: 混音
-        this.log('Step 4: 智能混音 (自动增益 + 防削波)');
-        let mixedPCM = mixBuffers(arrangement.mixed, melodyPCM, 0.65, 0.35);
+        // Step 4: 专业混音
+        this.log('Step 4: 专业混音 (3段分频 + 总线压缩 + 砖墙限制 + 宽度增强)');
+        let mixedPCM = crossoverMix(arrangement.mixed, melodyPCM, 0.6, 0.4);
+        mixedPCM = busCompressor(mixedPCM, 0.4, 3, 8, 80);
+        mixedPCM = brickwallLimiter(mixedPCM, 0.97, 128);
+        mixedPCM = enhanceWidth(mixedPCM, 0.25);
         this.log(`混音完成: Peak=${calculatePeak(mixedPCM).toFixed(3)} RMS=${calculateRMS(mixedPCM).toFixed(3)}`);
 
         // Step 5: 自我诊断

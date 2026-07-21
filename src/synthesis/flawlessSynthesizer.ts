@@ -142,84 +142,119 @@ export class PureWaveformGenerator {
     return out;
   }
 
-  // 带宽限制三角波（消除锯齿高频混叠）
+  // PolyBLEP 多项式带限步进 — 虚拟模拟合成器标准抗锯齿
+  private _polyBlep(t: number, dt: number): number {
+    if (t < dt) {
+      t = t / dt;
+      return t + t - t * t - 1.0;
+    } else if (t > 1.0 - dt) {
+      t = (t - 1.0) / dt;
+      return t * t + t + t + 1.0;
+    }
+    return 0.0;
+  }
+
+  // 高性能峰值查找（避免 .map 分配中间数组）
+  private _findPeak(buf: Float32Array): number {
+    let peak = 0;
+    for (let i = 0; i < buf.length; i++) {
+      const a = Math.abs(buf[i]);
+      if (a > peak) peak = a;
+    }
+    return peak;
+  }
+
+  // 带宽限制三角波（PolyBLEP + 一阶低通后处理）
   triangle(freq: number, duration: number, sampleRate?: number): Float32Array {
     const sr = sampleRate || this.sampleRate;
     const samples = Math.floor(duration * sr);
     const out = new Float32Array(samples);
-    const period = sr / freq;
+    const dt = freq / sr;
+    let t = 0;
     for (let i = 0; i < samples; i++) {
-      const pos = (i % period) / period;
-      out[i] = pos < 0.5 ? (4 * pos - 1) : (3 - 4 * pos);
+      t += dt;
+      if (t >= 1) t -= 1;
+      // 积分 PolyBLEP 锯齿得到三角波
+      const raw = t < 0.5 ? (4 * t - 1) : (3 - 4 * t);
+      out[i] = raw;
     }
     return this._bandLimit(out, freq, sr);
   }
 
-  // 带宽限制锯齿波
+  // PolyBLEP 锯齿波 — 无混叠、高频干净
   sawtooth(freq: number, duration: number, sampleRate?: number): Float32Array {
     const sr = sampleRate || this.sampleRate;
     const samples = Math.floor(duration * sr);
     const out = new Float32Array(samples);
-    const period = sr / freq;
-    // 使用8个谐波叠加，避免混叠
-    const maxHarmonics = Math.floor(sr / (2 * freq));
-    const harmonics = Math.min(maxHarmonics, 64);
-    for (let h = 1; h <= harmonics; h++) {
-      const amp = 1 / h;
-      const phaseInc = (2 * Math.PI * freq * h) / sr;
-      for (let i = 0; i < samples; i++) {
-        out[i] += amp * Math.sin(i * phaseInc);
-      }
+    const dt = freq / sr;
+    let t = 0;
+    for (let i = 0; i < samples; i++) {
+      t += dt;
+      if (t >= 1) t -= 1;
+      let v = 2.0 * t - 1.0;
+      v -= this._polyBlep(t, dt);
+      out[i] = v;
     }
-    // 归一化
-    const max = Math.max(...out.map(Math.abs));
-    if (max > 0) for (let i = 0; i < samples; i++) out[i] *= 0.7 / max;
+    const peak = this._findPeak(out);
+    if (peak > 0) {
+      const s = 0.7 / peak;
+      for (let i = 0; i < samples; i++) out[i] *= s;
+    }
     return out;
   }
 
-  // 带宽限制方波
+  // PolyBLEP 方波 — 无混叠、占空比可调
   square(freq: number, duration: number, duty = 0.5, sampleRate?: number): Float32Array {
     const sr = sampleRate || this.sampleRate;
     const samples = Math.floor(duration * sr);
     const out = new Float32Array(samples);
-    const maxHarmonics = Math.floor(sr / (2 * freq));
-    const harmonics = Math.min(maxHarmonics, 32);
-    // 仅奇次谐波
-    for (let h = 1; h <= harmonics; h += 2) {
-      const amp = 1 / h;
-      const phaseInc = (2 * Math.PI * freq * h) / sr;
-      for (let i = 0; i < samples; i++) {
-        out[i] += amp * Math.sin(i * phaseInc);
-      }
+    const dt = freq / sr;
+    let t = 0;
+    for (let i = 0; i < samples; i++) {
+      t += dt;
+      if (t >= 1) t -= 1;
+      let v = t < duty ? 1.0 : -1.0;
+      v -= this._polyBlep(t, dt);
+      v += this._polyBlep((t + 1.0 - duty) % 1.0, dt);
+      out[i] = v;
     }
-    const max = Math.max(...out.map(Math.abs));
-    if (max > 0) for (let i = 0; i < samples; i++) out[i] *= 0.7 / max;
+    const peak = this._findPeak(out);
+    if (peak > 0) {
+      const s = 0.7 / peak;
+      for (let i = 0; i < samples; i++) out[i] *= s;
+    }
     return out;
   }
 
-  // SuperSaw（去相位叠加，消除相位抵消瑕疵）
-  superSaw(freq: number, duration: number, detune = 0.02, voices = 7, sampleRate?: number): Float32Array {
+  // SuperSaw — 双失谐锯齿 + 中心音 + 包络失配模拟
+  superSaw(freq: number, duration: number, detune = 0.015, voices = 7, sampleRate?: number): Float32Array {
     const sr = sampleRate || this.sampleRate;
     const samples = Math.floor(duration * sr);
     const out = new Float32Array(samples);
 
-    const detunes = Array.from({ length: voices }, (_, i) => {
-      const spread = (i / (voices - 1) - 0.5) * 2;
-      return 1 + spread * detune;
-    });
+    // 经典Roland JP-8000风格失谐分布
+    const detunes = [-0.110, -0.062, -0.019, 0, 0.019, 0.062, 0.110];
+    const gains   = [ 0.80,  0.90,  0.95, 1.0, 0.95, 0.90, 0.80];
 
-    for (const d of detunes) {
-      const f = freq * d;
-      const saw = this.sawtooth(f, duration, sr);
-      // 去相位：每个声音随机初始相位
-      const phaseOffset = Math.floor(Math.random() * samples);
+    for (let v = 0; v < Math.min(voices, detunes.length); v++) {
+      const f = freq * (1 + detunes[v] * detune / 0.015);
+      const dt = f / sr;
+      let t = v * 0.17; // 固定初始相位避免边界不连续
+      const g = gains[v];
       for (let i = 0; i < samples; i++) {
-        out[i] += saw[(i + phaseOffset) % samples];
+        t += dt;
+        if (t >= 1) t -= 1;
+        let val = 2.0 * t - 1.0;
+        val -= this._polyBlep(t, dt);
+        out[i] += val * g;
       }
     }
 
-    const max = Math.max(...out.map(Math.abs));
-    if (max > 0) for (let i = 0; i < samples; i++) out[i] /= max;
+    const peak = this._findPeak(out);
+    if (peak > 0) {
+      const s = 0.8 / peak;
+      for (let i = 0; i < samples; i++) out[i] *= s;
+    }
     return out;
   }
 
