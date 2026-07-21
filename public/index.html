@@ -3,86 +3,499 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>青鸾 DAW - AI音乐创作</title>
+<title>青鸾 DAW</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   :root {
-    --bg: #0a0a1a;
-    --bg2: #12122a;
-    --accent: #00f0ff;
-    --accent2: #ff00ff;
-    --text: #e0e0ff;
-    --text2: #8899aa;
-    --card: rgba(20,20,50,0.8);
-    --border: rgba(0,240,255,0.2);
+    --phone-bg: #fafafa;
+    --text: #1a1a1a;
+    --text2: #666;
+    --text3: #999;
+    --accent: #5b4dff;
+    --accent2: #ff6b9d;
+    --bubble-user: #5b4dff;
+    --bubble-ai: #f0f0f5;
+    --card-bg: #fff;
+    --border: rgba(0,0,0,0.06);
+    --pink-bg: #f5e6e0;
   }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'SF Mono', Consolas, 'Noto Sans SC', monospace;
-    min-height: 100vh;
-    overflow-x: hidden;
-    padding-bottom: 80px;
-  }
-  /* 顶部 */
-  .header {
-    text-align: center;
-    padding: 16px 12px 8px;
-    background: linear-gradient(180deg, rgba(0,240,255,0.08) 0%, transparent 100%);
-    border-bottom: 1px solid var(--border);
-  }
-  .header h1 {
-    font-size: 20px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-weight: 900;
-    letter-spacing: 2px;
-  }
-  .header p { font-size: 11px; color: var(--text2); margin-top: 4px; }
 
-  /* 标签页 */
-  .tabs {
+  body {
+    background: var(--pink-bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans SC', sans-serif;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  /* 手机外壳 */
+  .phone {
+    width: 390px;
+    height: 844px;
+    background: var(--phone-bg);
+    border-radius: 44px;
+    box-shadow:
+      0 25px 60px rgba(0,0,0,0.12),
+      0 0 0 8px #fff inset,
+      0 0 0 10px #e8d5cd inset;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (max-width: 420px) {
+    .phone { width: 100vw; height: 100vh; border-radius: 0; box-shadow: none; }
+  }
+
+  /* 状态栏 */
+  .status-bar {
+    height: 44px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    flex-shrink: 0;
+  }
+  .status-bar .right { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .status-bar .signal { display: flex; gap: 2px; align-items: flex-end; height: 12px; }
+  .status-bar .signal span { width: 3px; background: var(--text); border-radius: 1px; }
+  .status-bar .signal span:nth-child(1) { height: 4px; }
+  .status-bar .signal span:nth-child(2) { height: 6px; }
+  .status-bar .signal span:nth-child(3) { height: 8px; }
+  .status-bar .signal span:nth-child(4) { height: 10px; }
+  .status-bar .battery { width: 22px; height: 10px; border: 1.5px solid var(--text); border-radius: 3px; position: relative; display: flex; align-items: center; padding: 1px; }
+  .status-bar .battery::after { content:''; position:absolute; right:-3px; width:2px; height:5px; background:var(--text); border-radius:0 1px 1px 0; }
+  .status-bar .battery i { display:block; height:100%; width:60%; background:var(--text); border-radius:1px; }
+
+  /* 导航栏 */
+  .nav-bar {
+    height: 48px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .nav-bar button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--text);
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  .nav-bar button:active { background: rgba(0,0,0,0.05); }
+  .nav-title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .nav-pills {
+    display: flex;
+    background: rgba(0,0,0,0.05);
+    border-radius: 20px;
+    padding: 3px;
+    gap: 3px;
+  }
+  .nav-pills span {
+    padding: 5px 16px;
+    border-radius: 17px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2);
+    cursor: pointer;
+  }
+  .nav-pills span.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  /* 主内容区 */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    scrollbar-width: none;
+  }
+  .main::-webkit-scrollbar { display: none; }
+
+  /* 遮罩 */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 80;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+
+  /* 左侧抽屉：多开聊天记录 */
+  .drawer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 280px;
+    background: #fff;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+    display: flex;
+    flex-direction: column;
+    border-radius: 0 20px 20px 0;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.08);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-header {
+    padding: 20px 16px 12px;
+    font-size: 20px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .drawer-header button {
+    background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text2);
+  }
+  .drawer-list { flex: 1; overflow-y: auto; padding: 0 12px 12px; }
+  .session-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-bottom: 4px;
+  }
+  .session-item:active, .session-item.active { background: rgba(91,77,255,0.08); }
+  .session-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; flex-shrink: 0;
+  }
+  .session-info { flex: 1; min-width: 0; }
+  .session-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-preview { font-size: 12px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .session-time { font-size: 11px; color: var(--text3); flex-shrink: 0; }
+  .drawer-footer {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .drawer-footer button {
+    width: 100%; padding: 12px; border-radius: 12px; border: none;
+    background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+
+  /* 聊天列表 */
+  .chat-list {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 100%;
+  }
+
+  /* 欢迎消息 */
+  .welcome {
+    padding: 24px 8px 8px;
+  }
+  .welcome h1 {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+  }
+  .welcome p {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-top: 4px;
+    color: var(--text);
+  }
+  .welcome .sub {
+    font-size: 14px;
+    color: var(--text2);
+    font-weight: 400;
+    margin-top: 16px;
+    line-height: 1.6;
+  }
+
+  /* 消息气泡 */
+  .msg-row { display: flex; gap: 8px; max-width: 100%; }
+  .msg-row.user { justify-content: flex-end; }
+  .msg-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, #ddd, #bbb);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0; margin-top: 4px;
+  }
+  .msg-row.user .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; }
+  .msg-bubble {
+    max-width: 75%;
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: break-word;
+    position: relative;
+  }
+  .msg-row.ai .msg-bubble {
+    background: var(--bubble-ai);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
+  .msg-row.user .msg-bubble {
+    background: var(--bubble-user);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg-time {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 4px;
+    text-align: right;
+  }
+
+  /* 功能卡片（聊天中的可交互卡片） */
+  .func-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    margin-top: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .func-card h4 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .func-card .form-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+  }
+  .func-card label {
+    font-size: 12px;
+    color: var(--text2);
+    min-width: 48px;
+  }
+  .func-card select, .func-card input {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #f7f7f7;
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+  }
+  .func-card .card-btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .func-card button {
+    flex: 1;
+    padding: 10px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .func-card button.secondary {
+    background: #f0f0f5;
+    color: var(--text);
+  }
+  .func-card audio { width: 100%; margin-top: 8px; }
+  .func-card .result-mini {
+    margin-top: 8px;
+    padding: 8px;
+    background: #f7f7f7;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text2);
+    max-height: 120px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .func-card .result-mini:empty { display: none; }
+
+  /* 快捷操作网格 */
+  .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 0 16px 16px;
+  }
+  .quick-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 4px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+    font-size: 11px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .quick-btn:active { transform: scale(0.96); }
+  .quick-btn .icon {
+    width: 36px; height: 36px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .quick-btn:nth-child(1) .icon { background: rgba(91,77,255,0.1); }
+  .quick-btn:nth-child(2) .icon { background: rgba(255,107,157,0.1); }
+  .quick-btn:nth-child(3) .icon { background: rgba(255,180,0,0.1); }
+  .quick-btn:nth-child(4) .icon { background: rgba(0,200,150,0.1); }
+  .quick-btn:nth-child(5) .icon { background: rgba(0,150,255,0.1); }
+  .quick-btn:nth-child(6) .icon { background: rgba(150,80,255,0.1); }
+  .quick-btn:nth-child(7) .icon { background: rgba(255,100,80,0.1); }
+  .quick-btn:nth-child(8) .icon { background: rgba(80,180,255,0.1); }
+
+  /* 底部输入栏 */
+  .input-bar {
+    padding: 10px 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--phone-bg);
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+  }
+  .input-plus {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: none; font-size: 18px; color: var(--text2);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .input-box {
+    flex: 1;
+    position: relative;
+  }
+  .input-box input {
+    width: 100%; padding: 10px 14px; border-radius: 20px;
+    border: 1.5px solid var(--border); background: #fff;
+    font-size: 14px; outline: none; font-family: inherit;
+  }
+  .input-box .hint {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--text3); font-size: 14px; pointer-events: none;
+  }
+  .input-voice {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: none; background: #f0f0f5; font-size: 16px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .input-send {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: none; background: var(--accent); color: #fff;
+    font-size: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .input-send:active { opacity: 0.85; }
+
+  /* 工作室面板（隐藏的高级功能） */
+  .studio {
+    position: absolute;
+    inset: 0;
+    background: var(--phone-bg);
+    z-index: 90;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
+    display: flex;
+    flex-direction: column;
+  }
+  .studio.open { transform: translateY(0); }
+  .studio-header {
+    height: 52px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .studio-header button {
+    background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text);
+    width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  }
+  .studio-header span { font-size: 16px; font-weight: 700; }
+  .studio-tabs {
     display: flex;
     gap: 4px;
     padding: 8px 12px;
     overflow-x: auto;
     border-bottom: 1px solid var(--border);
     scrollbar-width: none;
-  }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tab {
     flex-shrink: 0;
-    padding: 8px 14px;
-    border-radius: 20px;
+  }
+  .studio-tabs::-webkit-scrollbar { display: none; }
+  .studio-tab {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 16px;
     border: 1px solid var(--border);
-    background: var(--card);
+    background: #fff;
     color: var(--text2);
     font-size: 12px;
     cursor: pointer;
     transition: all 0.2s;
   }
-  .tab.active {
-    background: linear-gradient(135deg, rgba(0,240,255,0.2), rgba(255,0,255,0.2));
-    color: var(--accent);
+  .studio-tab.active {
+    background: var(--accent);
+    color: #fff;
     border-color: var(--accent);
   }
+  .studio-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    scrollbar-width: none;
+  }
+  .studio-body::-webkit-scrollbar { display: none; }
+  .studio-panel { display: none; }
+  .studio-panel.active { display: block; }
 
-  /* 内容区 */
-  .content { padding: 12px; }
-  .panel { display: none; }
-  .panel.active { display: block; }
-
-  /* 卡片 */
-  .card {
-    background: var(--card);
+  /* 工作室卡片 */
+  .s-card {
+    background: #fff;
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 14px;
     margin-bottom: 12px;
-    backdrop-filter: blur(10px);
   }
-  .card h3 {
+  .s-card h3 {
     font-size: 14px;
     color: var(--accent);
     margin-bottom: 10px;
@@ -90,55 +503,26 @@
     align-items: center;
     gap: 6px;
   }
-
-  /* 表单 */
-  .form-group { margin-bottom: 10px; }
-  .form-group label {
-    display: block;
-    font-size: 11px;
-    color: var(--text2);
-    margin-bottom: 4px;
+  .s-form { margin-bottom: 10px; }
+  .s-form label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+  .s-form select, .s-form input, .s-form textarea {
+    width: 100%; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: #f7f7f7;
+    font-size: 13px; font-family: inherit; outline: none;
   }
-  select, input[type="text"], input[type="number"] {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg2);
-    color: var(--text);
-    font-size: 13px;
-    font-family: inherit;
-    outline: none;
+  .s-btn {
+    width: 100%; padding: 12px; border-radius: 10px; border: none;
+    background: var(--accent); color: #fff; font-size: 14px; font-weight: 700;
+    cursor: pointer; margin-top: 6px;
   }
-  select:focus, input:focus { border-color: var(--accent); }
-
-  /* 按钮 */
-  .btn {
-    width: 100%;
-    padding: 12px;
-    border-radius: 10px;
-    border: none;
-    background: linear-gradient(135deg, rgba(0,240,255,0.25), rgba(255,0,255,0.25));
-    color: var(--text);
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    margin-top: 8px;
-    letter-spacing: 1px;
-    transition: transform 0.1s;
+  .s-btn:active { opacity: 0.9; }
+  .s-btn-small {
+    padding: 6px 12px; font-size: 11px; width: auto; display: inline-block;
+    margin: 4px 4px 0 0; background: rgba(91,77,255,0.1); color: var(--accent);
+    border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
   }
-  .btn:active { transform: scale(0.98); }
-  .btn-small {
-    padding: 6px 12px;
-    font-size: 11px;
-    width: auto;
-    display: inline-block;
-    margin: 4px 4px 0 0;
-  }
-
-  /* 结果区 */
-  .result {
-    background: rgba(0,240,255,0.05);
+  .s-result {
+    background: #f7f7f7;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px;
@@ -149,723 +533,754 @@
     word-break: break-all;
     white-space: pre-wrap;
   }
-  .result:empty { display: none; }
-
-  /* 频谱可视化Canvas */
-  canvas {
-    width: 100%;
-    height: 160px;
-    border-radius: 8px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-  }
-
-  /* 音频播放器 */
-  audio { width: 100%; margin-top: 8px; }
-
-  /* 加载 */
-  .loading {
+  .s-result:empty { display: none; }
+  .s-loading {
     display: none;
     text-align: center;
-    padding: 20px;
+    padding: 12px;
     font-size: 12px;
     color: var(--accent);
   }
-  .loading.show { display: block; }
-  @keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
-  .loading span { animation: pulse 1s infinite; }
+  .s-loading.show { display: block; }
+  @keyframes sPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+  .s-loading span { animation: sPulse 1s infinite; }
 
-  /* 底部 */
-  .footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    text-align: center;
-    padding: 8px;
-    font-size: 10px;
-    color: var(--text2);
-    background: var(--bg);
-    border-top: 1px solid var(--border);
+  /* 画布 */
+  canvas {
+    width: 100%;
+    height: 160px;
+    border-radius: 10px;
+    background: #f0f0f5;
   }
 
-  /* 音符动画 */
-  @keyframes floatNote {
-    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-    100% { transform: translateY(-60px) rotate(20deg); opacity: 0; }
+  /* 底部安全区 */
+  .safe-bottom { height: 8px; flex-shrink: 0; }
+
+  /* 提示 toast */
+  .toast {
+    position: absolute;
+    top: 60px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    background: rgba(0,0,0,0.8); color: #fff; padding: 8px 16px; border-radius: 20px;
+    font-size: 12px; z-index: 200; opacity: 0; pointer-events: none; transition: all 0.3s;
   }
-  .note-anim {
-    position: fixed;
-    font-size: 20px;
-    color: var(--accent);
-    pointer-events: none;
-    animation: floatNote 1.5s ease-out forwards;
-  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>⬡ 青鸾 DAW ⬡</h1>
-  <p>AI作曲 · 真人声 · 伴奏 · 效果器 · 可视化 · 手机版</p>
+<div class="phone">
+  <!-- 状态栏 -->
+  <div class="status-bar">
+    <span id="clock">19:18</span>
+    <div class="right">
+      <div class="signal"><span></span><span></span><span></span><span></span></div>
+      <span>4G</span>
+      <div class="battery"><i></i></div>
+    </div>
+  </div>
+
+  <!-- 导航栏 -->
+  <div class="nav-bar">
+    <button onclick="toggleDrawer()">☰</button>
+    <div class="nav-pills">
+      <span class="active" onclick="switchNav(this,'chat')">创作</span>
+      <span onclick="switchNav(this,'studio')">工作室</span>
+    </div>
+    <button onclick="toggleStudio()">⚙</button>
+  </div>
+
+  <!-- 遮罩 -->
+  <div class="overlay" id="overlay" onclick="closeAll()"></div>
+
+  <!-- 左侧抽屉：多开聊天记录 -->
+  <div class="drawer" id="drawer">
+    <div class="drawer-header">
+      <span>创作记录</span>
+      <button onclick="toggleDrawer()">✕</button>
+    </div>
+    <div class="drawer-list" id="sessionList"></div>
+    <div class="drawer-footer">
+      <button onclick="newSession()">+ 新建创作</button>
+    </div>
+  </div>
+
+  <!-- 主内容：聊天 -->
+  <div class="main" id="main">
+    <div class="chat-list" id="chatList">
+      <div class="welcome" id="welcome">
+        <h1>Hey 👋 用户</h1>
+        <p>今天青鸾 DAW<br>能帮你做什么？</p>
+        <div class="sub">点击下方快捷入口开始创作，或进入工作室调整高级参数。</div>
+      </div>
+    </div>
+
+    <!-- 快捷操作 -->
+    <div class="quick-actions" id="quickActions">
+      <div class="quick-btn" onclick="addFuncCard('compose')">
+        <div class="icon">🎼</div>
+        <span>AI作曲</span>
+      </div>
+      <div class="quick-btn" onclick="addFuncCard('realistic')">
+        <div class="icon">🎙</div>
+        <span>真人声</span>
+      </div>
+      <div class="quick-btn" onclick="addFuncCard('arranger')">
+        <div class="icon">🎹</div>
+        <span>伴奏</span>
+      </div>
+      <div class="quick-btn" onclick="addFuncCard('lyrics')">
+        <div class="icon">📝</div>
+        <span>歌词</span>
+      </div>
+      <div class="quick-btn" onclick="addFuncCard('flawless')">
+        <div class="icon">✨</div>
+        <span>无瑕疵</span>
+      </div>
+      <div class="quick-btn" onclick="addFuncCard('effects')">
+        <div class="icon">🔊</div>
+        <span>效果器</span>
+      </div>
+      <div class="quick-btn" onclick="addFuncCard('visual')">
+        <div class="icon">🌊</div>
+        <span>可视化</span>
+      </div>
+      <div class="quick-btn" onclick="addFuncCard('cognitive')">
+        <div class="icon">🧠</div>
+        <span>认知</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部输入 -->
+  <div class="input-bar">
+    <button class="input-plus" onclick="toggleQuickMore()">+</button>
+    <div class="input-box">
+      <input type="text" id="chatInput" placeholder="" onkeydown="if(event.key==='Enter')sendChat()">
+      <span class="hint" id="inputHint">发消息或按住说话...</span>
+    </div>
+    <button class="input-voice">🎙</button>
+    <button class="input-send" onclick="sendChat()">➤</button>
+  </div>
+
+  <!-- 工作室面板（隐藏的高级功能） -->
+  <div class="studio" id="studio">
+    <div class="studio-header">
+      <button onclick="toggleStudio()">←</button>
+      <span>高级工作室</span>
+      <button onclick="toggleStudio()">✕</button>
+    </div>
+    <div class="studio-tabs">
+      <div class="studio-tab active" data-sp="s-compose">作曲</div>
+      <div class="studio-tab" data-sp="s-theory">理论</div>
+      <div class="studio-tab" data-sp="s-synth">歌声</div>
+      <div class="studio-tab" data-sp="s-effects">效果器</div>
+      <div class="studio-tab" data-sp="s-visual">可视化</div>
+      <div class="studio-tab" data-sp="s-realistic">真人声</div>
+      <div class="studio-tab" data-sp="s-arranger">伴奏</div>
+      <div class="studio-tab" data-sp="s-lyrics">歌词</div>
+      <div class="studio-tab" data-sp="s-cognitive">认知</div>
+      <div class="studio-tab" data-sp="s-flawless">无瑕疵</div>
+    </div>
+    <div class="studio-body">
+
+      <!-- 作曲 -->
+      <div class="studio-panel active" id="s-compose">
+        <div class="s-card">
+          <h3>🎼 AI 智能作曲</h3>
+          <div class="s-form"><label>算法</label><select id="algo"><option value="genetic">遗传进化</option><option value="markov">马尔可夫链</option><option value="fractal">分形旋律</option><option value="chaos">混沌节奏</option><option value="quantum">量子概率</option><option value="ca">细胞自动机</option></select></div>
+          <div class="s-form"><label>风格</label><select id="style"><option value="pop">流行 Pop</option><option value="rock">摇滚 Rock</option><option value="jazz">爵士 Jazz</option><option value="electronic">电子 Electronic</option><option value="classical">古典 Classical</option><option value="folk">民谣 Folk</option><option value="rnb">R&B</option><option value="metal">金属 Metal</option></select></div>
+          <div class="s-form"><label>调性</label><select id="key"><option value="C">C大调</option><option value="Am">A小调</option><option value="G">G大调</option><option value="Em">E小调</option><option value="F">F大调</option><option value="Dm">D小调</option><option value="D">D大调</option><option value="Bm">B小调</option></select></div>
+          <div class="s-form"><label>长度（音符数）</label><input type="number" id="length" value="16" min="4" max="64"></div>
+          <div class="s-form"><label>BPM</label><input type="number" id="bpm" value="120" min="40" max="240"></div>
+          <button class="s-btn" onclick="compose()">✨ 生成旋律</button>
+          <button class="s-btn-small" onclick="autoArrange()">🎹 自动编曲</button>
+          <div class="s-loading" id="composeLoading"><span>AI 正在创作中...</span></div>
+          <div class="s-result" id="composeResult"></div>
+        </div>
+        <div class="s-card">
+          <h3>🎵 一键生成完整歌曲</h3>
+          <button class="s-btn" onclick="fullSong()">🚀 创作完整歌曲</button>
+          <div class="s-loading" id="fullSongLoading"><span>多引擎协作中...</span></div>
+          <div class="s-result" id="fullSongResult"></div>
+        </div>
+      </div>
+
+      <!-- 理论 -->
+      <div class="studio-panel" id="s-theory">
+        <div class="s-card">
+          <h3>🎹 音阶查询</h3>
+          <div class="s-form"><label>音阶类型</label><select id="scaleType"><option value="major">大调 Major</option><option value="natural_minor">自然小调</option><option value="pentatonic">五声音阶</option><option value="blues">布鲁斯</option><option value="dorian">多利亚</option><option value="gong">宫调（中国）</option><option value="in_scale">阴（日本）</option><option value="arabic">阿拉伯</option></select></div>
+          <div class="s-form"><label>根音</label><select id="scaleRoot"><option value="C">C</option><option value="D">D</option><option value="E">E</option><option value="F">F</option><option value="G">G</option><option value="A">A</option><option value="B">B</option></select></div>
+          <button class="s-btn" onclick="getScale()">查询音阶</button>
+          <div class="s-result" id="scaleResult"></div>
+        </div>
+        <div class="s-card">
+          <h3>🎸 和弦进行</h3>
+          <button class="s-btn-small" onclick="getProgressions('pop')">流行</button>
+          <button class="s-btn-small" onclick="getProgressions('rock')">摇滚</button>
+          <button class="s-btn-small" onclick="getProgressions('jazz')">爵士</button>
+          <button class="s-btn-small" onclick="getProgressions('blues')">布鲁斯</button>
+          <button class="s-btn-small" onclick="getProgressions('electronic')">电子</button>
+          <div class="s-result" id="progResult"></div>
+        </div>
+      </div>
+
+      <!-- 歌声 -->
+      <div class="studio-panel" id="s-synth">
+        <div class="s-card">
+          <h3>🎤 单音合成</h3>
+          <div class="s-form"><label>音符</label><select id="toneNote"><option value="C4">C4</option><option value="E4">E4</option><option value="G4">G4</option><option value="A4">A4</option><option value="C5">C5</option></select></div>
+          <div class="s-form"><label>时长（秒）</label><input type="number" id="toneDuration" value="1" min="0.1" max="5" step="0.1"></div>
+          <div class="s-form"><label>音色</label><select id="toneTimbre"><option value="soprano">女高音</option><option value="alto">女中音</option><option value="tenor">男高音</option><option value="bass">男低音</option><option value="child">童声</option></select></div>
+          <button class="s-btn" onclick="synthesizeTone()">🔊 合成音频</button>
+          <div class="s-loading" id="toneLoading"><span>声波生成中...</span></div>
+          <div id="tonePlayer"></div>
+        </div>
+      </div>
+
+      <!-- 效果器 -->
+      <div class="studio-panel" id="s-effects">
+        <div class="s-card">
+          <h3>🔊 音频效果器</h3>
+          <div class="s-form"><label>效果器</label><select id="effectType"><option value="reverb">卷积混响</option><option value="eq">参数均衡</option><option value="compress">压缩器</option><option value="distort">失真</option><option value="delay">延迟</option><option value="chorus">合唱</option></select></div>
+          <button class="s-btn" onclick="applyEffect()">⚡ 应用效果</button>
+          <div class="s-loading" id="effectLoading"><span>DSP处理中...</span></div>
+          <div class="s-result" id="effectResult"></div>
+        </div>
+      </div>
+
+      <!-- 可视化 -->
+      <div class="studio-panel" id="s-visual">
+        <div class="s-card">
+          <h3>🌊 实时频谱</h3>
+          <canvas id="spectrumCanvas" width="360" height="160"></canvas>
+          <button class="s-btn" onclick="startVisualizer()" id="vizBtn">▶ 启动可视化</button>
+          <p style="font-size:10px;color:var(--text2);margin-top:6px;">使用模拟音频数据演示</p>
+        </div>
+      </div>
+
+      <!-- 真人声 -->
+      <div class="studio-panel" id="s-realistic">
+        <div class="s-card">
+          <h3>🎙️ 真人级人声合成</h3>
+          <div class="s-form"><label>性别/声道</label><select id="rvGender"><option value="female">女声</option><option value="male">男声</option><option value="child">童声</option></select></div>
+          <div class="s-form"><label>音色</label><select id="rvTimbre"><option value="warm">温暖</option><option value="bright">明亮</option><option value="hoarse">沙哑</option><option value="ethereal">空灵</option></select></div>
+          <div class="s-form"><label>歌词（空格分隔）</label><input type="text" id="rvLyrics" value="啦 啦 啦 啦"></div>
+          <div class="s-form"><label>音符（空格分隔）</label><input type="text" id="rvNotes" value="C4 E4 G4 C5"></div>
+          <div class="s-form"><label>时长（空格分隔，秒）</label><input type="text" id="rvDurations" value="0.5 0.5 0.5 0.5"></div>
+          <button class="s-btn" onclick="synthesizeRealistic()">🎙️ 合成真人声</button>
+          <div class="s-loading" id="rvLoading"><span>物理建模声波生成中...</span></div>
+          <div id="rvPlayer"></div>
+        </div>
+        <div class="s-card">
+          <h3>🎵 简谱合成</h3>
+          <div class="s-form"><label>简谱</label><input type="text" id="rvJianpu" value="1 2 3 1 | 5 6 5 - |"></div>
+          <div class="s-form"><label>歌词（空格分隔）</label><input type="text" id="rvJianpuLyrics" value="啦 啦 啦 啦 啦 啦 啦 啦"></div>
+          <button class="s-btn" onclick="synthesizeJianpu()">🎵 简谱合成</button>
+          <div class="s-loading" id="rvJianpuLoading"><span>中国乐谱解析中...</span></div>
+          <div id="rvJianpuPlayer"></div>
+        </div>
+      </div>
+
+      <!-- 伴奏 -->
+      <div class="studio-panel" id="s-arranger">
+        <div class="s-card">
+          <h3>🎹 真人级伴奏生成</h3>
+          <div class="s-form"><label>风格</label><select id="arrStyle"><option value="pop">流行 Pop</option><option value="rock">摇滚 Rock</option><option value="jazz">爵士 Jazz</option><option value="electronic">电子 Electronic</option><option value="classical">古典 Classical</option><option value="folk">民谣 Folk</option><option value="chinese" selected>中国风 Chinese</option><option value="rnb">R&B</option><option value="metal">金属 Metal</option><option value="blues">布鲁斯 Blues</option></select></div>
+          <div class="s-form"><label>调性</label><select id="arrKey"><option value="C">C大调</option><option value="Am">A小调</option><option value="G" selected>G大调</option><option value="Em">E小调</option><option value="F">F大调</option><option value="Dm">D小调</option><option value="D">D大调</option><option value="Bm">B小调</option></select></div>
+          <div class="s-form"><label>情绪</label><select id="arrEmotion"><option value="happy">欢快</option><option value="sad">忧伤</option><option value="tense">紧张</option><option value="relaxed">放松</option><option value="epic">史诗</option><option value="romantic" selected>浪漫</option></select></div>
+          <div class="s-form"><label>BPM</label><input type="number" id="arrBpm" value="90" min="40" max="240"></div>
+          <button class="s-btn" onclick="generateArranger()">🎼 生成伴奏</button>
+          <div class="s-loading" id="arrLoading"><span>多轨物理建模渲染中...</span></div>
+          <div id="arrPlayer"></div>
+          <div class="s-result" id="arrResult"></div>
+        </div>
+      </div>
+
+      <!-- 歌词 -->
+      <div class="studio-panel" id="s-lyrics">
+        <div class="s-card">
+          <h3>📝 智能歌词生成</h3>
+          <div class="s-form"><label>生成模式</label><select id="lyricMode" onchange="toggleLyricMode()"><option value="general">通用创作</option><option value="food">食物主题</option><option value="emotion">情感主题</option><option value="character">人物叙事</option></select></div>
+          <div id="lyricGeneral">
+            <div class="s-form"><label>主题</label><select id="lyricTheme"><option value="love">爱情</option><option value="nature">自然</option><option value="city">城市</option><option value="season">季节</option><option value="farewell">离别</option><option value="dream">梦境</option><option value="food">食物</option></select></div>
+            <div class="s-form"><label>情感</label><select id="lyricEmotion"><option value="joy">欢喜</option><option value="sorrow">忧伤</option><option value="anger">愤怒</option><option value="fear">恐惧</option><option value="longing">思念</option><option value="loneliness">孤独</option><option value="hope">希望</option><option value="nostalgia">怀旧</option></select></div>
+            <div class="s-form"><label>人物视角</label><select id="lyricPersp"><option value="first">第一人称（我）</option><option value="second">第二人称（你）</option><option value="third">第三人称（他/她）</option></select></div>
+            <div class="s-form"><label>具体事物（可选）</label><input type="text" id="lyricObject" placeholder="如：火锅、樱花、地铁站"></div>
+          </div>
+          <div id="lyricFood" style="display:none">
+            <div class="s-form"><label>食物名称</label><input type="text" id="lyricFoodName" value="火锅"></div>
+            <div class="s-form"><label>情感</label><select id="lyricFoodEmotion"><option value="nostalgia">怀旧</option><option value="joy">欢喜</option><option value="sorrow">忧伤</option><option value="longing">思念</option></select></div>
+          </div>
+          <div id="lyricEmotionDiv" style="display:none">
+            <div class="s-form"><label>核心情感</label><select id="lyricEmoCore"><option value="joy">欢喜</option><option value="sorrow">忧伤</option><option value="anger">愤怒</option><option value="fear">恐惧</option><option value="longing">思念</option><option value="loneliness">孤独</option><option value="hope">希望</option><option value="nostalgia">怀旧</option></select></div>
+          </div>
+          <div id="lyricCharacter" style="display:none">
+            <div class="s-form"><label>人物描述</label><input type="text" id="lyricCharDesc" value="独行的旅人"></div>
+            <div class="s-form"><label>人物情感</label><select id="lyricCharEmo"><option value="longing">思念</option><option value="loneliness">孤独</option><option value="joy">欢喜</option><option value="sorrow">忧伤</option><option value="hope">希望</option></select></div>
+            <div class="s-form"><label>叙述视角</label><select id="lyricCharPersp"><option value="first">第一人称</option><option value="second">第二人称</option><option value="third">第三人称</option></select></div>
+          </div>
+          <div class="s-form"><label>风格</label><select id="lyricStyle"><option value="modern">现代</option><option value="classical">古典</option><option value="poetic">诗意</option><option value="narrative">叙事</option></select></div>
+          <div class="s-form"><label>段落数</label><input type="number" id="lyricLength" value="4" min="2" max="8"></div>
+          <button class="s-btn" onclick="generateLyrics()">✨ 生成歌词</button>
+          <div class="s-loading" id="lyricLoading"><span>AI 作词中...</span></div>
+          <pre class="s-result" id="lyricResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+      </div>
+
+      <!-- 认知 -->
+      <div class="studio-panel" id="s-cognitive">
+        <div class="s-card">
+          <h3>🧠 认知涌现引擎 (CEE)</h3>
+          <div class="s-form"><label>功能</label><select id="ceeMode" onchange="toggleCeeMode()"><option value="evaluate">T6 质量评估</option><option value="optimize">认知闭环优化</option><option value="feedback">反馈学习</option><option value="orchestrate">多智能体编排</option><option value="status">系统状态</option></select></div>
+          <div id="ceeEvaluate">
+            <div class="s-form"><label>评估类型</label><select id="ceeEvalType"><option value="lyrics">歌词</option><option value="melody">旋律</option></select></div>
+            <div class="s-form"><label>内容</label><textarea id="ceeEvalText" rows="4" placeholder="粘贴歌词或旋律音符(空格分隔)..."></textarea></div>
+            <button class="s-btn" onclick="ceeEvaluate()">📊 评估</button>
+          </div>
+          <div id="ceeOptimize" style="display:none">
+            <div class="s-form"><label>歌词</label><textarea id="ceeOptText" rows="4" placeholder="输入歌词进行认知闭环优化..."></textarea></div>
+            <button class="s-btn" onclick="ceeOptimize()">🔄 闭环优化</button>
+          </div>
+          <div id="ceeFeedback" style="display:none">
+            <div class="s-form"><label>评分 (0-1)</label><input type="number" id="ceeScore" value="0.8" min="0" max="1" step="0.1"></div>
+            <div class="s-form"><label>留言</label><input type="text" id="ceeMsg" placeholder="可选反馈信息"></div>
+            <div class="s-form"><label>标签</label><input type="text" id="ceeTags" placeholder="逗号分隔，如: 歌词,中国风"></div>
+            <button class="s-btn" onclick="ceeFeedback()">💬 提交反馈</button>
+          </div>
+          <div id="ceeOrchestrate" style="display:none">
+            <div class="s-form"><label>目标</label><select id="ceeGoal"><option value="作曲旋律">作曲旋律</option><option value="人声合成">人声合成</option><option value="伴奏编曲">伴奏编曲</option></select></div>
+            <button class="s-btn" onclick="ceeOrchestrate()">🤖 智能编排</button>
+          </div>
+          <div id="ceeStatus" style="display:none">
+            <button class="s-btn" onclick="ceeStatus()">📈 查看状态</button>
+          </div>
+          <div class="s-loading" id="ceeLoading"><span>认知引擎运行中...</span></div>
+          <pre class="s-result" id="ceeResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+      </div>
+
+      <!-- 无瑕疵 -->
+      <div class="studio-panel" id="s-flawless">
+        <div class="s-card">
+          <h3>✨ 无瑕疵音乐合成器</h3>
+          <div class="s-form"><label>功能</label><select id="flawMode" onchange="toggleFlawMode()"><option value="note">单音合成</option><option value="chord">和弦合成</option><option value="arpeggio">琶音合成</option><option value="drum">打击乐</option><option value="preset">预设音色</option></select></div>
+          <div id="flawNote">
+            <div class="s-form"><label>频率 (Hz)</label><input type="number" id="flawFreq" value="440" min="20" max="8000"></div>
+            <div class="s-form"><label>时长 (秒)</label><input type="number" id="flawDur" value="1" min="0.1" max="5" step="0.1"></div>
+            <div class="s-form"><label>波形</label><select id="flawWave"><option value="sine">正弦波</option><option value="triangle" selected>三角波</option><option value="sawtooth">锯齿波</option><option value="square">方波</option><option value="superSaw">SuperSaw</option><option value="noise">粉红噪声</option></select></div>
+            <div class="s-form"><label><input type="checkbox" id="flawFm"> FM调制</label></div>
+          </div>
+          <div id="flawChord" style="display:none">
+            <div class="s-form"><label>频率列表 (逗号分隔)</label><input type="text" id="flawChordFreqs" value="261.63,329.63,392.00"></div>
+            <div class="s-form"><label>时长 (秒)</label><input type="number" id="flawChordDur" value="2" min="0.1" max="5" step="0.1"></div>
+          </div>
+          <div id="flawArp" style="display:none">
+            <div class="s-form"><label>频率列表</label><input type="text" id="flawArpFreqs" value="261.63,329.63,392.00,523.25"></div>
+            <div class="s-form"><label>每音时长 (秒)</label><input type="number" id="flawArpNoteDur" value="0.5" min="0.1" max="2" step="0.1"></div>
+          </div>
+          <div id="flawDrum" style="display:none">
+            <div class="s-form"><label>鼓类型</label><select id="flawDrumType"><option value="kick">底鼓 Kick</option><option value="snare">军鼓 Snare</option><option value="hihat">踩镲 HiHat</option><option value="tom">通鼓 Tom</option></select></div>
+          </div>
+          <div id="flawPreset" style="display:none">
+            <div class="s-form"><label>预设</label><select id="flawPresetName"><option value="pure_sine">纯净正弦</option><option value="warm_triangle">温暖三角波</option><option value="rich_saw">丰富锯齿波</option><option value="hollow_square">空心方波</option><option value="supersaw_lead">SuperSaw主音</option><option value="fm_e_piano">FM电钢琴</option><option value="fm_bell">FM钟声</option><option value="fm_bass">FM贝斯</option><option value="noise_pad">噪声铺底</option></select></div>
+            <div class="s-form"><label>频率 (Hz)</label><input type="number" id="flawPresetFreq" value="440" min="20" max="8000"></div>
+            <div class="s-form"><label>时长 (秒)</label><input type="number" id="flawPresetDur" value="2" min="0.1" max="5" step="0.1"></div>
+          </div>
+          <button class="s-btn" onclick="generateFlawless()">✨ 生成无瑕疵音频</button>
+          <div class="s-loading" id="flawLoading"><span>瑕疵检测与修复中...</span></div>
+          <div id="flawPlayer"></div>
+          <pre class="s-result" id="flawResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+      </div>
+
+    </div>
+    <div class="safe-bottom"></div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
 </div>
-
-<div class="tabs">
-  <div class="tab active" data-panel="compose">作曲</div>
-  <div class="tab" data-panel="theory">理论</div>
-  <div class="tab" data-panel="synth">歌声</div>
-  <div class="tab" data-panel="effects">效果器</div>
-  <div class="tab" data-panel="visual">可视化</div>
-  <div class="tab" data-panel="realistic">真人声</div>
-  <div class="tab" data-panel="arranger">伴奏</div>
-  <div class="tab" data-panel="lyrics">歌词</div>
-  <div class="tab" data-panel="cognitive">认知</div>
-  <div class="tab" data-panel="flawless">无瑕疵</div>
-</div>
-
-<div class="content">
-
-  <!-- 作曲面板 -->
-  <div class="panel active" id="compose">
-    <div class="card">
-      <h3>🎼 AI 智能作曲</h3>
-      <div class="form-group">
-        <label>算法</label>
-        <select id="algo">
-          <option value="genetic">遗传进化（推荐）</option>
-          <option value="markov">马尔可夫链</option>
-          <option value="fractal">分形旋律</option>
-          <option value="chaos">混沌节奏</option>
-          <option value="quantum">量子概率</option>
-          <option value="ca">细胞自动机</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>风格</label>
-        <select id="style">
-          <option value="pop">流行 Pop</option>
-          <option value="rock">摇滚 Rock</option>
-          <option value="jazz">爵士 Jazz</option>
-          <option value="electronic">电子 Electronic</option>
-          <option value="classical">古典 Classical</option>
-          <option value="folk">民谣 Folk</option>
-          <option value="rnb">R&B</option>
-          <option value="metal">金属 Metal</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>调性</label>
-        <select id="key">
-          <option value="C">C大调</option>
-          <option value="Am">A小调</option>
-          <option value="G">G大调</option>
-          <option value="Em">E小调</option>
-          <option value="F">F大调</option>
-          <option value="Dm">D小调</option>
-          <option value="D">D大调</option>
-          <option value="Bm">B小调</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>长度（音符数）</label>
-        <input type="number" id="length" value="16" min="4" max="64">
-      </div>
-      <div class="form-group">
-        <label>BPM</label>
-        <input type="number" id="bpm" value="120" min="40" max="240">
-      </div>
-      <button class="btn" onclick="compose()">✨ 生成旋律</button>
-      <button class="btn btn-small" onclick="autoArrange()">🎹 自动编曲</button>
-      <div class="loading" id="composeLoading"><span>AI 正在创作中...</span></div>
-      <div class="result" id="composeResult"></div>
-    </div>
-
-    <div class="card">
-      <h3>🎵 一键生成完整歌曲</h3>
-      <button class="btn" onclick="fullSong()">🚀 创作完整歌曲</button>
-      <div class="loading" id="fullSongLoading"><span>多引擎协作中...</span></div>
-      <div class="result" id="fullSongResult"></div>
-    </div>
-  </div>
-
-  <!-- 理论面板 -->
-  <div class="panel" id="theory">
-    <div class="card">
-      <h3>🎹 音阶查询</h3>
-      <div class="form-group">
-        <label>音阶类型</label>
-        <select id="scaleType">
-          <option value="major">大调 Major</option>
-          <option value="natural_minor">自然小调</option>
-          <option value="pentatonic">五声音阶</option>
-          <option value="blues">布鲁斯</option>
-          <option value="dorian">多利亚</option>
-          <option value="gong">宫调（中国）</option>
-          <option value="in_scale">阴（日本）</option>
-          <option value="arabic">阿拉伯</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>根音</label>
-        <select id="scaleRoot">
-          <option value="C">C</option>
-          <option value="D">D</option>
-          <option value="E">E</option>
-          <option value="F">F</option>
-          <option value="G">G</option>
-          <option value="A">A</option>
-          <option value="B">B</option>
-        </select>
-      </div>
-      <button class="btn" onclick="getScale()">查询音阶</button>
-      <div class="result" id="scaleResult"></div>
-    </div>
-
-    <div class="card">
-      <h3>🎸 和弦进行</h3>
-      <button class="btn btn-small" onclick="getProgressions('pop')">流行</button>
-      <button class="btn btn-small" onclick="getProgressions('rock')">摇滚</button>
-      <button class="btn btn-small" onclick="getProgressions('jazz')">爵士</button>
-      <button class="btn btn-small" onclick="getProgressions('blues')">布鲁斯</button>
-      <button class="btn btn-small" onclick="getProgressions('electronic')">电子</button>
-      <div class="result" id="progResult"></div>
-    </div>
-  </div>
-
-  <!-- 歌声面板 -->
-  <div class="panel" id="synth">
-    <div class="card">
-      <h3>🎤 单音合成</h3>
-      <div class="form-group">
-        <label>音符</label>
-        <select id="toneNote">
-          <option value="C4">C4</option>
-          <option value="E4">E4</option>
-          <option value="G4">G4</option>
-          <option value="A4">A4</option>
-          <option value="C5">C5</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>时长（秒）</label>
-        <input type="number" id="toneDuration" value="1" min="0.1" max="5" step="0.1">
-      </div>
-      <div class="form-group">
-        <label>音色</label>
-        <select id="toneTimbre">
-          <option value="soprano">女高音</option>
-          <option value="alto">女中音</option>
-          <option value="tenor">男高音</option>
-          <option value="bass">男低音</option>
-          <option value="child">童声</option>
-        </select>
-      </div>
-      <button class="btn" onclick="synthesizeTone()">🔊 合成音频</button>
-      <div class="loading" id="toneLoading"><span>声波生成中...</span></div>
-      <div id="tonePlayer"></div>
-    </div>
-  </div>
-
-  <!-- 效果器面板 -->
-  <div class="panel" id="effects">
-    <div class="card">
-      <h3>🔊 音频效果器</h3>
-      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">使用正弦波作为测试信号</p>
-      <div class="form-group">
-        <label>效果器</label>
-        <select id="effectType">
-          <option value="reverb">卷积混响</option>
-          <option value="eq">参数均衡</option>
-          <option value="compress">压缩器</option>
-          <option value="distort">失真</option>
-          <option value="delay">延迟</option>
-          <option value="chorus">合唱</option>
-        </select>
-      </div>
-      <button class="btn" onclick="applyEffect()">⚡ 应用效果</button>
-      <div class="loading" id="effectLoading"><span>DSP处理中...</span></div>
-      <div class="result" id="effectResult"></div>
-    </div>
-  </div>
-
-  <!-- 可视化面板 -->
-  <div class="panel" id="visual">
-    <div class="card">
-      <h3>🌊 实时频谱</h3>
-      <canvas id="spectrumCanvas" width="360" height="160"></canvas>
-      <button class="btn" onclick="startVisualizer()" id="vizBtn">▶ 启动可视化</button>
-      <p style="font-size:10px;color:var(--text2);margin-top:6px;">使用模拟音频数据演示</p>
-    </div>
-  </div>
-
-  <!-- 真人级人声面板 -->
-  <div class="panel" id="realistic">
-    <div class="card">
-      <h3>🎙️ 真人级人声合成</h3>
-      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">基于真实声学数据 | 混沌基频 | 分形噪声 | 物理建模</p>
-      <div class="form-group">
-        <label>性别/声道</label>
-        <select id="rvGender">
-          <option value="female">女声</option>
-          <option value="male">男声</option>
-          <option value="child">童声</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>音色</label>
-        <select id="rvTimbre">
-          <option value="warm">温暖</option>
-          <option value="bright">明亮</option>
-          <option value="hoarse">沙哑</option>
-          <option value="ethereal">空灵</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>歌词（每个字对应一个音符）</label>
-        <input type="text" id="rvLyrics" value="啦 啦 啦 啦" placeholder="如：啦 啦 啦 啦">
-      </div>
-      <div class="form-group">
-        <label>音符（空格分隔）</label>
-        <input type="text" id="rvNotes" value="C4 E4 G4 C5" placeholder="如：C4 E4 G4 C5">
-      </div>
-      <div class="form-group">
-        <label>时长（空格分隔，秒）</label>
-        <input type="text" id="rvDurations" value="0.5 0.5 0.5 0.5" placeholder="如：0.5 0.5 0.5 0.5">
-      </div>
-      <button class="btn" onclick="synthesizeRealistic()">🎙️ 合成真人声</button>
-      <div class="loading" id="rvLoading"><span>物理建模声波生成中...</span></div>
-      <div id="rvPlayer"></div>
-    </div>
-
-    <div class="card">
-      <h3>🎵 简谱合成</h3>
-      <div class="form-group">
-        <label>简谱</label>
-        <input type="text" id="rvJianpu" value="1 2 3 1 | 5 6 5 - |" placeholder="如：1 2 3 1 | 5 6 5 - |">
-      </div>
-      <div class="form-group">
-        <label>歌词（空格分隔）</label>
-        <input type="text" id="rvJianpuLyrics" value="啦 啦 啦 啦 啦 啦 啦 啦" placeholder="如：啦 啦 啦 啦">
-      </div>
-      <button class="btn" onclick="synthesizeJianpu()">🎵 简谱合成</button>
-      <div class="loading" id="rvJianpuLoading"><span>中国乐谱解析中...</span></div>
-      <div id="rvJianpuPlayer"></div>
-    </div>
-  </div>
-
-  <!-- 真人级伴奏面板 -->
-  <div class="panel" id="arranger">
-    <div class="card">
-      <h3>🎹 真人级伴奏生成</h3>
-      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">物理建模乐器 · 中国民乐 · 人性化演奏 · 非传统技术</p>
-      <div class="form-group">
-        <label>风格</label>
-        <select id="arrStyle">
-          <option value="pop">流行 Pop</option>
-          <option value="rock">摇滚 Rock</option>
-          <option value="jazz">爵士 Jazz</option>
-          <option value="electronic">电子 Electronic</option>
-          <option value="classical">古典 Classical</option>
-          <option value="folk">民谣 Folk</option>
-          <option value="chinese" selected>中国风 Chinese</option>
-          <option value="rnb">R&B</option>
-          <option value="metal">金属 Metal</option>
-          <option value="blues">布鲁斯 Blues</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>调性</label>
-        <select id="arrKey">
-          <option value="C">C大调</option>
-          <option value="Am">A小调</option>
-          <option value="G" selected>G大调</option>
-          <option value="Em">E小调</option>
-          <option value="F">F大调</option>
-          <option value="Dm">D小调</option>
-          <option value="D">D大调</option>
-          <option value="Bm">B小调</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>情绪</label>
-        <select id="arrEmotion">
-          <option value="happy">欢快</option>
-          <option value="sad">忧伤</option>
-          <option value="tense">紧张</option>
-          <option value="relaxed">放松</option>
-          <option value="epic">史诗</option>
-          <option value="romantic" selected>浪漫</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>BPM</label>
-        <input type="number" id="arrBpm" value="90" min="40" max="240">
-      </div>
-      <button class="btn" onclick="generateArranger()">🎼 生成伴奏</button>
-      <div class="loading" id="arrLoading"><span>多轨物理建模渲染中...</span></div>
-      <div id="arrPlayer"></div>
-      <div class="result" id="arrResult"></div>
-    </div>
-  </div>
-
-  <!-- 智能歌词面板 -->
-  <div class="panel" id="lyrics">
-    <div class="card">
-      <h3>📝 智能歌词生成</h3>
-      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">根据事物/食物/感情/人物情绪生成中文歌词 · 混沌选词 · 分形结构 · 马尔可夫情感流</p>
-
-      <div class="form-group">
-        <label>生成模式</label>
-        <select id="lyricMode" onchange="toggleLyricMode()">
-          <option value="general">通用创作</option>
-          <option value="food">食物主题</option>
-          <option value="emotion">情感主题</option>
-          <option value="character">人物叙事</option>
-        </select>
-      </div>
-
-      <!-- 通用模式 -->
-      <div id="lyricGeneral">
-        <div class="form-group">
-          <label>主题</label>
-          <select id="lyricTheme">
-            <option value="love">爱情</option>
-            <option value="nature">自然</option>
-            <option value="city">城市</option>
-            <option value="season">季节</option>
-            <option value="farewell">离别</option>
-            <option value="dream">梦境</option>
-            <option value="food">食物</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>情感</label>
-          <select id="lyricEmotion">
-            <option value="joy">欢喜</option>
-            <option value="sorrow">忧伤</option>
-            <option value="anger">愤怒</option>
-            <option value="fear">恐惧</option>
-            <option value="longing">思念</option>
-            <option value="loneliness">孤独</option>
-            <option value="hope">希望</option>
-            <option value="nostalgia">怀旧</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>人物视角</label>
-          <select id="lyricPersp">
-            <option value="first">第一人称（我）</option>
-            <option value="second">第二人称（你）</option>
-            <option value="third">第三人称（他/她）</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>具体事物（可选）</label>
-          <input type="text" id="lyricObject" placeholder="如：火锅、樱花、地铁站">
-        </div>
-      </div>
-
-      <!-- 食物模式 -->
-      <div id="lyricFood" style="display:none">
-        <div class="form-group">
-          <label>食物名称</label>
-          <input type="text" id="lyricFoodName" value="火锅" placeholder="如：火锅、小笼包、月饼">
-        </div>
-        <div class="form-group">
-          <label>情感</label>
-          <select id="lyricFoodEmotion">
-            <option value="nostalgia">怀旧</option>
-            <option value="joy">欢喜</option>
-            <option value="sorrow">忧伤</option>
-            <option value="longing">思念</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- 情感模式 -->
-      <div id="lyricEmotionDiv" style="display:none">
-        <div class="form-group">
-          <label>核心情感</label>
-          <select id="lyricEmoCore">
-            <option value="joy">欢喜</option>
-            <option value="sorrow">忧伤</option>
-            <option value="anger">愤怒</option>
-            <option value="fear">恐惧</option>
-            <option value="longing">思念</option>
-            <option value="loneliness">孤独</option>
-            <option value="hope">希望</option>
-            <option value="nostalgia">怀旧</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- 人物模式 -->
-      <div id="lyricCharacter" style="display:none">
-        <div class="form-group">
-          <label>人物描述</label>
-          <input type="text" id="lyricCharDesc" value="独行的旅人" placeholder="如：独行的旅人、老街的裁缝">
-        </div>
-        <div class="form-group">
-          <label>人物情感</label>
-          <select id="lyricCharEmo">
-            <option value="longing">思念</option>
-            <option value="loneliness">孤独</option>
-            <option value="joy">欢喜</option>
-            <option value="sorrow">忧伤</option>
-            <option value="hope">希望</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>叙述视角</label>
-          <select id="lyricCharPersp">
-            <option value="first">第一人称</option>
-            <option value="second">第二人称</option>
-            <option value="third">第三人称</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>风格</label>
-        <select id="lyricStyle">
-          <option value="modern">现代</option>
-          <option value="classical">古典</option>
-          <option value="poetic">诗意</option>
-          <option value="narrative">叙事</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>段落数</label>
-        <input type="number" id="lyricLength" value="4" min="2" max="8">
-      </div>
-      <button class="btn" onclick="generateLyrics()">✨ 生成歌词</button>
-      <div class="loading" id="lyricLoading"><span>AI 作词中...</span></div>
-      <pre class="result" id="lyricResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
-    </div>
-  </div>
-
-  <!-- 认知涌现引擎面板 -->
-  <div class="panel" id="cognitive">
-    <div class="card">
-      <h3>🧠 认知涌现引擎 (CEE)</h3>
-      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">T6不变量评估 · T1镜像生成 · 自学习 · 多智能体编排 · 记忆银行</p>
-
-      <div class="form-group">
-        <label>功能</label>
-        <select id="ceeMode" onchange="toggleCeeMode()">
-          <option value="evaluate">T6 质量评估</option>
-          <option value="optimize">认知闭环优化</option>
-          <option value="feedback">反馈学习</option>
-          <option value="orchestrate">多智能体编排</option>
-          <option value="status">系统状态</option>
-        </select>
-      </div>
-
-      <!-- 评估 -->
-      <div id="ceeEvaluate">
-        <div class="form-group">
-          <label>评估类型</label>
-          <select id="ceeEvalType">
-            <option value="lyrics">歌词</option>
-            <option value="melody">旋律</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>内容</label>
-          <textarea id="ceeEvalText" rows="4" placeholder="粘贴歌词或旋律音符(空格分隔)..."></textarea>
-        </div>
-        <button class="btn" onclick="ceeEvaluate()">📊 评估</button>
-      </div>
-
-      <!-- 优化 -->
-      <div id="ceeOptimize" style="display:none">
-        <div class="form-group">
-          <label>歌词</label>
-          <textarea id="ceeOptText" rows="4" placeholder="输入歌词进行认知闭环优化..."></textarea>
-        </div>
-        <button class="btn" onclick="ceeOptimize()">🔄 闭环优化</button>
-      </div>
-
-      <!-- 反馈 -->
-      <div id="ceeFeedback" style="display:none">
-        <div class="form-group">
-          <label>评分 (0-1)</label>
-          <input type="number" id="ceeScore" value="0.8" min="0" max="1" step="0.1">
-        </div>
-        <div class="form-group">
-          <label>留言</label>
-          <input type="text" id="ceeMsg" placeholder="可选反馈信息">
-        </div>
-        <div class="form-group">
-          <label>标签</label>
-          <input type="text" id="ceeTags" placeholder="逗号分隔，如: 歌词,中国风">
-        </div>
-        <button class="btn" onclick="ceeFeedback()">💬 提交反馈</button>
-      </div>
-
-      <!-- 编排 -->
-      <div id="ceeOrchestrate" style="display:none">
-        <div class="form-group">
-          <label>目标</label>
-          <select id="ceeGoal">
-            <option value="作曲旋律">作曲旋律</option>
-            <option value="人声合成">人声合成</option>
-            <option value="伴奏编曲">伴奏编曲</option>
-          </select>
-        </div>
-        <button class="btn" onclick="ceeOrchestrate()">🤖 智能编排</button>
-      </div>
-
-      <!-- 状态 -->
-      <div id="ceeStatus" style="display:none">
-        <button class="btn" onclick="ceeStatus()">📈 查看状态</button>
-      </div>
-
-      <div class="loading" id="ceeLoading"><span>认知引擎运行中...</span></div>
-      <pre class="result" id="ceeResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
-    </div>
-  </div>
-
-  <!-- 无瑕疵合成器面板 -->
-  <div class="panel" id="flawless">
-    <div class="card">
-      <h3>✨ 无瑕疵音乐合成器</h3>
-      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">瑕疵检测 + 自动修复 + FM合成 + 物理建模 + 认知闭环</p>
-
-      <div class="form-group">
-        <label>功能</label>
-        <select id="flawMode" onchange="toggleFlawMode()">
-          <option value="note">单音合成</option>
-          <option value="chord">和弦合成</option>
-          <option value="arpeggio">琶音合成</option>
-          <option value="drum">打击乐</option>
-          <option value="preset">预设音色</option>
-        </select>
-      </div>
-
-      <!-- 单音 -->
-      <div id="flawNote">
-        <div class="form-group">
-          <label>频率 (Hz)</label>
-          <input type="number" id="flawFreq" value="440" min="20" max="8000">
-        </div>
-        <div class="form-group">
-          <label>时长 (秒)</label>
-          <input type="number" id="flawDur" value="1" min="0.1" max="5" step="0.1">
-        </div>
-        <div class="form-group">
-          <label>波形</label>
-          <select id="flawWave">
-            <option value="sine">正弦波</option>
-            <option value="triangle" selected>三角波</option>
-            <option value="sawtooth">锯齿波</option>
-            <option value="square">方波</option>
-            <option value="superSaw">SuperSaw</option>
-            <option value="noise">粉红噪声</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label><input type="checkbox" id="flawFm"> FM调制</label>
-        </div>
-      </div>
-
-      <!-- 和弦 -->
-      <div id="flawChord" style="display:none">
-        <div class="form-group">
-          <label>频率列表 (逗号分隔)</label>
-          <input type="text" id="flawChordFreqs" value="261.63,329.63,392.00" placeholder="C大和弦">
-        </div>
-        <div class="form-group">
-          <label>时长 (秒)</label>
-          <input type="number" id="flawChordDur" value="2" min="0.1" max="5" step="0.1">
-        </div>
-      </div>
-
-      <!-- 琶音 -->
-      <div id="flawArp" style="display:none">
-        <div class="form-group">
-          <label>频率列表</label>
-          <input type="text" id="flawArpFreqs" value="261.63,329.63,392.00,523.25" placeholder="C大琶音">
-        </div>
-        <div class="form-group">
-          <label>每音时长 (秒)</label>
-          <input type="number" id="flawArpNoteDur" value="0.5" min="0.1" max="2" step="0.1">
-        </div>
-      </div>
-
-      <!-- 鼓 -->
-      <div id="flawDrum" style="display:none">
-        <div class="form-group">
-          <label>鼓类型</label>
-          <select id="flawDrumType">
-            <option value="kick">底鼓 Kick</option>
-            <option value="snare">军鼓 Snare</option>
-            <option value="hihat">踩镲 HiHat</option>
-            <option value="tom">通鼓 Tom</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- 预设 -->
-      <div id="flawPreset" style="display:none">
-        <div class="form-group">
-          <label>预设</label>
-          <select id="flawPresetName">
-            <option value="pure_sine">纯净正弦</option>
-            <option value="warm_triangle">温暖三角波</option>
-            <option value="rich_saw">丰富锯齿波</option>
-            <option value="hollow_square">空心方波</option>
-            <option value="supersaw_lead">SuperSaw主音</option>
-            <option value="fm_e_piano">FM电钢琴</option>
-            <option value="fm_bell">FM钟声</option>
-            <option value="fm_bass">FM贝斯</option>
-            <option value="noise_pad">噪声铺底</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>频率 (Hz)</label>
-          <input type="number" id="flawPresetFreq" value="440" min="20" max="8000">
-        </div>
-        <div class="form-group">
-          <label>时长 (秒)</label>
-          <input type="number" id="flawPresetDur" value="2" min="0.1" max="5" step="0.1">
-        </div>
-      </div>
-
-      <button class="btn" onclick="generateFlawless()">✨ 生成无瑕疵音频</button>
-      <div class="loading" id="flawLoading"><span>瑕疵检测与修复中...</span></div>
-      <div id="flawPlayer"></div>
-      <pre class="result" id="flawResult" style="white-space:pre-wrap;font-family:inherit;font-size:11px;"></pre>
-    </div>
-  </div>
-
-</div>
-
-<div class="footer">青鸾数字音频工作站 v2.0 · 纯代码 · 零外部付费API</div>
 
 <script>
 const API = 'http://localhost:3221';
 
-// 标签页切换
-document.querySelectorAll('.tab').forEach(t => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById(t.dataset.panel).classList.add('active');
-  });
-});
+/* ================= 多开会话系统 ================= */
+let sessions = JSON.parse(localStorage.getItem('qingluan_sessions') || '[]');
+let currentSessionId = localStorage.getItem('qingluan_current_session') || '';
 
-// 作曲
+function ensureSession() {
+  if (!currentSessionId || !sessions.find(s => s.id === currentSessionId)) {
+    newSession();
+  }
+}
+function newSession() {
+  const id = 'sess_' + Date.now();
+  const session = {
+    id,
+    title: '创作 ' + (sessions.length + 1),
+    preview: '新建创作会话...',
+    messages: [],
+    createdAt: Date.now(),
+  };
+  sessions.unshift(session);
+  currentSessionId = id;
+  saveSessions();
+  renderDrawer();
+  renderChat();
+  showToast('新建创作会话');
+}
+function saveSessions() {
+  localStorage.setItem('qingluan_sessions', JSON.stringify(sessions));
+  localStorage.setItem('qingluan_current_session', currentSessionId);
+}
+function switchSession(id) {
+  currentSessionId = id;
+  saveSessions();
+  renderDrawer();
+  renderChat();
+  toggleDrawer();
+}
+function deleteSession(e, id) {
+  e.stopPropagation();
+  sessions = sessions.filter(s => s.id !== id);
+  if (sessions.length === 0) { newSession(); return; }
+  if (currentSessionId === id) currentSessionId = sessions[0].id;
+  saveSessions();
+  renderDrawer();
+  renderChat();
+}
+function updateSessionPreview(text) {
+  const s = sessions.find(s => s.id === currentSessionId);
+  if (s) { s.preview = text.slice(0, 30); s.updatedAt = Date.now(); saveSessions(); renderDrawer(); }
+}
+function addMessage(role, content, type='text', extra='') {
+  ensureSession();
+  const s = sessions.find(s => s.id === currentSessionId);
+  if (!s) return;
+  const msg = { role, content, type, extra, time: Date.now() };
+  s.messages.push(msg);
+  if (role === 'user') s.preview = content.slice(0, 30);
+  saveSessions();
+  renderChat();
+  if (role === 'user') updateSessionPreview(content);
+}
+function renderDrawer() {
+  const list = document.getElementById('sessionList');
+  list.innerHTML = sessions.map(s => `
+    <div class="session-item ${s.id===currentSessionId?'active':''}" onclick="switchSession('${s.id}')">
+      <div class="session-avatar">${s.title.slice(0,1)}</div>
+      <div class="session-info">
+        <div class="session-title">${s.title}</div>
+        <div class="session-preview">${s.preview || '无消息'}</div>
+      </div>
+      <div class="session-time">${fmtTime(s.updatedAt||s.createdAt)}</div>
+    </div>
+  `).join('');
+}
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function renderChat() {
+  const container = document.getElementById('chatList');
+  const s = sessions.find(s => s.id === currentSessionId);
+  if (!s || s.messages.length === 0) {
+    container.innerHTML = `
+      <div class="welcome">
+        <h1>Hey 👋 用户</h1>
+        <p>今天青鸾 DAW<br>能帮你做什么？</p>
+        <div class="sub">点击下方快捷入口开始创作，或进入工作室调整高级参数。</div>
+      </div>`;
+    return;
+  }
+  container.innerHTML = s.messages.map(m => renderMessage(m)).join('');
+  container.scrollTop = container.scrollHeight;
+}
+function renderMessage(m) {
+  const time = fmtTime(m.time);
+  if (m.type === 'func-card') {
+    return `<div class="msg-row ai"><div class="msg-avatar">🐦</div><div><div class="msg-bubble" style="background:transparent;padding:0;max-width:85%;">${m.extra}</div><div class="msg-time">${time}</div></div></div>`;
+  }
+  const avatar = m.role==='user' ? '👤' : '🐦';
+  const cls = m.role;
+  return `<div class="msg-row ${cls}"><div class="msg-avatar">${avatar}</div><div><div class="msg-bubble">${escapeHtml(m.content)}</div><div class="msg-time">${time}</div></div></div>`;
+}
+function escapeHtml(t) {
+  const d=document.createElement('div'); d.textContent=t; return d.innerHTML;
+}
+
+/* ================= UI 控制 ================= */
+function toggleDrawer() {
+  document.getElementById('drawer').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('show');
+}
+function toggleStudio() {
+  document.getElementById('studio').classList.toggle('open');
+}
+function closeAll() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+function switchNav(el, mode) {
+  document.querySelectorAll('.nav-pills span').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+  if (mode==='studio') { document.getElementById('studio').classList.add('open'); }
+  else { document.getElementById('studio').classList.remove('open'); }
+}
+function showToast(t) {
+  const el=document.getElementById('toast'); el.textContent=t; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2000);
+}
+
+// 输入框提示
+const chatInput = document.getElementById('chatInput');
+const inputHint = document.getElementById('inputHint');
+chatInput.addEventListener('input', () => { inputHint.style.display = chatInput.value ? 'none' : 'block'; });
+
+function sendChat() {
+  const v = chatInput.value.trim();
+  if (!v) return;
+  addMessage('user', v);
+  chatInput.value = '';
+  inputHint.style.display = 'block';
+  // 简单命令解析
+  if (/作曲|旋律|创作/.test(v)) { setTimeout(()=>addFuncCard('compose'),400); }
+  else if (/人声|唱歌|歌手/.test(v)) { setTimeout(()=>addFuncCard('realistic'),400); }
+  else if (/伴奏|编曲|乐队/.test(v)) { setTimeout(()=>addFuncCard('arranger'),400); }
+  else if (/歌词|词|写诗/.test(v)) { setTimeout(()=>addFuncCard('lyrics'),400); }
+  else if (/合成器|音色|波/.test(v)) { setTimeout(()=>addFuncCard('flawless'),400); }
+  else {
+    setTimeout(()=>addMessage('ai', '收到！你可以在下方快捷入口选择具体功能，或进入「工作室」调整高级参数。'),500);
+  }
+}
+
+/* ================= 聊天中的功能卡片 ================= */
+let cardIdCounter = 0;
+function addFuncCard(type) {
+  ensureSession();
+  cardIdCounter++;
+  const cid = 'fc_' + cardIdCounter;
+  let html = '';
+  if (type === 'compose') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>🎼 AI 智能作曲</h4>
+      <div class="form-row"><label>风格</label><select id="${cid}_style"><option>流行</option><option>摇滚</option><option>电子</option><option>古典</option><option>中国风</option></select></div>
+      <div class="form-row"><label>调性</label><select id="${cid}_key"><option>C大调</option><option>G大调</option><option>A小调</option><option>F大调</option></select></div>
+      <div class="form-row"><label>BPM</label><input type="number" id="${cid}_bpm" value="120" min="40" max="240"></div>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardCompose('${cid}')">生成</button></div>
+      <div class="result-mini" id="${cid}_res"></div>
+    </div>`;
+  } else if (type === 'realistic') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>🎙️ 真人级人声</h4>
+      <div class="form-row"><label>性别</label><select id="${cid}_gender"><option value="female">女声</option><option value="male">男声</option></select></div>
+      <div class="form-row"><label>歌词</label><input type="text" id="${cid}_text" value="啦 啦 啦"></div>
+      <div class="form-row"><label>音符</label><input type="text" id="${cid}_notes" value="C4 E4 G4"></div>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardRealistic('${cid}')">合成</button></div>
+      <div id="${cid}_player"></div>
+    </div>`;
+  } else if (type === 'arranger') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>🎹 真人级伴奏</h4>
+      <div class="form-row"><label>风格</label><select id="${cid}_style"><option value="chinese">中国风</option><option value="pop">流行</option><option value="rock">摇滚</option><option value="jazz">爵士</option></select></div>
+      <div class="form-row"><label>情绪</label><select id="${cid}_emo"><option value="romantic">浪漫</option><option value="happy">欢快</option><option value="sad">忧伤</option></select></div>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardArranger('${cid}')">生成</button></div>
+      <div id="${cid}_player"></div>
+      <div class="result-mini" id="${cid}_res"></div>
+    </div>`;
+  } else if (type === 'lyrics') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>📝 智能歌词生成</h4>
+      <div class="form-row"><label>主题</label><select id="${cid}_theme"><option value="love">爱情</option><option value="nature">自然</option><option value="food">食物</option><option value="city">城市</option></select></div>
+      <div class="form-row"><label>情感</label><select id="${cid}_emo"><option value="joy">欢喜</option><option value="sorrow">忧伤</option><option value="nostalgia">怀旧</option></select></div>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardLyrics('${cid}')">生成</button></div>
+      <div class="result-mini" id="${cid}_res"></div>
+    </div>`;
+  } else if (type === 'flawless') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>✨ 无瑕疵合成器</h4>
+      <div class="form-row"><label>波形</label><select id="${cid}_wave"><option value="triangle">三角波</option><option value="sine">正弦波</option><option value="sawtooth">锯齿波</option><option value="square">方波</option></select></div>
+      <div class="form-row"><label>频率</label><input type="number" id="${cid}_freq" value="440"></div>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardFlawless('${cid}')">生成</button></div>
+      <div id="${cid}_player"></div>
+      <div class="result-mini" id="${cid}_res"></div>
+    </div>`;
+  } else if (type === 'effects') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>🔊 音频效果器</h4>
+      <div class="form-row"><label>效果</label><select id="${cid}_fx"><option value="reverb">混响</option><option value="eq">均衡</option><option value="compress">压缩</option><option value="distort">失真</option><option value="delay">延迟</option></select></div>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardEffects('${cid}')">应用</button></div>
+      <div class="result-mini" id="${cid}_res"></div>
+    </div>`;
+  } else if (type === 'visual') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>🌊 实时频谱可视化</h4>
+      <canvas id="${cid}_canvas" width="300" height="120" style="width:100%;height:120px;border-radius:10px;background:#f0f0f5;"></canvas>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">关闭</button><button onclick="runCardVisual('${cid}')">启动</button></div>
+    </div>`;
+  } else if (type === 'cognitive') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>🧠 认知涌现评估</h4>
+      <div class="form-row"><label>内容</label><input type="text" id="${cid}_txt" placeholder="输入歌词或旋律..."></div>
+      <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardCognitive('${cid}')">评估</button></div>
+      <div class="result-mini" id="${cid}_res"></div>
+    </div>`;
+  }
+  addMessage('ai', '', 'func-card', html);
+}
+function closeCard(id) {
+  const el = document.getElementById(id);
+  if (el) el.closest('.msg-row').remove();
+}
+
+// 卡片执行函数
+async function runCardCompose(cid) {
+  const styleMap = {流行:'pop',摇滚:'rock',电子:'electronic',古典:'classical',中国风:'chinese'};
+  const keyMap = {'C大调':'C','G大调':'G','A小调':'Am','F大调':'F'};
+  const style = styleMap[document.getElementById(cid+'_style').value] || 'pop';
+  const key = keyMap[document.getElementById(cid+'_key').value] || 'C';
+  const bpm = parseInt(document.getElementById(cid+'_bpm').value);
+  const res = document.getElementById(cid+'_res');
+  res.textContent = 'AI 创作中...';
+  try {
+    const r = await fetch(`${API}/api/composer/create`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({algorithm:'genetic', style, key, length:16, bpm})
+    });
+    const d = await r.json();
+    res.textContent = `✓ 旋律生成成功！\n风格: ${style} | 调性: ${key}\n旋律: ${d.melody?.slice(0,16).join(' ')}${d.melody?.length>16?'...':''}`;
+  } catch(e){ res.textContent = '错误: '+e.message; }
+}
+async function runCardRealistic(cid) {
+  const gender = document.getElementById(cid+'_gender').value;
+  const text = document.getElementById(cid+'_text').value.split(/\s+/);
+  const notes = document.getElementById(cid+'_notes').value.split(/\s+/);
+  const durations = notes.map(()=>0.5);
+  const player = document.getElementById(cid+'_player');
+  player.innerHTML = '<div style="font-size:12px;color:#999;">生成中...</div>';
+  try {
+    const r = await fetch(`${API}/api/synth/realistic`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({gender, timbre:'warm', text, notes, durations})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+  } catch(e){ player.innerHTML = '<div style="color:#d44;font-size:12px;">错误: '+e.message+'</div>'; }
+}
+async function runCardArranger(cid) {
+  const style = document.getElementById(cid+'_style').value;
+  const emotion = document.getElementById(cid+'_emo').value;
+  const player = document.getElementById(cid+'_player');
+  const res = document.getElementById(cid+'_res');
+  player.innerHTML = '<div style="font-size:12px;color:#999;">多轨渲染中...</div>';
+  try {
+    const r = await fetch(`${API}/api/arranger/generate`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({style, key:'G', emotion, bpm:90})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+    res.textContent = `✓ 伴奏生成成功！\n风格: ${style} | 情绪: ${emotion}\n大小: ${(blob.size/1024).toFixed(1)} KB`;
+  } catch(e){ player.innerHTML = '<div style="color:#d44;font-size:12px;">错误: '+e.message+'</div>'; }
+}
+async function runCardLyrics(cid) {
+  const theme = document.getElementById(cid+'_theme').value;
+  const emotion = document.getElementById(cid+'_emo').value;
+  const res = document.getElementById(cid+'_res');
+  res.textContent = '作词中...';
+  try {
+    const r = await fetch(`${API}/api/lyrics/generate`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({theme, emotion, perspective:'first', length:4, style:'modern'})
+    });
+    const d = await r.json();
+    res.textContent = d.formatted || d.error || '无结果';
+  } catch(e){ res.textContent = '错误: '+e.message; }
+}
+async function runCardFlawless(cid) {
+  const waveform = document.getElementById(cid+'_wave').value;
+  const freq = parseFloat(document.getElementById(cid+'_freq').value);
+  const player = document.getElementById(cid+'_player');
+  const res = document.getElementById(cid+'_res');
+  player.innerHTML = '<div style="font-size:12px;color:#999;">合成中...</div>';
+  try {
+    const r = await fetch(`${API}/api/flawless/note`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({freq, duration:1, waveform, fm:false})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+    res.textContent = `✓ 无瑕疵音频生成！\n波形: ${waveform} | 频率: ${freq}Hz\n大小: ${(blob.size/1024).toFixed(1)} KB`;
+  } catch(e){ player.innerHTML = '<div style="color:#d44;font-size:12px;">错误: '+e.message+'</div>'; }
+}
+async function runCardEffects(cid) {
+  const effect = document.getElementById(cid+'_fx').value;
+  const res = document.getElementById(cid+'_res');
+  res.textContent = 'DSP处理中...';
+  try {
+    const sampleRate = 44100;
+    const samples = new Float32Array(sampleRate);
+    for (let i=0;i<sampleRate;i++) samples[i] = Math.sin(2*Math.PI*440*i/sampleRate)*0.5;
+    const r = await fetch(`${API}/api/effects/${effect}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({samples:Array.from(samples), sampleRate})
+    });
+    const d = await r.json();
+    res.textContent = d.error ? d.error : `✓ ${effect} 处理成功！\n输出长度: ${d.output.length} 采样`;
+  } catch(e){ res.textContent = '错误: '+e.message; }
+}
+function runCardVisual(cid) {
+  const canvas = document.getElementById(cid+'_canvas');
+  const ctx = canvas.getContext('2d');
+  let running = true;
+  function draw() {
+    if (!running) return;
+    ctx.fillStyle = 'rgba(240,240,245,0.3)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    const bars = 32, bw = canvas.width/bars, t = Date.now()/1000;
+    for (let i=0;i<bars;i++) {
+      const h = Math.abs(Math.sin(t*3+i/bars*10)*Math.cos(t*2+i/bars*5))*80;
+      ctx.fillStyle = `hsla(${180+i/bars*120},80%,60%,0.8)`;
+      ctx.fillRect(i*bw+1, canvas.height-h, bw-2, h);
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+  // 点击关闭时停止
+  const btn = document.querySelector(`#${cid} button[onclick^="closeCard"]`);
+  const orig = btn.onclick;
+  btn.onclick = ()=>{ running=false; orig(); };
+}
+async function runCardCognitive(cid) {
+  const text = document.getElementById(cid+'_txt').value;
+  const res = document.getElementById(cid+'_res');
+  res.textContent = '认知评估中...';
+  try {
+    const r = await fetch(`${API}/api/cee/evaluate`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text, type:'lyrics'})
+    });
+    const d = await r.json();
+    res.textContent = JSON.stringify(d, null, 2).slice(0, 500);
+  } catch(e){ res.textContent = '错误: '+e.message; }
+}
+
+/* ================= 原有 API 函数（工作室用） ================= */
 async function compose() {
   const loading = document.getElementById('composeLoading');
   const result = document.getElementById('composeResult');
-  loading.classList.add('show');
-  result.textContent = '';
+  loading.classList.add('show'); result.textContent = '';
   try {
     const res = await fetch(`${API}/api/composer/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         algorithm: document.getElementById('algo').value,
         style: document.getElementById('style').value,
@@ -875,32 +1290,20 @@ async function compose() {
       })
     });
     const data = await res.json();
-    if (data.error) {
-      result.textContent = '错误: ' + data.error;
-    } else {
-      result.textContent = `算法: ${data.algorithm}\n风格: ${data.style}\n调性: ${data.key}\n旋律: ${data.melody?.slice(0, 20).join(' ')}${data.melody?.length > 20 ? '...' : ''}\n节奏: ${data.rhythm?.slice(0, 20).join(' ')}${data.rhythm?.length > 20 ? '...' : ''}`;
-      floatNote();
-    }
-  } catch (e) {
-    result.textContent = '网络错误: ' + e.message;
-  }
+    result.textContent = data.error ? '错误: '+data.error : `算法: ${data.algorithm}\n风格: ${data.style}\n调性: ${data.key}\n旋律: ${data.melody?.slice(0,20).join(' ')}${data.melody?.length>20?'...':''}`;
+  } catch(e){ result.textContent = '网络错误: '+e.message; }
   loading.classList.remove('show');
 }
-
 async function autoArrange() {
-  const result = document.getElementById('composeResult');
-  result.textContent = '自动编曲需要先有旋律...';
+  document.getElementById('composeResult').textContent = '自动编曲需要先有旋律...';
 }
-
 async function fullSong() {
   const loading = document.getElementById('fullSongLoading');
   const result = document.getElementById('fullSongResult');
-  loading.classList.add('show');
-  result.textContent = '';
+  loading.classList.add('show'); result.textContent = '';
   try {
     const res = await fetch(`${API}/api/create/full-song`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         style: document.getElementById('style').value,
         key: document.getElementById('key').value,
@@ -910,52 +1313,34 @@ async function fullSong() {
       })
     });
     const data = await res.json();
-    if (data.error) {
-      result.textContent = '错误: ' + data.error;
-    } else {
-      result.textContent = `🎵 完整歌曲生成成功！\n风格: ${data.style} | 调性: ${data.key} | BPM: ${data.bpm}\n算法: ${data.algorithm}\n旋律: ${data.melody?.length}个音符\n歌词: ${data.lyrics?.slice(0, 10).join('')}${data.lyrics?.length > 10 ? '...' : ''}\n\n音轨: ${data.arrangement?.tracks ? Object.keys(data.arrangement.tracks).join(', ') : 'N/A'}`;
-      floatNote();
-    }
-  } catch (e) {
-    result.textContent = '网络错误: ' + e.message;
-  }
+    result.textContent = data.error ? '错误: '+data.error : `🎵 完整歌曲生成成功！\n风格: ${data.style} | 调性: ${data.key} | BPM: ${data.bpm}\n旋律: ${data.melody?.length}个音符\n歌词: ${data.lyrics?.slice(0,10)}...`;
+  } catch(e){ result.textContent = '网络错误: '+e.message; }
   loading.classList.remove('show');
 }
-
-// 音乐理论
 async function getScale() {
   const result = document.getElementById('scaleResult');
   try {
     const res = await fetch(`${API}/api/theory/scale/${document.getElementById('scaleType').value}?root=${document.getElementById('scaleRoot').value}`);
     const data = await res.json();
     result.textContent = data.error ? data.error : `${data.root} ${data.name}:\n${data.notes?.join(' ')}`;
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+  } catch(e){ result.textContent = '错误: '+e.message; }
 }
-
 async function getProgressions(style) {
   const result = document.getElementById('progResult');
   try {
     const res = await fetch(`${API}/api/theory/progressions?style=${style}`);
     const data = await res.json();
     const progs = data[style] || data;
-    result.textContent = typeof progs === 'object' ? JSON.stringify(progs, null, 2).slice(0, 800) : String(progs);
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+    result.textContent = typeof progs==='object' ? JSON.stringify(progs,null,2).slice(0,800) : String(progs);
+  } catch(e){ result.textContent = '错误: '+e.message; }
 }
-
-// 歌声合成
 async function synthesizeTone() {
   const loading = document.getElementById('toneLoading');
   const player = document.getElementById('tonePlayer');
-  loading.classList.add('show');
-  player.innerHTML = '';
+  loading.classList.add('show'); player.innerHTML = '';
   try {
     const res = await fetch(`${API}/api/synth/tone`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         note: document.getElementById('toneNote').value,
         duration: parseFloat(document.getElementById('toneDuration').value),
@@ -966,106 +1351,62 @@ async function synthesizeTone() {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     player.innerHTML = `<audio controls src="${url}"></audio>`;
-  } catch (e) {
-    player.innerHTML = '<p style="color:#ff5555;font-size:11px;">错误: ' + e.message + '</p>';
-  }
+  } catch(e){ player.innerHTML = '<p style="color:#d44;font-size:11px;">错误: '+e.message+'</p>'; }
   loading.classList.remove('show');
 }
-
-// 效果器
 async function applyEffect() {
   const loading = document.getElementById('effectLoading');
   const result = document.getElementById('effectResult');
-  loading.classList.add('show');
-  result.textContent = '';
+  loading.classList.add('show'); result.textContent = '';
   try {
-    // 生成1秒正弦波测试信号
     const sampleRate = 44100;
     const samples = new Float32Array(sampleRate);
-    for (let i = 0; i < sampleRate; i++) {
-      samples[i] = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.5;
-    }
+    for (let i=0;i<sampleRate;i++) samples[i] = Math.sin(2*Math.PI*440*i/sampleRate)*0.5;
     const effect = document.getElementById('effectType').value;
     const res = await fetch(`${API}/api/effects/${effect}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ samples: Array.from(samples), sampleRate })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({samples:Array.from(samples), sampleRate})
     });
     const data = await res.json();
-    if (data.error) {
-      result.textContent = '错误: ' + data.error;
-    } else {
-      const rmsBefore = Math.sqrt(samples.reduce((a, b) => a + b * b, 0) / samples.length);
-      const rmsAfter = Math.sqrt(data.output.reduce((a, b) => a + b * b, 0) / data.output.length);
+    if (data.error) { result.textContent = '错误: '+data.error; }
+    else {
+      const rmsBefore = Math.sqrt(samples.reduce((a,b)=>a+b*b,0)/samples.length);
+      const rmsAfter = Math.sqrt(data.output.reduce((a,b)=>a+b*b,0)/data.output.length);
       result.textContent = `效果器: ${effect}\n输入RMS: ${rmsBefore.toFixed(4)}\n输出RMS: ${rmsAfter.toFixed(4)}\n输出长度: ${data.output.length} 采样\n处理成功 ✓`;
     }
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+  } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
 }
-
-// 可视化
 let vizRunning = false;
 function startVisualizer() {
   const canvas = document.getElementById('spectrumCanvas');
   const ctx = canvas.getContext('2d');
   const btn = document.getElementById('vizBtn');
-  if (vizRunning) {
-    vizRunning = false;
-    btn.textContent = '▶ 启动可视化';
-    return;
-  }
-  vizRunning = true;
-  btn.textContent = '⏹ 停止';
-
+  if (vizRunning) { vizRunning = false; btn.textContent = '▶ 启动可视化'; return; }
+  vizRunning = true; btn.textContent = '⏹ 停止';
   function draw() {
-    if (!vizRunning) {
-      ctx.fillStyle = '#12122a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
-    ctx.fillStyle = 'rgba(18,18,42,0.3)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const barCount = 48;
-    const barWidth = canvas.width / barCount;
-    const time = Date.now() / 1000;
-
-    for (let i = 0; i < barCount; i++) {
-      const freq = i / barCount;
-      const h = Math.abs(Math.sin(time * 3 + freq * 10) * Math.cos(time * 2 + freq * 5)) * 120;
-      const hue = 180 + freq * 120;
-      ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.8)`;
-      ctx.fillRect(i * barWidth + 1, canvas.height - h, barWidth - 2, h);
+    if (!vizRunning) { ctx.fillStyle='#f0f0f5'; ctx.fillRect(0,0,canvas.width,canvas.height); return; }
+    ctx.fillStyle = 'rgba(240,240,245,0.3)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    const barCount = 48, barWidth = canvas.width/barCount, time = Date.now()/1000;
+    for (let i=0;i<barCount;i++) {
+      const freq = i/barCount;
+      const h = Math.abs(Math.sin(time*3+freq*10)*Math.cos(time*2+freq*5))*120;
+      const hue = 180+freq*120;
+      ctx.fillStyle = `hsla(${hue},80%,60%,0.8)`;
+      ctx.fillRect(i*barWidth+1, canvas.height-h, barWidth-2, h);
     }
     requestAnimationFrame(draw);
   }
   draw();
 }
-
-// 音符动画
-function floatNote() {
-  const notes = ['♪', '♫', '♬', '♩', '𝄞'];
-  const el = document.createElement('div');
-  el.className = 'note-anim';
-  el.textContent = notes[Math.floor(Math.random() * notes.length)];
-  el.style.left = Math.random() * window.innerWidth + 'px';
-  el.style.bottom = '80px';
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1500);
-}
-
-// 真人级人声合成
 async function synthesizeRealistic() {
   const loading = document.getElementById('rvLoading');
   const player = document.getElementById('rvPlayer');
-  loading.classList.add('show');
-  player.innerHTML = '';
+  loading.classList.add('show'); player.innerHTML = '';
   try {
     const res = await fetch(`${API}/api/synth/realistic`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         gender: document.getElementById('rvGender').value,
         timbre: document.getElementById('rvTimbre').value,
@@ -1078,22 +1419,16 @@ async function synthesizeRealistic() {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     player.innerHTML = `<audio controls src="${url}"></audio>`;
-    floatNote();
-  } catch (e) {
-    player.innerHTML = '<p style="color:#ff5555;font-size:11px;">错误: ' + e.message + '</p>';
-  }
+  } catch(e){ player.innerHTML = '<p style="color:#d44;font-size:11px;">错误: '+e.message+'</p>'; }
   loading.classList.remove('show');
 }
-
 async function synthesizeJianpu() {
   const loading = document.getElementById('rvJianpuLoading');
   const player = document.getElementById('rvJianpuPlayer');
-  loading.classList.add('show');
-  player.innerHTML = '';
+  loading.classList.add('show'); player.innerHTML = '';
   try {
     const res = await fetch(`${API}/api/synth/jianpu`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         gender: document.getElementById('rvGender').value,
         timbre: document.getElementById('rvTimbre').value,
@@ -1105,25 +1440,17 @@ async function synthesizeJianpu() {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     player.innerHTML = `<audio controls src="${url}"></audio>`;
-    floatNote();
-  } catch (e) {
-    player.innerHTML = '<p style="color:#ff5555;font-size:11px;">错误: ' + e.message + '</p>';
-  }
+  } catch(e){ player.innerHTML = '<p style="color:#d44;font-size:11px;">错误: '+e.message+'</p>'; }
   loading.classList.remove('show');
 }
-
-// 真人级伴奏生成
 async function generateArranger() {
   const loading = document.getElementById('arrLoading');
   const player = document.getElementById('arrPlayer');
   const result = document.getElementById('arrResult');
-  loading.classList.add('show');
-  player.innerHTML = '';
-  result.textContent = '';
+  loading.classList.add('show'); player.innerHTML = ''; result.textContent = '';
   try {
     const res = await fetch(`${API}/api/arranger/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         style: document.getElementById('arrStyle').value,
         key: document.getElementById('arrKey').value,
@@ -1135,275 +1462,162 @@ async function generateArranger() {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     player.innerHTML = `<audio controls src="${url}"></audio>`;
-    result.textContent = `✓ 伴奏生成成功！\n风格: ${document.getElementById('arrStyle').value}\n调性: ${document.getElementById('arrKey').value}\n情绪: ${document.getElementById('arrEmotion').value}\nBPM: ${document.getElementById('arrBpm').value}\n大小: ${(blob.size / 1024 / 1024).toFixed(2)} MB`;
-    floatNote();
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+    result.textContent = `✓ 伴奏生成成功！\n风格: ${document.getElementById('arrStyle').value}\n调性: ${document.getElementById('arrKey').value}\n情绪: ${document.getElementById('arrEmotion').value}\nBPM: ${document.getElementById('arrBpm').value}\n大小: ${(blob.size/1024/1024).toFixed(2)} MB`;
+  } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
 }
-
-// 歌词生成模式切换
 function toggleLyricMode() {
   const mode = document.getElementById('lyricMode').value;
-  document.getElementById('lyricGeneral').style.display = mode === 'general' ? 'block' : 'none';
-  document.getElementById('lyricFood').style.display = mode === 'food' ? 'block' : 'none';
-  document.getElementById('lyricEmotionDiv').style.display = mode === 'emotion' ? 'block' : 'none';
-  document.getElementById('lyricCharacter').style.display = mode === 'character' ? 'block' : 'none';
+  document.getElementById('lyricGeneral').style.display = mode==='general'?'block':'none';
+  document.getElementById('lyricFood').style.display = mode==='food'?'block':'none';
+  document.getElementById('lyricEmotionDiv').style.display = mode==='emotion'?'block':'none';
+  document.getElementById('lyricCharacter').style.display = mode==='character'?'block':'none';
 }
-
-// 歌词生成
 async function generateLyrics() {
   const loading = document.getElementById('lyricLoading');
   const result = document.getElementById('lyricResult');
-  loading.classList.add('show');
-  result.textContent = '';
-
+  loading.classList.add('show'); result.textContent = '';
   const mode = document.getElementById('lyricMode').value;
-  let endpoint = '/api/lyrics/generate';
-  let body = {};
-
+  let endpoint = '/api/lyrics/generate'; let body = {};
   try {
-    if (mode === 'general') {
-      body = {
-        theme: document.getElementById('lyricTheme').value,
-        emotion: document.getElementById('lyricEmotion').value,
-        perspective: document.getElementById('lyricPersp').value,
-        object: document.getElementById('lyricObject').value || undefined,
-        length: parseInt(document.getElementById('lyricLength').value),
-        style: document.getElementById('lyricStyle').value,
-      };
-    } else if (mode === 'food') {
+    if (mode==='general') {
+      body = { theme: document.getElementById('lyricTheme').value, emotion: document.getElementById('lyricEmotion').value, perspective: document.getElementById('lyricPersp').value, object: document.getElementById('lyricObject').value||undefined, length: parseInt(document.getElementById('lyricLength').value), style: document.getElementById('lyricStyle').value };
+    } else if (mode==='food') {
       endpoint = '/api/lyrics/food';
-      body = {
-        food: document.getElementById('lyricFoodName').value,
-        emotion: document.getElementById('lyricFoodEmotion').value,
-        perspective: document.getElementById('lyricPersp')?.value || 'first',
-      };
-    } else if (mode === 'emotion') {
+      body = { food: document.getElementById('lyricFoodName').value, emotion: document.getElementById('lyricFoodEmotion').value, perspective: document.getElementById('lyricPersp')?.value||'first' };
+    } else if (mode==='emotion') {
       endpoint = '/api/lyrics/emotion';
-      body = {
-        emotion: document.getElementById('lyricEmoCore').value,
-        perspective: document.getElementById('lyricPersp')?.value || 'first',
-      };
-    } else if (mode === 'character') {
+      body = { emotion: document.getElementById('lyricEmoCore').value, perspective: document.getElementById('lyricPersp')?.value||'first' };
+    } else if (mode==='character') {
       endpoint = '/api/lyrics/character';
-      body = {
-        character: document.getElementById('lyricCharDesc').value,
-        emotion: document.getElementById('lyricCharEmo').value,
-        perspective: document.getElementById('lyricCharPersp').value,
-      };
+      body = { character: document.getElementById('lyricCharDesc').value, emotion: document.getElementById('lyricCharEmo').value, perspective: document.getElementById('lyricCharPersp').value };
     }
-
-    const res = await fetch(`${API}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const res = await fetch(`${API}${endpoint}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const data = await res.json();
-    if (data.error) {
-      result.textContent = '错误: ' + data.error;
-    } else {
-      result.textContent = data.formatted;
-      floatNote();
-    }
-  } catch (e) {
-    result.textContent = '网络错误: ' + e.message;
-  }
+    result.textContent = data.error ? '错误: '+data.error : data.formatted;
+  } catch(e){ result.textContent = '网络错误: '+e.message; }
   loading.classList.remove('show');
 }
-
-// 认知引擎模式切换
 function toggleCeeMode() {
   const mode = document.getElementById('ceeMode').value;
-  document.getElementById('ceeEvaluate').style.display = mode === 'evaluate' ? 'block' : 'none';
-  document.getElementById('ceeOptimize').style.display = mode === 'optimize' ? 'block' : 'none';
-  document.getElementById('ceeFeedback').style.display = mode === 'feedback' ? 'block' : 'none';
-  document.getElementById('ceeOrchestrate').style.display = mode === 'orchestrate' ? 'block' : 'none';
-  document.getElementById('ceeStatus').style.display = mode === 'status' ? 'block' : 'none';
+  document.getElementById('ceeEvaluate').style.display = mode==='evaluate'?'block':'none';
+  document.getElementById('ceeOptimize').style.display = mode==='optimize'?'block':'none';
+  document.getElementById('ceeFeedback').style.display = mode==='feedback'?'block':'none';
+  document.getElementById('ceeOrchestrate').style.display = mode==='orchestrate'?'block':'none';
+  document.getElementById('ceeStatus').style.display = mode==='status'?'block':'none';
 }
-
 async function ceeEvaluate() {
   const loading = document.getElementById('ceeLoading');
   const result = document.getElementById('ceeResult');
-  loading.classList.add('show');
-  result.textContent = '';
+  loading.classList.add('show'); result.textContent = '';
   try {
-    const res = await fetch(`${API}/api/cee/evaluate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: document.getElementById('ceeEvalText').value,
-        type: document.getElementById('ceeEvalType').value,
-      }),
-    });
-    const data = await res.json();
-    result.textContent = JSON.stringify(data, null, 2);
-    floatNote();
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+    const res = await fetch(`${API}/api/cee/evaluate`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: document.getElementById('ceeEvalText').value, type: document.getElementById('ceeEvalType').value }) });
+    result.textContent = JSON.stringify(await res.json(), null, 2);
+  } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
 }
-
 async function ceeOptimize() {
   const loading = document.getElementById('ceeLoading');
   const result = document.getElementById('ceeResult');
-  loading.classList.add('show');
-  result.textContent = '';
+  loading.classList.add('show'); result.textContent = '';
   try {
-    const res = await fetch(`${API}/api/cee/optimize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lyrics: document.getElementById('ceeOptText').value }),
-    });
-    const data = await res.json();
-    result.textContent = JSON.stringify(data, null, 2);
-    floatNote();
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+    const res = await fetch(`${API}/api/cee/optimize`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ lyrics: document.getElementById('ceeOptText').value }) });
+    result.textContent = JSON.stringify(await res.json(), null, 2);
+  } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
 }
-
 async function ceeFeedback() {
   const loading = document.getElementById('ceeLoading');
   const result = document.getElementById('ceeResult');
-  loading.classList.add('show');
-  result.textContent = '';
+  loading.classList.add('show'); result.textContent = '';
   try {
-    const res = await fetch(`${API}/api/cee/feedback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        score: parseFloat(document.getElementById('ceeScore').value),
-        message: document.getElementById('ceeMsg').value,
-        tags: document.getElementById('ceeTags').value.split(',').map(s => s.trim()).filter(Boolean),
-      }),
-    });
-    const data = await res.json();
-    result.textContent = JSON.stringify(data, null, 2);
-    floatNote();
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+    const res = await fetch(`${API}/api/cee/feedback`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ score: parseFloat(document.getElementById('ceeScore').value), message: document.getElementById('ceeMsg').value, tags: document.getElementById('ceeTags').value.split(',').map(s=>s.trim()).filter(Boolean) }) });
+    result.textContent = JSON.stringify(await res.json(), null, 2);
+  } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
 }
-
 async function ceeOrchestrate() {
   const loading = document.getElementById('ceeLoading');
   const result = document.getElementById('ceeResult');
-  loading.classList.add('show');
-  result.textContent = '';
+  loading.classList.add('show'); result.textContent = '';
   try {
-    const res = await fetch(`${API}/api/cee/orchestrate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal: document.getElementById('ceeGoal').value }),
-    });
-    const data = await res.json();
-    result.textContent = JSON.stringify(data, null, 2);
-    floatNote();
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+    const res = await fetch(`${API}/api/cee/orchestrate`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ goal: document.getElementById('ceeGoal').value }) });
+    result.textContent = JSON.stringify(await res.json(), null, 2);
+  } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
 }
-
 async function ceeStatus() {
   const loading = document.getElementById('ceeLoading');
   const result = document.getElementById('ceeResult');
-  loading.classList.add('show');
-  result.textContent = '';
+  loading.classList.add('show'); result.textContent = '';
   try {
     const res = await fetch(`${API}/api/cee/status`);
-    const data = await res.json();
-    result.textContent = JSON.stringify(data, null, 2);
-    floatNote();
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+    result.textContent = JSON.stringify(await res.json(), null, 2);
+  } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
 }
-
-// 无瑕疵合成器模式切换
 function toggleFlawMode() {
   const mode = document.getElementById('flawMode').value;
-  document.getElementById('flawNote').style.display = mode === 'note' ? 'block' : 'none';
-  document.getElementById('flawChord').style.display = mode === 'chord' ? 'block' : 'none';
-  document.getElementById('flawArp').style.display = mode === 'arpeggio' ? 'block' : 'none';
-  document.getElementById('flawDrum').style.display = mode === 'drum' ? 'block' : 'none';
-  document.getElementById('flawPreset').style.display = mode === 'preset' ? 'block' : 'none';
+  document.getElementById('flawNote').style.display = mode==='note'?'block':'none';
+  document.getElementById('flawChord').style.display = mode==='chord'?'block':'none';
+  document.getElementById('flawArp').style.display = mode==='arpeggio'?'block':'none';
+  document.getElementById('flawDrum').style.display = mode==='drum'?'block':'none';
+  document.getElementById('flawPreset').style.display = mode==='preset'?'block':'none';
 }
-
-// 生成无瑕疵音频
 async function generateFlawless() {
   const loading = document.getElementById('flawLoading');
   const player = document.getElementById('flawPlayer');
   const result = document.getElementById('flawResult');
-  loading.classList.add('show');
-  player.innerHTML = '';
-  result.textContent = '';
-
+  loading.classList.add('show'); player.innerHTML = ''; result.textContent = '';
   const mode = document.getElementById('flawMode').value;
-  let endpoint = '/api/flawless/note';
-  let body = {};
-
+  let endpoint = '/api/flawless/note'; let body = {};
   try {
-    if (mode === 'note') {
-      body = {
-        freq: parseFloat(document.getElementById('flawFreq').value),
-        duration: parseFloat(document.getElementById('flawDur').value),
-        waveform: document.getElementById('flawWave').value,
-        fm: document.getElementById('flawFm').checked,
-      };
-    } else if (mode === 'chord') {
+    if (mode==='note') {
+      body = { freq: parseFloat(document.getElementById('flawFreq').value), duration: parseFloat(document.getElementById('flawDur').value), waveform: document.getElementById('flawWave').value, fm: document.getElementById('flawFm').checked };
+    } else if (mode==='chord') {
       endpoint = '/api/flawless/chord';
-      body = {
-        freqs: document.getElementById('flawChordFreqs').value.split(',').map(parseFloat),
-        duration: parseFloat(document.getElementById('flawChordDur').value),
-      };
-    } else if (mode === 'arpeggio') {
+      body = { freqs: document.getElementById('flawChordFreqs').value.split(',').map(parseFloat), duration: parseFloat(document.getElementById('flawChordDur').value) };
+    } else if (mode==='arpeggio') {
       endpoint = '/api/flawless/arpeggio';
-      body = {
-        freqs: document.getElementById('flawArpFreqs').value.split(',').map(parseFloat),
-        noteDuration: parseFloat(document.getElementById('flawArpNoteDur').value),
-      };
-    } else if (mode === 'drum') {
+      body = { freqs: document.getElementById('flawArpFreqs').value.split(',').map(parseFloat), noteDuration: parseFloat(document.getElementById('flawArpNoteDur').value) };
+    } else if (mode==='drum') {
       endpoint = '/api/flawless/drum';
       body = { type: document.getElementById('flawDrumType').value };
-    } else if (mode === 'preset') {
+    } else if (mode==='preset') {
       endpoint = '/api/flawless/preset';
-      body = {
-        preset: document.getElementById('flawPresetName').value,
-        freq: parseFloat(document.getElementById('flawPresetFreq').value),
-        duration: parseFloat(document.getElementById('flawPresetDur').value),
-      };
+      body = { preset: document.getElementById('flawPresetName').value, freq: parseFloat(document.getElementById('flawPresetFreq').value), duration: parseFloat(document.getElementById('flawPresetDur').value) };
     }
-
-    const res = await fetch(`${API}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const res = await fetch(`${API}${endpoint}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if (!res.ok) throw new Error(await res.text());
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     player.innerHTML = `<audio controls src="${url}"></audio>`;
-    result.textContent = `✓ 无瑕疵音频生成成功！\n模式: ${mode}\n大小: ${(blob.size / 1024).toFixed(2)} KB`;
-    floatNote();
-  } catch (e) {
-    result.textContent = '错误: ' + e.message;
-  }
+    result.textContent = `✓ 无瑕疵音频生成成功！\n模式: ${mode}\n大小: ${(blob.size/1024).toFixed(2)} KB`;
+  } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
 }
 
-// 启动时显示健康状态
-fetch(`${API}/api/health`).then(r => r.json()).then(d => {
-  console.log('青鸾DAW 已连接:', d.name, d.version);
-}).catch(() => {
-  console.log('后端未连接，请确保服务运行中');
+/* ================= 工作室标签切换 ================= */
+document.querySelectorAll('.studio-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.studio-tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.studio-panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.sp).classList.add('active');
+  });
 });
+
+/* ================= 时钟 ================= */
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('clock').textContent = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+}, 1000);
+
+/* ================= 初始化 ================= */
+ensureSession();
+renderDrawer();
+renderChat();
+fetch(`${API}/api/health`).then(r=>r.json()).then(d=>console.log('青鸾DAW 已连接:', d.name, d.version)).catch(()=>console.log('后端未连接'));
 </script>
 
 </body>
