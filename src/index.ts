@@ -1044,6 +1044,16 @@ app.post('/api/produce', async (c) => {
       failed: result.failed,
       productionLog: result.productionLog,
       wavBase64: Buffer.from(result.wav).toString('base64'),
+      mastering: result.mastering ? {
+        finalLUFS: result.mastering.finalLUFS,
+        finalTruePeak: result.mastering.finalTruePeak,
+        applied: result.mastering.applied,
+        metrics: {
+          integratedLUFS: result.mastering.metrics.integratedLUFS,
+          dynamicRangeLU: result.mastering.metrics.dynamicRangeLU,
+          loudnessRange: result.mastering.metrics.loudnessRange,
+        },
+      } : null,
     });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);

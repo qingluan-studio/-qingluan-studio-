@@ -534,6 +534,16 @@
     white-space: pre-wrap;
   }
   .s-result:empty { display: none; }
+  /* LUFS 仪表盘 */
+  .lufs-meter { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px; background: #1a1a2e; border-radius: 10px; color: #fff; }
+  .lufs-bar { flex: 1; height: 18px; background: #333; border-radius: 9px; overflow: hidden; position: relative; }
+  .lufs-fill { height: 100%; border-radius: 9px; transition: width 0.5s; }
+  .lufs-fill.green { background: #4caf50; }
+  .lufs-fill.yellow { background: #ff9800; }
+  .lufs-fill.red { background: #f44336; }
+  .lufs-text { font-size: 11px; font-family: 'Courier New', monospace; }
+  .mastering-chain { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .mastering-tag { font-size: 10px; padding: 3px 8px; border-radius: 6px; background: rgba(91,77,255,0.1); color: var(--accent); font-weight: 600; }
   .s-loading {
     display: none;
     text-align: center;
@@ -933,9 +943,11 @@
           <div class="s-form"><label>情绪</label><select id="prodEmotion"><option value="happy">欢快</option><option value="sad">忧伤</option><option value="romantic">浪漫</option><option value="tense">紧张</option><option value="epic">史诗</option></select></div>
           <div class="s-form"><label>小节数</label><input type="number" id="prodBars" value="8" min="4" max="16"></div>
           <div class="s-form"><label>最大尝试</label><select id="prodAttempts"><option value="1">1次</option><option value="2">2次</option><option value="3" selected>3次</option><option value="5">5次</option></select></div>
+          <div class="s-form"><label>母带预设</label><select id="prodMastering"><option value="streaming">流媒体 (-14 LUFS)</option><option value="loud"> loud (-9 LUFS)</option><option value="cd">CD (-12 LUFS)</option><option value="quick">快速母带</option></select></div>
           <button class="s-btn" onclick="generateProduce()">🚀 一键产音乐</button>
-          <div class="s-loading" id="prodLoading"><span>作曲 → 编曲 → 渲染 → 混音 → 诊断 → 修复 ...</span></div>
+          <div class="s-loading" id="prodLoading"><span>作曲 → 编曲 → 渲染 → 混音 → 母带 ...</span></div>
           <div id="prodPlayer"></div>
+          <div id="prodMasteringUI"></div>
           <pre class="s-result" id="prodResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
         </div>
         <div class="s-card">
@@ -1382,7 +1394,12 @@ async function runCardProduce(cid) {
     const blob = new Blob([wav], { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
     player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
-    res.textContent = `🚀 产音乐完成！\n尝试: ${d.attempt} 次 | 修复: ${d.fixed ? '是' : '否'} | 进化: ${d.evolved ? '是' : '否'}\nT6: ${d.composition?.scores?.overall?.toFixed?.(3)}\n诊断: ${d.diagnosis?.healthy ? '健康' : d.diagnosis?.severity}\n问题: ${d.diagnosis?.issues?.join(', ') || '无'}\n日志:\n${d.productionLog?.slice(0,6).join('\n')}`;
+    let text = `🚀 产音乐完成！\n尝试: ${d.attempt} 次 | 修复: ${d.fixed ? '是' : '否'} | 进化: ${d.evolved ? '是' : '否'}\nT6: ${d.composition?.scores?.overall?.toFixed?.(3)}\n诊断: ${d.diagnosis?.healthy ? '健康' : d.diagnosis?.severity}\n问题: ${d.diagnosis?.issues?.join(', ') || '无'}`;
+    if (d.mastering) {
+      text += `\n\n📀 母带处理\nLUFS: ${d.mastering.finalLUFS.toFixed(2)} | 真峰值: ${d.mastering.finalTruePeak.toFixed(4)}\n动态范围: ${d.mastering.metrics?.dynamicRangeLU?.toFixed?.(2)} LU | 响度范围: ${d.mastering.metrics?.loudnessRange?.toFixed?.(2)} LU\n处理链: ${d.mastering.applied.join(', ')}`;
+    }
+    text += `\n\n日志:\n${d.productionLog?.slice(0,6).join('\n')}`;
+    res.textContent = text;
   } catch(e){ res.textContent = '错误: '+e.message; }
 }
 
@@ -1754,16 +1771,18 @@ async function generateProduce() {
   const loading = document.getElementById('prodLoading');
   const result = document.getElementById('prodResult');
   const player = document.getElementById('prodPlayer');
-  loading.classList.add('show'); result.textContent = ''; player.innerHTML = '';
+  const masterUI = document.getElementById('prodMasteringUI');
+  loading.classList.add('show'); result.textContent = ''; player.innerHTML = ''; masterUI.innerHTML = '';
   const style = document.getElementById('prodStyle').value;
   const key = document.getElementById('prodKey').value;
   const emotion = document.getElementById('prodEmotion').value;
   const bars = parseInt(document.getElementById('prodBars').value);
   const attempts = parseInt(document.getElementById('prodAttempts').value);
+  const masteringPreset = document.getElementById('prodMastering').value;
   try {
     const res = await fetch(`${API}/api/produce`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ style, key, emotion, barCount: bars, bpm: 120, maxAttempts: attempts })
+      body: JSON.stringify({ style, key, emotion, barCount: bars, bpm: 120, maxAttempts: attempts, masteringPreset })
     });
     const d = await res.json();
     if (d.error) { result.textContent = '错误: ' + d.error; }
@@ -1772,6 +1791,7 @@ async function generateProduce() {
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
       player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+      masterUI.innerHTML = renderMasteringUI(d.mastering);
       result.textContent = `🚀 产音乐完成！\n尝试: ${d.attempt} 次 | 修复: ${d.fixed ? '是' : '否'} | 进化: ${d.evolved ? '是' : '否'}\nT6: ${d.composition?.scores?.overall?.toFixed?.(3)}\n诊断: ${d.diagnosis?.healthy ? '健康' : d.diagnosis?.severity}\n问题: ${d.diagnosis?.issues?.join(', ') || '无'}\n日志:\n${d.productionLog?.slice(0,8).join('\n')}`;
     }
   } catch(e){ result.textContent = '错误: '+e.message; }
@@ -1784,6 +1804,26 @@ async function getProduceStatus() {
     const d = await res.json();
     result.textContent = JSON.stringify(d, null, 2).slice(0, 1200);
   } catch(e){ result.textContent = '错误: '+e.message; }
+}
+function renderMasteringUI(m) {
+  if (!m) return '';
+  const lufs = m.finalLUFS ?? -70;
+  const tp = m.finalTruePeak ?? 0;
+  const dr = m.metrics?.dynamicRangeLU ?? 0;
+  const lra = m.metrics?.loudnessRange ?? 0;
+  // LUFS 条: 范围 -24 到 0, 目标 -14
+  const pct = Math.max(0, Math.min(100, (lufs + 24) / 24 * 100));
+  let fillClass = 'green';
+  if (lufs > -10 || lufs < -20) fillClass = 'yellow';
+  if (tp > 0.99) fillClass = 'red';
+  const tags = (m.applied || []).map(a => `<span class="mastering-tag">${a}</span>`).join('');
+  return `<div class="lufs-meter">
+    <div class="lufs-text">${lufs.toFixed(1)} LUFS</div>
+    <div class="lufs-bar"><div class="lufs-fill ${fillClass}" style="width:${pct}%"></div></div>
+    <div class="lufs-text">TP ${tp.toFixed(3)}</div>
+  </div>
+  <div style="font-size:11px;color:var(--text2);margin-top:4px;">动态范围 ${dr.toFixed(1)} LU | 响度范围 ${lra.toFixed(1)} LU</div>
+  <div class="mastering-chain">${tags}</div>`;
 }
 
 /* ================= 工作室标签切换 ================= */

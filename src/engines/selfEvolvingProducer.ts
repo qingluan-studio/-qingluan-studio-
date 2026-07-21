@@ -22,6 +22,10 @@ import {
   ArrangementInput,
   MultiTrackOutput,
 } from '../composition/realisticArranger.js';
+import {
+  MasteringChain,
+  MasteringResult,
+} from './masteringChain.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
@@ -351,6 +355,7 @@ export interface ProductionResult {
   evolved: boolean;
   failed: boolean;
   productionLog: string[];
+  mastering?: MasteringResult;
 }
 
 export class SelfEvolvingMusicProducer {
@@ -358,6 +363,7 @@ export class SelfEvolvingMusicProducer {
   melodyRenderer: MelodyRenderer;
   flawDetector: FlawDetector;
   flawRepair: FlawlessRepair;
+  masteringChain: MasteringChain;
   sampleRate: number;
   productionLog: string[] = [];
 
@@ -366,6 +372,7 @@ export class SelfEvolvingMusicProducer {
     this.melodyRenderer = new MelodyRenderer(sampleRate);
     this.flawDetector = new FlawDetector();
     this.flawRepair = new FlawlessRepair();
+    this.masteringChain = new MasteringChain(sampleRate);
     this.sampleRate = sampleRate;
   }
 
@@ -442,10 +449,15 @@ export class SelfEvolvingMusicProducer {
         lastDiagnosis = diagnosis;
         this.log(`诊断结果: healthy=${diagnosis.healthy}, severity=${diagnosis.severity}, issues=[${diagnosis.issues.join(', ')}]`);
 
+        // Step 9: 专业母带处理（录棚级）
+        this.log('Step 9: 专业母带处理 (LUFS标准化 / 多段压缩 / 真峰值限制)');
+        const mastered = this.masteringChain.process(mixedPCM, -14);
+        this.log(`母带完成: ${mastered.finalLUFS.toFixed(2)} LUFS, TP=${mastered.finalTruePeak.toFixed(4)}, 应用=[${mastered.applied.join(', ')}]`);
+
         // 如果健康，直接输出
         if (diagnosis.healthy) {
           this.log('✓ 通过诊断，输出最终音频');
-          const wav = pcmToWav(mixedPCM, this.sampleRate);
+          const wav = pcmToWav(mastered.pcm, this.sampleRate);
           return {
             wav,
             diagnosis,
@@ -456,6 +468,7 @@ export class SelfEvolvingMusicProducer {
             evolved: attempt > 1,
             failed: false,
             productionLog: [...this.productionLog],
+            mastering: mastered,
           };
         }
 
@@ -473,7 +486,7 @@ export class SelfEvolvingMusicProducer {
 
         if (reDiagnosis.healthy) {
           this.log('✓ 修复后通过诊断，输出最终音频');
-          const wav = pcmToWav(repairedPCM, this.sampleRate);
+          const wav = pcmToWav(mastered.pcm, this.sampleRate);
           return {
             wav,
             diagnosis: reDiagnosis,
@@ -484,6 +497,7 @@ export class SelfEvolvingMusicProducer {
             evolved: attempt > 1,
             failed: false,
             productionLog: [...this.productionLog],
+            mastering: mastered,
           };
         }
 
@@ -506,9 +520,11 @@ export class SelfEvolvingMusicProducer {
       }
     }
 
-    // 尽力而为输出
+    // 尽力而为输出（仍然过母带）
     const fallbackPCM = lastPCM || lastArrangement?.mixed || new Float32Array(this.sampleRate * 2);
-    const wav = pcmToWav(fallbackPCM, this.sampleRate);
+    this.log('Step 9: 尽力而为输出 — 应用快速母带');
+    const fallbackMastered = this.masteringChain.quickMaster(fallbackPCM, -14);
+    const wav = pcmToWav(fallbackMastered.pcm, this.sampleRate);
     return {
       wav,
       diagnosis: lastDiagnosis || this.selfDiagnose(fallbackPCM),
@@ -519,6 +535,7 @@ export class SelfEvolvingMusicProducer {
       evolved: maxAttempts > 1,
       failed: true,
       productionLog: [...this.productionLog],
+      mastering: fallbackMastered,
     };
   }
 
