@@ -1,0 +1,23 @@
+{
+  "name": "qingluan-daw",
+  "version": "2.0.0",
+  "description": "青鸾数字音频工作站 - AI音乐创作平台",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "dev": "tsc && node dist/index.js"
+  },
+  "keywords": ["music", "AI", "composer", "synthesizer", "visualization"],
+  "author": "qingluan-studio",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "^2.0.11",
+    "hono": "^4.12.31"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
+  }
+}

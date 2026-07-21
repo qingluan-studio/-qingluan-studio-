@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>青鸾 DAW - AI音乐创作</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #0a0a1a;
+    --bg2: #12122a;
+    --accent: #00f0ff;
+    --accent2: #ff00ff;
+    --text: #e0e0ff;
+    --text2: #8899aa;
+    --card: rgba(20,20,50,0.8);
+    --border: rgba(0,240,255,0.2);
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', Consolas, 'Noto Sans SC', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    padding-bottom: 80px;
+  }
+  /* 顶部 */
+  .header {
+    text-align: center;
+    padding: 16px 12px 8px;
+    background: linear-gradient(180deg, rgba(0,240,255,0.08) 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 {
+    font-size: 20px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+  .header p { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  /* 标签页 */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: linear-gradient(135deg, rgba(0,240,255,0.2), rgba(255,0,255,0.2));
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* 内容区 */
+  .content { padding: 12px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* 卡片 */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+    backdrop-filter: blur(10px);
+  }
+  .card h3 {
+    font-size: 14px;
+    color: var(--accent);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* 表单 */
+  .form-group { margin-bottom: 10px; }
+  .form-group label {
+    display: block;
+    font-size: 11px;
+    color: var(--text2);
+    margin-bottom: 4px;
+  }
+  select, input[type="text"], input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+
+  /* 按钮 */
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, rgba(0,240,255,0.25), rgba(255,0,255,0.25));
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    letter-spacing: 1px;
+    transition: transform 0.1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-small {
+    padding: 6px 12px;
+    font-size: 11px;
+    width: auto;
+    display: inline-block;
+    margin: 4px 4px 0 0;
+  }
+
+  /* 结果区 */
+  .result {
+    background: rgba(0,240,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 11px;
+    max-height: 200px;
+    overflow-y: auto;
+    word-break: break-all;
+    white-space: pre-wrap;
+  }
+  .result:empty { display: none; }
+
+  /* 频谱可视化Canvas */
+  canvas {
+    width: 100%;
+    height: 160px;
+    border-radius: 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+  }
+
+  /* 音频播放器 */
+  audio { width: 100%; margin-top: 8px; }
+
+  /* 加载 */
+  .loading {
+    display: none;
+    text-align: center;
+    padding: 20px;
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .loading.show { display: block; }
+  @keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+  .loading span { animation: pulse 1s infinite; }
+
+  /* 底部 */
+  .footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    padding: 8px;
+    font-size: 10px;
+    color: var(--text2);
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+  }
+
+  /* 音符动画 */
+  @keyframes floatNote {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(-60px) rotate(20deg); opacity: 0; }
+  }
+  .note-anim {
+    position: fixed;
+    font-size: 20px;
+    color: var(--accent);
+    pointer-events: none;
+    animation: floatNote 1.5s ease-out forwards;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⬡ 青鸾 DAW ⬡</h1>
+  <p>AI作曲 · 歌声合成 · 效果器 · 可视化 · 手机版</p>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-panel="compose">作曲</div>
+  <div class="tab" data-panel="theory">理论</div>
+  <div class="tab" data-panel="synth">歌声</div>
+  <div class="tab" data-panel="effects">效果器</div>
+  <div class="tab" data-panel="visual">可视化</div>
+</div>
+
+<div class="content">
+
+  <!-- 作曲面板 -->
+  <div class="panel active" id="compose">
+    <div class="card">
+      <h3>🎼 AI 智能作曲</h3>
+      <div class="form-group">
+        <label>算法</label>
+        <select id="algo">
+          <option value="genetic">遗传进化（推荐）</option>
+          <option value="markov">马尔可夫链</option>
+          <option value="fractal">分形旋律</option>
+          <option value="chaos">混沌节奏</option>
+          <option value="quantum">量子概率</option>
+          <option value="ca">细胞自动机</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>风格</label>
+        <select id="style">
+          <option value="pop">流行 Pop</option>
+          <option value="rock">摇滚 Rock</option>
+          <option value="jazz">爵士 Jazz</option>
+          <option value="electronic">电子 Electronic</option>
+          <option value="classical">古典 Classical</option>
+          <option value="folk">民谣 Folk</option>
+          <option value="rnb">R&B</option>
+          <option value="metal">金属 Metal</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>调性</label>
+        <select id="key">
+          <option value="C">C大调</option>
+          <option value="Am">A小调</option>
+          <option value="G">G大调</option>
+          <option value="Em">E小调</option>
+          <option value="F">F大调</option>
+          <option value="Dm">D小调</option>
+          <option value="D">D大调</option>
+          <option value="Bm">B小调</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>长度（音符数）</label>
+        <input type="number" id="length" value="16" min="4" max="64">
+      </div>
+      <div class="form-group">
+        <label>BPM</label>
+        <input type="number" id="bpm" value="120" min="40" max="240">
+      </div>
+      <button class="btn" onclick="compose()">✨ 生成旋律</button>
+      <button class="btn btn-small" onclick="autoArrange()">🎹 自动编曲</button>
+      <div class="loading" id="composeLoading"><span>AI 正在创作中...</span></div>
+      <div class="result" id="composeResult"></div>
+    </div>
+
+    <div class="card">
+      <h3>🎵 一键生成完整歌曲</h3>
+      <button class="btn" onclick="fullSong()">🚀 创作完整歌曲</button>
+      <div class="loading" id="fullSongLoading"><span>多引擎协作中...</span></div>
+      <div class="result" id="fullSongResult"></div>
+    </div>
+  </div>
+
+  <!-- 理论面板 -->
+  <div class="panel" id="theory">
+    <div class="card">
+      <h3>🎹 音阶查询</h3>
+      <div class="form-group">
+        <label>音阶类型</label>
+        <select id="scaleType">
+          <option value="major">大调 Major</option>
+          <option value="natural_minor">自然小调</option>
+          <option value="pentatonic">五声音阶</option>
+          <option value="blues">布鲁斯</option>
+          <option value="dorian">多利亚</option>
+          <option value="gong">宫调（中国）</option>
+          <option value="in_scale">阴（日本）</option>
+          <option value="arabic">阿拉伯</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>根音</label>
+        <select id="scaleRoot">
+          <option value="C">C</option>
+          <option value="D">D</option>
+          <option value="E">E</option>
+          <option value="F">F</option>
+          <option value="G">G</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+        </select>
+      </div>
+      <button class="btn" onclick="getScale()">查询音阶</button>
+      <div class="result" id="scaleResult"></div>
+    </div>
+
+    <div class="card">
+      <h3>🎸 和弦进行</h3>
+      <button class="btn btn-small" onclick="getProgressions('pop')">流行</button>
+      <button class="btn btn-small" onclick="getProgressions('rock')">摇滚</button>
+      <button class="btn btn-small" onclick="getProgressions('jazz')">爵士</button>
+      <button class="btn btn-small" onclick="getProgressions('blues')">布鲁斯</button>
+      <button class="btn btn-small" onclick="getProgressions('electronic')">电子</button>
+      <div class="result" id="progResult"></div>
+    </div>
+  </div>
+
+  <!-- 歌声面板 -->
+  <div class="panel" id="synth">
+    <div class="card">
+      <h3>🎤 单音合成</h3>
+      <div class="form-group">
+        <label>音符</label>
+        <select id="toneNote">
+          <option value="C4">C4</option>
+          <option value="E4">E4</option>
+          <option value="G4">G4</option>
+          <option value="A4">A4</option>
+          <option value="C5">C5</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>时长（秒）</label>
+        <input type="number" id="toneDuration" value="1" min="0.1" max="5" step="0.1">
+      </div>
+      <div class="form-group">
+        <label>音色</label>
+        <select id="toneTimbre">
+          <option value="soprano">女高音</option>
+          <option value="alto">女中音</option>
+          <option value="tenor">男高音</option>
+          <option value="bass">男低音</option>
+          <option value="child">童声</option>
+        </select>
+      </div>
+      <button class="btn" onclick="synthesizeTone()">🔊 合成音频</button>
+      <div class="loading" id="toneLoading"><span>声波生成中...</span></div>
+      <div id="tonePlayer"></div>
+    </div>
+  </div>
+
+  <!-- 效果器面板 -->
+  <div class="panel" id="effects">
+    <div class="card">
+      <h3>🔊 音频效果器</h3>
+      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">使用正弦波作为测试信号</p>
+      <div class="form-group">
+        <label>效果器</label>
+        <select id="effectType">
+          <option value="reverb">卷积混响</option>
+          <option value="eq">参数均衡</option>
+          <option value="compress">压缩器</option>
+          <option value="distort">失真</option>
+          <option value="delay">延迟</option>
+          <option value="chorus">合唱</option>
+        </select>
+      </div>
+      <button class="btn" onclick="applyEffect()">⚡ 应用效果</button>
+      <div class="loading" id="effectLoading"><span>DSP处理中...</span></div>
+      <div class="result" id="effectResult"></div>
+    </div>
+  </div>
+
+  <!-- 可视化面板 -->
+  <div class="panel" id="visual">
+    <div class="card">
+      <h3>🌊 实时频谱</h3>
+      <canvas id="spectrumCanvas" width="360" height="160"></canvas>
+      <button class="btn" onclick="startVisualizer()" id="vizBtn">▶ 启动可视化</button>
+      <p style="font-size:10px;color:var(--text2);margin-top:6px;">使用模拟音频数据演示</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">青鸾数字音频工作站 v2.0 · 纯代码 · 零外部付费API</div>
+
+<script>
+const API = 'http://localhost:3220';
+
+// 标签页切换
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.panel).classList.add('active');
+  });
+});
+
+// 作曲
+async function compose() {
+  const loading = document.getElementById('composeLoading');
+  const result = document.getElementById('composeResult');
+  loading.classList.add('show');
+  result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/composer/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        algorithm: document.getElementById('algo').value,
+        style: document.getElementById('style').value,
+        key: document.getElementById('key').value,
+        length: parseInt(document.getElementById('length').value),
+        bpm: parseInt(document.getElementById('bpm').value),
+      })
+    });
+    const data = await res.json();
+    if (data.error) {
+      result.textContent = '错误: ' + data.error;
+    } else {
+      result.textContent = `算法: ${data.algorithm}\n风格: ${data.style}\n调性: ${data.key}\n旋律: ${data.melody?.slice(0, 20).join(' ')}${data.melody?.length > 20 ? '...' : ''}\n节奏: ${data.rhythm?.slice(0, 20).join(' ')}${data.rhythm?.length > 20 ? '...' : ''}`;
+      floatNote();
+    }
+  } catch (e) {
+    result.textContent = '网络错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+async function autoArrange() {
+  const result = document.getElementById('composeResult');
+  result.textContent = '自动编曲需要先有旋律...';
+}
+
+async function fullSong() {
+  const loading = document.getElementById('fullSongLoading');
+  const result = document.getElementById('fullSongResult');
+  loading.classList.add('show');
+  result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/create/full-song`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        style: document.getElementById('style').value,
+        key: document.getElementById('key').value,
+        bpm: parseInt(document.getElementById('bpm').value),
+        length: parseInt(document.getElementById('length').value),
+        algorithm: document.getElementById('algo').value,
+      })
+    });
+    const data = await res.json();
+    if (data.error) {
+      result.textContent = '错误: ' + data.error;
+    } else {
+      result.textContent = `🎵 完整歌曲生成成功！\n风格: ${data.style} | 调性: ${data.key} | BPM: ${data.bpm}\n算法: ${data.algorithm}\n旋律: ${data.melody?.length}个音符\n歌词: ${data.lyrics?.slice(0, 10).join('')}${data.lyrics?.length > 10 ? '...' : ''}\n\n音轨: ${data.arrangement?.tracks ? Object.keys(data.arrangement.tracks).join(', ') : 'N/A'}`;
+      floatNote();
+    }
+  } catch (e) {
+    result.textContent = '网络错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+// 音乐理论
+async function getScale() {
+  const result = document.getElementById('scaleResult');
+  try {
+    const res = await fetch(`${API}/api/theory/scale/${document.getElementById('scaleType').value}?root=${document.getElementById('scaleRoot').value}`);
+    const data = await res.json();
+    result.textContent = data.error ? data.error : `${data.root} ${data.name}:\n${data.notes?.join(' ')}`;
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
+  }
+}
+
+async function getProgressions(style) {
+  const result = document.getElementById('progResult');
+  try {
+    const res = await fetch(`${API}/api/theory/progressions?style=${style}`);
+    const data = await res.json();
+    const progs = data[style] || data;
+    result.textContent = typeof progs === 'object' ? JSON.stringify(progs, null, 2).slice(0, 800) : String(progs);
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
+  }
+}
+
+// 歌声合成
+async function synthesizeTone() {
+  const loading = document.getElementById('toneLoading');
+  const player = document.getElementById('tonePlayer');
+  loading.classList.add('show');
+  player.innerHTML = '';
+  try {
+    const res = await fetch(`${API}/api/synth/tone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        note: document.getElementById('toneNote').value,
+        duration: parseFloat(document.getElementById('toneDuration').value),
+        timbre: document.getElementById('toneTimbre').value,
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}"></audio>`;
+  } catch (e) {
+    player.innerHTML = '<p style="color:#ff5555;font-size:11px;">错误: ' + e.message + '</p>';
+  }
+  loading.classList.remove('show');
+}
+
+// 效果器
+async function applyEffect() {
+  const loading = document.getElementById('effectLoading');
+  const result = document.getElementById('effectResult');
+  loading.classList.add('show');
+  result.textContent = '';
+  try {
+    // 生成1秒正弦波测试信号
+    const sampleRate = 44100;
+    const samples = new Float32Array(sampleRate);
+    for (let i = 0; i < sampleRate; i++) {
+      samples[i] = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.5;
+    }
+    const effect = document.getElementById('effectType').value;
+    const res = await fetch(`${API}/api/effects/${effect}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ samples: Array.from(samples), sampleRate })
+    });
+    const data = await res.json();
+    if (data.error) {
+      result.textContent = '错误: ' + data.error;
+    } else {
+      const rmsBefore = Math.sqrt(samples.reduce((a, b) => a + b * b, 0) / samples.length);
+      const rmsAfter = Math.sqrt(data.output.reduce((a, b) => a + b * b, 0) / data.output.length);
+      result.textContent = `效果器: ${effect}\n输入RMS: ${rmsBefore.toFixed(4)}\n输出RMS: ${rmsAfter.toFixed(4)}\n输出长度: ${data.output.length} 采样\n处理成功 ✓`;
+    }
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+// 可视化
+let vizRunning = false;
+function startVisualizer() {
+  const canvas = document.getElementById('spectrumCanvas');
+  const ctx = canvas.getContext('2d');
+  const btn = document.getElementById('vizBtn');
+  if (vizRunning) {
+    vizRunning = false;
+    btn.textContent = '▶ 启动可视化';
+    return;
+  }
+  vizRunning = true;
+  btn.textContent = '⏹ 停止';
+
+  function draw() {
+    if (!vizRunning) {
+      ctx.fillStyle = '#12122a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    ctx.fillStyle = 'rgba(18,18,42,0.3)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const barCount = 48;
+    const barWidth = canvas.width / barCount;
+    const time = Date.now() / 1000;
+
+    for (let i = 0; i < barCount; i++) {
+      const freq = i / barCount;
+      const h = Math.abs(Math.sin(time * 3 + freq * 10) * Math.cos(time * 2 + freq * 5)) * 120;
+      const hue = 180 + freq * 120;
+      ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.8)`;
+      ctx.fillRect(i * barWidth + 1, canvas.height - h, barWidth - 2, h);
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// 音符动画
+function floatNote() {
+  const notes = ['♪', '♫', '♬', '♩', '𝄞'];
+  const el = document.createElement('div');
+  el.className = 'note-anim';
+  el.textContent = notes[Math.floor(Math.random() * notes.length)];
+  el.style.left = Math.random() * window.innerWidth + 'px';
+  el.style.bottom = '80px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+// 启动时显示健康状态
+fetch(`${API}/api/health`).then(r => r.json()).then(d => {
+  console.log('青鸾DAW 已连接:', d.name, d.version);
+}).catch(() => {
+  console.log('后端未连接，请确保服务运行中');
+});
+</script>
+
+</body>
+</html>
