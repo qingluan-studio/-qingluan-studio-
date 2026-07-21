@@ -24,16 +24,21 @@ export type TimbreColor = 'bright' | 'warm' | 'hoarse' | 'ethereal';
 export type ChineseMode = 'gong' | 'shang' | 'jue' | 'zhi' | 'yu';
 
 /** 演唱技巧 */
-export type SingingTechnique =
-  | 'breathy'      // 气声
-  | 'head'         // 头声
-  | 'chest'        // 胸声
-  | 'falsetto'     // 假声
-  | 'fry'          // 气泡音
-  | 'plosive'      // 爆破音
-  | 'fricative'    // 摩擦音
-  | 'portamento'   // 滑音
-  | 'vibrato'      // 颤音
+export type VoiceTechnique =
+  | 'vibrato'      // 颤音 — 已有基础，增强为可调深度/速率
+  | 'falsetto'     // 假声 — 已有基础，增强
+  | 'growl'        // 怒音/喉音 — 新增：在基频上叠加低频噪声（30-80Hz），模拟声带压迫感
+  | 'fry'          // 气泡音 — 已有基础
+  | 'legatoSlide'  // 连奏滑音 — 已有基础
+  | 'staccato'     // 断奏 — 已有基础
+  | 'crescendo'    // 渐强 — 已有基础
+  | 'breathy'      // 气声 — 已有基础
+  | 'headVoice'    // 头声 — 已有基础
+  | 'chestVoice'   // 胸声 — 已有基础
+  | 'plosive'      // 爆破音 — 已有基础
+  | 'fricative'    // 摩擦音 — 已有基础
+  | 'coloratura'   // 花腔 — 快速音阶跑动，在音符之间插入快速经过音
+  | 'overtoneSinging' // 泛音唱法 — 强调第二/第三泛音，削弱基频
   | 'mordent'      // 波音
   | 'pp' | 'p' | 'mp' | 'mf' | 'f' | 'ff'; // 力度
 
@@ -51,12 +56,26 @@ export interface FormantParam {
   amplitude: number;
 }
 
-/** 元音共振峰集合 (5个共振峰) */
+/** 元音共振峰集合 (6个共振峰) */
 export interface VowelFormants {
   /** 元音符号 */
   symbol: string;
-  /** 五个共振峰 */
-  formants: [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
+  /** 六个共振峰 */
+  formants: [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
+  /** 基频偏移建议 (半音) */
+  f0Shift: number;
+  /** 气流噪声比例 (0-1) */
+  breathiness: number;
+  /** 鼻音耦合系数 (0-1) */
+  nasalCoupling: number;
+}
+
+/** 共振峰数据库增强配置 */
+export interface ResonanceProfile {
+  /** 六个共振峰 */
+  formants: [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
+  /** 第6共振峰（高频空气感，8-10kHz） */
+  f6: FormantParam;
   /** 基频偏移建议 (半音) */
   f0Shift: number;
   /** 气流噪声比例 (0-1) */
@@ -112,7 +131,7 @@ export interface StaffNote {
 /** 人声描述参数 */
 export interface VoiceDescriptor {
   /** 演唱技巧数组 */
-  techniques: SingingTechnique[];
+  techniques: VoiceTechnique[];
   /** 基频 (Hz) */
   f0: number;
   /** 目标基频 (用于滑音) */
@@ -233,6 +252,7 @@ export const MALE_VOWEL_A: VowelFormants = {
     calculateFormantParam(2450, 123, -4),
     calculateFormantParam(2700, 119, -8),
     calculateFormantParam(3240, 138, -14),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: 0,
   breathiness: 0.04,
@@ -248,6 +268,7 @@ export const FEMALE_VOWEL_A: VowelFormants = {
     calculateFormantParam(2860, 95, -3.5),
     calculateFormantParam(3300, 102, -7),
     calculateFormantParam(4500, 120, -12),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: 0,
   breathiness: 0.05,
@@ -263,6 +284,7 @@ export const MALE_VOWEL_E: VowelFormants = {
     calculateFormantParam(2300, 101, -4),
     calculateFormantParam(2900, 119, -8),
     calculateFormantParam(3400, 134, -13),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: -0.5,
   breathiness: 0.04,
@@ -278,6 +300,7 @@ export const FEMALE_VOWEL_E: VowelFormants = {
     calculateFormantParam(2800, 87, -3.5),
     calculateFormantParam(3350, 140, -7),
     calculateFormantParam(5000, 165, -11),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: -0.5,
   breathiness: 0.05,
@@ -293,6 +316,7 @@ export const MALE_VOWEL_I: VowelFormants = {
     calculateFormantParam(2450, 123, -4),
     calculateFormantParam(2900, 132, -9),
     calculateFormantParam(4000, 150, -15),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: 1,
   breathiness: 0.03,
@@ -308,6 +332,7 @@ export const FEMALE_VOWEL_I: VowelFormants = {
     calculateFormantParam(2800, 132, -4),
     calculateFormantParam(3650, 145, -8),
     calculateFormantParam(5000, 162, -13),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: 1,
   breathiness: 0.04,
@@ -323,6 +348,7 @@ export const MALE_VOWEL_O: VowelFormants = {
     calculateFormantParam(2550, 125, -4.5),
     calculateFormantParam(2850, 131, -9),
     calculateFormantParam(3100, 135, -14),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: -1,
   breathiness: 0.04,
@@ -338,6 +364,7 @@ export const FEMALE_VOWEL_O: VowelFormants = {
     calculateFormantParam(2800, 120, -4),
     calculateFormantParam(3400, 145, -8),
     calculateFormantParam(5000, 165, -12),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: -1,
   breathiness: 0.05,
@@ -353,6 +380,7 @@ export const MALE_VOWEL_U: VowelFormants = {
     calculateFormantParam(2200, 110, -5),
     calculateFormantParam(2800, 125, -9),
     calculateFormantParam(3300, 140, -14),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: -1.5,
   breathiness: 0.03,
@@ -368,6 +396,7 @@ export const FEMALE_VOWEL_U: VowelFormants = {
     calculateFormantParam(2700, 115, -4.5),
     calculateFormantParam(3400, 140, -8),
     calculateFormantParam(4800, 160, -12),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: -1.5,
   breathiness: 0.04,
@@ -383,6 +412,7 @@ export const HILLENBRAND_I_MALE: VowelFormants = {
     calculateFormantParam(3000, 120, -4),
     calculateFormantParam(3600, 140, -9),
     calculateFormantParam(4200, 160, -15),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: 0.5,
   breathiness: 0.03,
@@ -398,6 +428,7 @@ export const HILLENBRAND_I_FEMALE: VowelFormants = {
     calculateFormantParam(3372, 130, -3.5),
     calculateFormantParam(4000, 150, -8),
     calculateFormantParam(4800, 170, -13),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: 0.5,
   breathiness: 0.04,
@@ -413,6 +444,7 @@ export const HILLENBRAND_AE_MALE: VowelFormants = {
     calculateFormantParam(2601, 115, -4),
     calculateFormantParam(3400, 135, -9),
     calculateFormantParam(4000, 155, -14),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: 0,
   breathiness: 0.05,
@@ -428,6 +460,7 @@ export const HILLENBRAND_AE_FEMALE: VowelFormants = {
     calculateFormantParam(2972, 125, -3.5),
     calculateFormantParam(3800, 145, -8),
     calculateFormantParam(4600, 165, -12),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: 0,
   breathiness: 0.06,
@@ -443,6 +476,7 @@ export const HILLENBRAND_AA_MALE: VowelFormants = {
     calculateFormantParam(2522, 120, -4.5),
     calculateFormantParam(3300, 140, -9),
     calculateFormantParam(3900, 160, -14),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: -0.5,
   breathiness: 0.04,
@@ -458,6 +492,7 @@ export const HILLENBRAND_AA_FEMALE: VowelFormants = {
     calculateFormantParam(2815, 130, -4),
     calculateFormantParam(3600, 150, -8),
     calculateFormantParam(4500, 170, -12),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: -0.5,
   breathiness: 0.05,
@@ -473,6 +508,7 @@ export const HILLENBRAND_U_MALE: VowelFormants = {
     calculateFormantParam(2343, 110, -5),
     calculateFormantParam(3000, 130, -9),
     calculateFormantParam(3600, 150, -14),
+    calculateFormantParam(8000, 800, -16),
   ],
   f0Shift: -1,
   breathiness: 0.03,
@@ -488,6 +524,7 @@ export const HILLENBRAND_U_FEMALE: VowelFormants = {
     calculateFormantParam(2735, 120, -4.5),
     calculateFormantParam(3400, 140, -8),
     calculateFormantParam(4200, 160, -12),
+    calculateFormantParam(9500, 900, -15),
   ],
   f0Shift: -1,
   breathiness: 0.04,
@@ -503,6 +540,7 @@ export const CHILD_VOWEL_A: VowelFormants = {
     calculateFormantParam(3200, 140, -3.5),
     calculateFormantParam(3800, 160, -7),
     calculateFormantParam(5000, 180, -11),
+    calculateFormantParam(10000, 1000, -14),
   ],
   f0Shift: 2,
   breathiness: 0.08,
@@ -518,6 +556,7 @@ export const CHILD_VOWEL_I: VowelFormants = {
     calculateFormantParam(3400, 145, -4),
     calculateFormantParam(4200, 165, -8),
     calculateFormantParam(5500, 185, -12),
+    calculateFormantParam(10000, 1000, -14),
   ],
   f0Shift: 3,
   breathiness: 0.07,
@@ -533,6 +572,7 @@ export const CHILD_VOWEL_U: VowelFormants = {
     calculateFormantParam(3000, 135, -4.5),
     calculateFormantParam(3800, 155, -8),
     calculateFormantParam(5200, 175, -12),
+    calculateFormantParam(10000, 1000, -14),
   ],
   f0Shift: 1.5,
   breathiness: 0.07,
@@ -542,10 +582,10 @@ export const CHILD_VOWEL_U: VowelFormants = {
 /** 音色变体计算：明亮 */
 export function makeBrightVariant(vowel: VowelFormants): VowelFormants {
   const formants = vowel.formants.map((f, idx) => {
-    const boost = idx < 2 ? 1.15 : 1.05;
-    const bwNarrow = idx < 2 ? 0.85 : 0.95;
-    return calculateFormantParam(f.Fc * boost, f.BW * bwNarrow, f.gainDb + (idx < 2 ? 1.5 : 0));
-  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
+    const boost = idx < 2 ? 1.15 : idx === 5 ? 1.3 : 1.05;
+    const bwNarrow = idx < 2 ? 0.85 : idx === 5 ? 0.8 : 0.95;
+    return calculateFormantParam(f.Fc * boost, f.BW * bwNarrow, f.gainDb + (idx < 2 ? 1.5 : idx === 5 ? 2 : 0));
+  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
   return { ...vowel, formants, breathiness: vowel.breathiness * 0.9 };
 }
 
@@ -553,17 +593,17 @@ export function makeBrightVariant(vowel: VowelFormants): VowelFormants {
 export function makeWarmVariant(vowel: VowelFormants): VowelFormants {
   const formants = vowel.formants.map((f, idx) => {
     const soften = idx < 2 ? 0.92 : 1.0;
-    const bwWiden = idx < 2 ? 1.2 : 1.05;
+    const bwWiden = idx < 2 ? 1.2 : idx === 5 ? 1.5 : 1.05;
     return calculateFormantParam(f.Fc * soften, f.BW * bwWiden, f.gainDb - (idx < 2 ? 1 : 0));
-  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
+  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
   return { ...vowel, formants, breathiness: vowel.breathiness * 1.2 };
 }
 
 /** 音色变体计算：沙哑 */
 export function makeHoarseVariant(vowel: VowelFormants): VowelFormants {
-  const formants = vowel.formants.map((f) => {
-    return calculateFormantParam(f.Fc * 0.95, f.BW * 1.4, f.gainDb - 2);
-  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
+  const formants = vowel.formants.map((f, idx) => {
+    return calculateFormantParam(f.Fc * 0.95, f.BW * 1.4, f.gainDb - (idx === 5 ? 4 : 2));
+  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
   return { ...vowel, formants, breathiness: Math.min(1, vowel.breathiness * 2.5) };
 }
 
@@ -572,7 +612,7 @@ export function makeEtherealVariant(vowel: VowelFormants): VowelFormants {
   const formants = vowel.formants.map((f, idx) => {
     const lift = idx < 2 ? 1.08 : 1.2;
     return calculateFormantParam(f.Fc * lift, f.BW * 1.3, f.gainDb + (idx >= 2 ? 2 : 0));
-  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
+  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
   return { ...vowel, formants, breathiness: vowel.breathiness * 1.5 };
 }
 
@@ -580,7 +620,7 @@ export function makeEtherealVariant(vowel: VowelFormants): VowelFormants {
 export function shiftGender(vowel: VowelFormants, ratio: number): VowelFormants {
   const formants = vowel.formants.map((f) => {
     return calculateFormantParam(f.Fc * ratio, f.BW * Math.sqrt(ratio), f.gainDb);
-  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
+  }) as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam];
   return { ...vowel, formants };
 }
 
@@ -592,7 +632,7 @@ export function interpolateFormants(
 ): VowelFormants {
   const smoothT = t * t * (3 - 2 * t); // smoothstep
   const formants: FormantParam[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     const f1 = v1.formants[i];
     const f2 = v2.formants[i];
     const Fc = f1.Fc + (f2.Fc - f1.Fc) * smoothT;
@@ -602,7 +642,7 @@ export function interpolateFormants(
   }
   return {
     symbol: `${v1.symbol}->${v2.symbol}`,
-    formants: formants as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam],
+    formants: formants as [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam],
     f0Shift: v1.f0Shift + (v2.f0Shift - v1.f0Shift) * smoothT,
     breathiness: v1.breathiness + (v2.breathiness - v1.breathiness) * smoothT,
     nasalCoupling: v1.nasalCoupling + (v2.nasalCoupling - v1.nasalCoupling) * smoothT,
@@ -1125,6 +1165,104 @@ export function generateVocalFry(length: number, f0: number, sampleRate: number)
   return buffer;
 }
 
+
+/**
+ * 应用怒音/喉音效果 (Growl)
+ * 在基频上叠加 30-80Hz 低频噪声，模拟声带压迫感
+ * @param buffer 输入音频
+ * @param intensity 强度 (0-1)
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyGrowlEffect(buffer: Float32Array, intensity: number, sampleRate: number): Float32Array {
+  const result = new Float32Array(buffer.length);
+  const lowFreqNoise = generateWhiteNoise(buffer.length, intensity * 0.5);
+  const filteredNoise = bandPassFilter(lowFreqNoise, 30, 80, sampleRate);
+  for (let i = 0; i < buffer.length; i++) {
+    result[i] = buffer[i] + filteredNoise[i] * intensity * 0.6;
+  }
+  return result;
+}
+
+/**
+ * 应用花腔效果 (Coloratura)
+ * 快速音阶跑动，在音符之间插入快速经过音
+ * @param buffer 输入音频
+ * @param baseFreq 基频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyColoraturaEffect(buffer: Float32Array, baseFreq: number, sampleRate: number): Float32Array {
+  const result = new Float32Array(buffer.length);
+  const runRate = 12; // 快速跑动速率 (Hz)
+  const depth = baseFreq * 0.03;
+  for (let i = 0; i < buffer.length; i++) {
+    const t = i / sampleRate;
+    const mod = Math.abs(((t * runRate) % 1) - 0.5) * 4 - 1;
+    const phaseShift = mod * depth;
+    const idx = Math.floor(i + phaseShift);
+    result[i] = buffer[Math.max(0, Math.min(buffer.length - 1, idx))];
+  }
+  return result;
+}
+
+/**
+ * 应用泛音唱法效果 (Overtone Singing)
+ * 强调第二/第三泛音，削弱基频
+ * @param buffer 输入音频
+ * @param intensity 强度 (0-1)
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyOvertoneSingingEffect(buffer: Float32Array, intensity: number, sampleRate: number): Float32Array {
+  const result = new Float32Array(buffer.length);
+  const reducedFundamental = onePoleHighPass(buffer, 150, sampleRate);
+  const secondOvertone = biquadBandPass(buffer, 600, 300, sampleRate);
+  const thirdOvertone = biquadBandPass(buffer, 1200, 400, sampleRate);
+  for (let i = 0; i < buffer.length; i++) {
+    result[i] = reducedFundamental[i] * (1 - intensity * 0.3)
+      + secondOvertone[i] * intensity * 1.2
+      + thirdOvertone[i] * intensity * 1.0;
+  }
+  return result;
+}
+
+/**
+ * 应用断奏效果 (Staccato)
+ * 缩短音符时长，产生跳跃感
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyStaccatoEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  const result = new Float32Array(buffer.length);
+  const activeEnd = Math.floor(buffer.length * 0.4);
+  for (let i = 0; i < activeEnd; i++) {
+    result[i] = buffer[i];
+  }
+  const decaySamples = Math.min(100, buffer.length - activeEnd);
+  for (let i = 0; i < decaySamples; i++) {
+    const t = i / decaySamples;
+    result[activeEnd + i] = buffer[activeEnd + i] * (1 - t);
+  }
+  return result;
+}
+
+/**
+ * 应用渐强效果 (Crescendo)
+ * 音量随时间线性增强
+ * @param buffer 输入音频
+ * @returns 处理后的信号
+ */
+export function applyCrescendoEffect(buffer: Float32Array): Float32Array {
+  const result = new Float32Array(buffer.length);
+  for (let i = 0; i < buffer.length; i++) {
+    const t = i / Math.max(1, buffer.length - 1);
+    result[i] = buffer[i] * t;
+  }
+  return result;
+}
+
 /**
  * 生成爆破音 (p/b/t/d/k/g)
  * 瞬态冲击 + 无声段
@@ -1181,6 +1319,69 @@ export function generateFricative(
     buffer[i] = Math.random() * 2 - 1;
   }
   return bandPassFilter(buffer, lowCut, highCut, sampleRate);
+}
+
+
+/**
+ * 高精度滑音曲线生成
+ * @param fromFreq 起始频率
+ * @param toFreq 目标频率
+ * @param duration 时长 (秒)
+ * @param sampleRate 采样率
+ * @param curve 曲线类型：linear（线性）、exponential（指数）、sigmoid（S型，最自然）
+ * @returns 频率曲线
+ */
+export function preciseGlide(
+  fromFreq: number,
+  toFreq: number,
+  duration: number,
+  sampleRate: number,
+  curve: 'linear' | 'exponential' | 'sigmoid' = 'sigmoid'
+): Float32Array {
+  const length = Math.floor(duration * sampleRate);
+  const curveArr = new Float32Array(length);
+  const logFrom = Math.log2(fromFreq);
+  const logTo = Math.log2(toFreq);
+
+  for (let i = 0; i < length; i++) {
+    const t = i / Math.max(1, length - 1);
+    let eased: number;
+    switch (curve) {
+      case 'linear':
+        eased = t;
+        break;
+      case 'exponential':
+        eased = t * t;
+        break;
+      case 'sigmoid':
+      default:
+        eased = t * t * (3 - 2 * t);
+        break;
+    }
+    const logFreq = logFrom + (logTo - logFrom) * eased;
+    curveArr[i] = Math.pow(2, logFreq);
+  }
+  return curveArr;
+}
+
+/**
+ * 生成元音片段（带滑音）
+ * 默认使用 sigmoid 曲线以获得最自然的滑音效果
+ * @param fromFreq 起始基频
+ * @param toFreq 目标基频
+ * @param duration 时长 (秒)
+ * @param sampleRate 采样率
+ * @param curve 滑音曲线，默认 sigmoid
+ * @returns 基频曲线
+ */
+function _generateVowelSegment(
+  fromFreq: number,
+  toFreq: number,
+  duration: number,
+  sampleRate: number,
+  curve: 'linear' | 'exponential' | 'sigmoid' = 'sigmoid'
+): Float32Array {
+  return preciseGlide(fromFreq, toFreq, duration, sampleRate, curve);
 }
 
 /**
@@ -1308,10 +1509,10 @@ export function applyVoiceDescriptor(
       case 'breathy':
         result = applyBreathyEffect(result, descriptor.breathiness);
         break;
-      case 'head':
+      case 'headVoice':
         result = applyHeadVoiceEffect(result, 0.7, sampleRate);
         break;
-      case 'chest':
+      case 'chestVoice':
         result = applyChestVoiceEffect(result, 0.7, sampleRate);
         break;
       case 'falsetto':
@@ -1338,6 +1539,30 @@ export function applyVoiceDescriptor(
         }
         break;
       }
+      case 'growl':
+        result = applyGrowlEffect(result, 0.6, sampleRate);
+        break;
+      case 'coloratura':
+        result = applyColoraturaEffect(result, descriptor.f0, sampleRate);
+        break;
+      case 'overtoneSinging':
+        result = applyOvertoneSingingEffect(result, 0.7, sampleRate);
+        break;
+      case 'staccato':
+        result = applyStaccatoEffect(result, sampleRate);
+        break;
+      case 'crescendo':
+        result = applyCrescendoEffect(result);
+        break;
+      case 'legatoSlide':
+        // 连奏滑音在基频曲线阶段处理，此处无需额外操作
+        break;
+      case 'vibrato':
+        // 颤音在基频曲线阶段处理，此处无需额外操作
+        break;
+      case 'mordent':
+        // 波音在基频曲线阶段处理，此处无需额外操作
+        break;
       case 'pp': case 'p': case 'mp': case 'mf': case 'f': case 'ff': {
         const scale = DYNAMICS_MAP[tech] ?? 0.7;
         for (let i = 0; i < result.length; i++) {
@@ -1559,6 +1784,83 @@ export function quantumSuperpositionTimbre(
     }
   }
   return result;
+}
+
+
+// ==================== 动态共鸣模型 ====================
+
+/**
+ * 动态共鸣滤波器
+ * 支持胸腔/头腔/鼻腔/面罩共鸣的动态混合比例
+ * 根据音高自动调节：低音区增加胸腔共鸣，高音区增加头腔共鸣
+ */
+export class DynamicResonance {
+  chestRatio: number;
+  headRatio: number;
+  nasalRatio: number;
+  maskRatio: number;
+  private sampleRate: number;
+
+  constructor(sampleRate: number) {
+    this.chestRatio = 0.25;
+    this.headRatio = 0.25;
+    this.nasalRatio = 0.25;
+    this.maskRatio = 0.25;
+    this.sampleRate = sampleRate;
+  }
+
+  /**
+   * 根据基频自动调节共鸣比例
+   * @param f0 当前基频 (Hz)
+   */
+  autoTuneByPitch(f0: number): void {
+    const midi = 69 + 12 * Math.log2(f0 / 440);
+    const t = Math.max(0, Math.min(1, (midi - 40) / 50)); // 0 = 低音区, 1 = 高音区
+    // 低音区增加胸腔，高音区增加头腔
+    this.chestRatio = 0.5 * (1 - t) + 0.1;
+    this.headRatio = 0.5 * t + 0.1;
+    this.nasalRatio = 0.15;
+    this.maskRatio = Math.max(0, 1 - this.chestRatio - this.headRatio - this.nasalRatio);
+    // 归一化
+    const sum = this.chestRatio + this.headRatio + this.nasalRatio + this.maskRatio;
+    if (sum > 0) {
+      this.chestRatio /= sum;
+      this.headRatio /= sum;
+      this.nasalRatio /= sum;
+      this.maskRatio /= sum;
+    }
+  }
+
+  /**
+   * 处理整个音频块
+   * @param block 输入音频块
+   * @param f0 当前基频 (可选，用于自动调节)
+   * @returns 处理后的音频块
+   */
+  processBlock(block: Float32Array, f0?: number): Float32Array {
+    if (f0 !== undefined) {
+      this.autoTuneByPitch(f0);
+    }
+    // 胸腔共鸣：低频增强 (200-600Hz)
+    const chest = biquadBandPass(block, 400, 300, this.sampleRate);
+    // 头腔共鸣：高频增强 (2500-4000Hz)
+    const head = biquadBandPass(block, 3200, 800, this.sampleRate);
+    // 鼻腔共鸣：鼻音区 (250-300Hz)
+    const nasal = biquadBandPass(block, 280, 120, this.sampleRate);
+    // 面罩共鸣：中高频 (1000-2000Hz)
+    const mask = biquadBandPass(block, 1500, 600, this.sampleRate);
+
+    const result = new Float32Array(block.length);
+    for (let i = 0; i < block.length; i++) {
+      result[i] =
+        block[i] * 0.3 +
+        chest[i] * this.chestRatio +
+        head[i] * this.headRatio +
+        nasal[i] * this.nasalRatio +
+        mask[i] * this.maskRatio;
+    }
+    return result;
+  }
 }
 
 // ==================== 高级物理模型 ====================
@@ -1792,7 +2094,7 @@ export function physicalModelSynthesis(
  * @param formants 五个共振峰
  * @returns 截面积数组
  */
-export function formantsToTubeAreas(formants: [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam]): number[] {
+export function formantsToTubeAreas(formants: [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam]): number[] {
   // 简化：将共振峰频率反推为 tube area function
   // 实际需解非线性方程，此处使用经验近似
   const areas: number[] = [];
@@ -2170,7 +2472,7 @@ export function lpcSynthesize(excitation: Float32Array, lpc: LPCResult): Float32
  * @param technique 演唱技巧
  * @returns 推荐策略
  */
-export function selectOptimalStrategy(f0: number, technique: SingingTechnique[]): SynthesisStrategy {
+export function selectOptimalStrategy(f0: number, technique: VoiceTechnique[]): SynthesisStrategy {
   if (technique.includes('fry') || technique.includes('breathy')) {
     return 'physical';
   }
@@ -2178,6 +2480,9 @@ export function selectOptimalStrategy(f0: number, technique: SingingTechnique[])
     return 'granular';
   }
   if (technique.includes('plosive') || technique.includes('fricative')) {
+    return 'hybrid';
+  }
+  if (technique.includes('growl') || technique.includes('coloratura') || technique.includes('overtoneSinging')) {
     return 'hybrid';
   }
   if (f0 > 400) {
@@ -2202,11 +2507,22 @@ export function renderNoteEvent(note: NoteEvent, config: RenderConfig): Float32A
   const strategy = selectOptimalStrategy(f0, voice.techniques);
 
   // 生成基频曲线 (含颤音和混沌抖动)
+  const baseCurve = new Float32Array(length);
+  if (voice.techniques.includes('legatoSlide') && voice.targetF0 && voice.targetF0 !== f0) {
+    const glide = _generateVowelSegment(f0, voice.targetF0, note.duration + config.tailLength, sampleRate, 'sigmoid');
+    for (let i = 0; i < length; i++) {
+      baseCurve[i] = glide[i] ?? f0;
+    }
+  } else {
+    for (let i = 0; i < length; i++) {
+      baseCurve[i] = f0;
+    }
+  }
   const vibrato = generateVibratoCurve(length, sampleRate, voice.vibratoDepth, voice.vibratoRate);
   const jitter = generateChaoticF0Jitter(length, sampleRate, f0, 1.5, 'lorenz');
   const f0Curve = new Float32Array(length);
   for (let i = 0; i < length; i++) {
-    f0Curve[i] = f0 + vibrato[i] + (jitter[i] - f0) * 0.3;
+    f0Curve[i] = baseCurve[i] + vibrato[i] + (jitter[i] - f0) * 0.3;
   }
 
   // 获取元音参数
@@ -2478,7 +2794,7 @@ export function bandPassFilter(
  */
 export function applyFormantFilter(
   source: Float32Array,
-  formants: [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam],
+  formants: [FormantParam, FormantParam, FormantParam, FormantParam, FormantParam, FormantParam],
   sampleRate: number
 ): Float32Array {
   let result = new Float32Array(source);
@@ -3516,7 +3832,7 @@ export function getAllVowelsForVoice(
  */
 export function vowelAcousticDistance(v1: VowelFormants, v2: VowelFormants): number {
   let sum = 0;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     const f1 = v1.formants[i].Fc;
     const f2 = v2.formants[i].Fc;
     const logDiff = Math.log2(f1 / f2);

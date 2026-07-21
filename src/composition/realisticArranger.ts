@@ -84,7 +84,12 @@ export type StyleType =
   | "chinese"
   | "rnb"
   | "metal"
-  | "blues";
+  | "blues"
+  | "kpop"
+  | "reggae"
+  | "funk"
+  | "soul"
+  | "latin";
 
 /** 情绪类型 */
 export type EmotionType = "happy" | "sad" | "tense" | "relaxed" | "epic" | "romantic";
@@ -1942,6 +1947,56 @@ export class StyleTemplates {
         scale: "minor",
         swingAmount: 0.2,
       },
+      kpop: {
+        instruments: ["piano", "synth", "bass", "drumKit", "violin", "cello"],
+        densityBySection: { intro: 0.4, verse: 0.6, preChorus: 0.8, chorus: 1.0, bridge: 0.7, outro: 0.3 },
+        drumPatterns: {
+          basic: [36, 42, 36, 42, 38, 42, 36, 42],
+          fill: [36, 38, 42, 38, 36, 42, 46, 42],
+        },
+        scale: "minor",
+        swingAmount: 0.0,
+      },
+      reggae: {
+        instruments: ["electricGuitar", "bass", "drumKit", "piano", "flute"],
+        densityBySection: { intro: 0.3, verse: 0.5, preChorus: 0.6, chorus: 0.8, bridge: 0.6, outro: 0.3 },
+        drumPatterns: {
+          basic: [0, 42, 38, 42, 0, 42, 38, 42],
+          fill: [36, 38, 42, 38, 36, 38, 46, 38],
+        },
+        scale: "major",
+        swingAmount: 0.1,
+      },
+      funk: {
+        instruments: ["electricGuitar", "bass", "drumKit", "synth", "saxophone"],
+        densityBySection: { intro: 0.4, verse: 0.6, preChorus: 0.8, chorus: 0.9, bridge: 0.7, outro: 0.3 },
+        drumPatterns: {
+          basic: [36, 0, 42, 42, 38, 0, 42, 0],
+          fill: [36, 38, 42, 38, 36, 42, 46, 42],
+        },
+        scale: "minor",
+        swingAmount: 0.15,
+      },
+      soul: {
+        instruments: ["piano", "bass", "drumKit", "saxophone", "violin", "cello"],
+        densityBySection: { intro: 0.3, verse: 0.5, preChorus: 0.7, chorus: 0.9, bridge: 0.6, outro: 0.3 },
+        drumPatterns: {
+          basic: [36, 0, 42, 0, 38, 0, 42, 0],
+          fill: [36, 38, 42, 38, 36, 42, 46, 42],
+        },
+        scale: "major",
+        swingAmount: 0.2,
+      },
+      latin: {
+        instruments: ["piano", "acousticGuitar", "bass", "drumKit", "flute", "synth"],
+        densityBySection: { intro: 0.3, verse: 0.6, preChorus: 0.8, chorus: 1.0, bridge: 0.7, outro: 0.3 },
+        drumPatterns: {
+          basic: [36, 0, 42, 36, 42, 0, 38, 42],
+          fill: [36, 38, 42, 38, 36, 42, 46, 42],
+        },
+        scale: "major",
+        swingAmount: 0.1,
+      },
     };
     return templates[style] ?? templates.pop;
   }
@@ -1985,6 +2040,11 @@ export class ArrangementEngine {
     for (const section of sections) {
       const sectionDur = section.bars * 4 * beatDur;
       const density = template.densityBySection[section.type];
+
+      if (density === 0) {
+        currentTime += sectionDur;
+        continue;
+      }
 
       // 1. 鼓组节奏
       if (template.drumPatterns.basic.length > 0) {
@@ -2460,8 +2520,16 @@ export default class RealisticArrangerEngine {
     const trackBuffers = new Map<InstrumentType, Float32Array>();
     const trackConfigs: TrackConfig[] = [];
 
+    // 预创建合成器实例并缓存，避免重复创建
+    const synthCache = new Map<InstrumentType, InstrumentSynthesizer>();
+    for (const inst of arrangement.keys()) {
+      if (!synthCache.has(inst)) {
+        synthCache.set(inst, this.getSynthesizer(inst));
+      }
+    }
+
     for (const [inst, notes] of arrangement.entries()) {
-      const synth = this.getSynthesizer(inst);
+      const synth = synthCache.get(inst)!;
       const buffer = new Float32Array(totalSamples);
       for (const note of notes) {
         const noteBuf = synth.renderNote(note, emotion);
@@ -2614,6 +2682,11 @@ export function generateStandardSections(
     chinese: ["major", "minor", "major", "major", "minor", "minor", "major", "major"],
     electronic: ["minor", "min7", "major", "min7", "minor", "min7", "dom7", "minor"],
     metal:  ["minor", "dim", "major", "minor", "minor", "dim", "major", "minor"],
+    kpop:   ["major", "minor", "min7", "major", "dom7", "minor", "min7", "maj7"],
+    reggae: ["major", "major", "minor", "major", "major", "minor", "major", "major"],
+    funk:   ["minor", "min7", "major", "min7", "minor", "min7", "dom7", "minor"],
+    soul:   ["major", "min7", "maj7", "major", "dom7", "minor", "min7", "major"],
+    latin:  ["major", "minor", "major", "dom7", "major", "minor", "dom7", "major"],
   };
   const qualities = richQualitiesMap[style] || richQualitiesMap.pop;
   const progression = qualities.map((q, i) => ({
@@ -2745,6 +2818,11 @@ export class ChordProgressionGenerator {
       rnb: [[0, "min7"], [3, "min7"], [4, "maj7"], [5, "dom7"]],
       metal: [[0, "minor"], [6, "major"], [3, "minor"], [5, "major"]],
       blues: [[0, "dom7"], [0, "dom7"], [0, "dom7"], [0, "dom7"]],
+      kpop: [[0, "minor"], [3, "minor"], [5, "major"], [4, "major"]],
+      reggae: [[0, "major"], [4, "major"], [5, "major"], [0, "major"]],
+      funk: [[0, "minor"], [3, "min7"], [4, "dom7"], [0, "minor"]],
+      soul: [[0, "maj7"], [2, "min7"], [5, "dom7"], [0, "maj7"]],
+      latin: [[0, "major"], [5, "major"], [3, "minor"], [4, "dom7"]],
     };
 
     const prog = progressions[style] ?? progressions.pop;
@@ -3068,6 +3146,31 @@ export class RhythmPatternLibrary {
         medium: [36, 0, 42, 0, 36, 0, 42, 0, 36, 0, 42, 0, 38, 0, 42, 0],
         high: [36, 42, 42, 42, 36, 42, 42, 42, 36, 42, 42, 42, 38, 42, 46, 42],
       },
+      kpop: {
+        low: [36, 0, 0, 0, 38, 0, 0, 0, 36, 0, 0, 0, 38, 0, 0, 0],
+        medium: [36, 42, 36, 42, 38, 42, 36, 42, 36, 42, 36, 42, 38, 42, 36, 42],
+        high: [36, 42, 36, 42, 38, 42, 36, 42, 36, 42, 36, 42, 38, 46, 36, 46],
+      },
+      reggae: {
+        low: [0, 0, 38, 0, 0, 0, 38, 0, 0, 0, 38, 0, 0, 0, 38, 0],
+        medium: [0, 42, 38, 42, 0, 42, 38, 42, 0, 42, 38, 42, 0, 42, 38, 42],
+        high: [36, 42, 38, 42, 36, 42, 38, 42, 36, 42, 38, 42, 36, 46, 38, 46],
+      },
+      funk: {
+        low: [36, 0, 0, 0, 38, 0, 0, 0, 36, 0, 0, 0, 38, 0, 0, 0],
+        medium: [36, 0, 42, 42, 38, 0, 42, 0, 36, 0, 42, 42, 38, 0, 42, 0],
+        high: [36, 42, 42, 42, 38, 42, 42, 42, 36, 42, 42, 42, 38, 46, 42, 46],
+      },
+      soul: {
+        low: [36, 0, 0, 0, 38, 0, 0, 0, 36, 0, 0, 0, 38, 0, 0, 0],
+        medium: [36, 0, 42, 0, 38, 0, 42, 0, 36, 0, 42, 0, 38, 0, 42, 0],
+        high: [36, 42, 42, 42, 38, 42, 42, 42, 36, 42, 42, 42, 38, 42, 46, 42],
+      },
+      latin: {
+        low: [36, 0, 0, 0, 0, 0, 0, 0, 36, 0, 0, 0, 0, 0, 0, 0],
+        medium: [36, 0, 42, 36, 42, 0, 38, 42, 36, 0, 42, 36, 42, 0, 38, 42],
+        high: [36, 42, 42, 36, 42, 42, 38, 42, 36, 42, 42, 36, 42, 42, 46, 42],
+      },
     };
     return (patterns[style] ?? patterns.pop)[intensity] ?? [];
   }
@@ -3084,6 +3187,11 @@ export class RhythmPatternLibrary {
       rnb: [36, 38, 42, 38, 36, 42, 46, 42, 36, 38, 42, 38, 36, 42, 46, 42],
       metal: [36, 38, 36, 38, 46, 38, 36, 38, 36, 38, 36, 38, 46, 46, 46, 46],
       blues: [36, 38, 42, 38, 36, 38, 46, 38, 36, 38, 42, 38, 36, 38, 46, 38],
+      kpop: [36, 38, 42, 38, 36, 42, 46, 42, 36, 38, 42, 38, 36, 42, 46, 42],
+      reggae: [36, 38, 42, 38, 36, 38, 46, 42, 36, 38, 42, 38, 36, 38, 46, 42],
+      funk: [36, 38, 42, 38, 36, 42, 46, 42, 36, 38, 42, 38, 36, 42, 46, 42],
+      soul: [36, 38, 42, 38, 36, 42, 46, 42, 36, 38, 42, 38, 36, 42, 46, 42],
+      latin: [36, 38, 42, 38, 36, 42, 46, 42, 36, 38, 42, 38, 36, 42, 46, 42],
     };
     return fills[style] ?? fills.pop;
   }
@@ -3644,6 +3752,11 @@ export class InstrumentationAdvisor {
       rnb: ["saxophone", "synth", "piano"],
       metal: ["electricGuitar", "synth"],
       blues: ["electricGuitar", "saxophone"],
+      kpop: ["synth", "violin", "piano"],
+      reggae: ["electricGuitar", "flute"],
+      funk: ["electricGuitar", "saxophone", "synth"],
+      soul: ["saxophone", "piano", "violin"],
+      latin: ["flute", "piano", "acousticGuitar"],
     };
 
     const harmonyOptions: Record<StyleType, InstrumentType[]> = {
@@ -3657,6 +3770,11 @@ export class InstrumentationAdvisor {
       rnb: ["piano", "synth"],
       metal: ["electricGuitar", "synth"],
       blues: ["piano", "electricGuitar"],
+      kpop: ["piano", "synth"],
+      reggae: ["piano", "electricGuitar"],
+      funk: ["synth", "electricGuitar"],
+      soul: ["piano", "synth"],
+      latin: ["piano", "acousticGuitar", "synth"],
     };
 
     const rhythmOptions: Record<StyleType, InstrumentType[]> = {
@@ -3670,6 +3788,11 @@ export class InstrumentationAdvisor {
       rnb: ["bass", "synth"],
       metal: ["bass", "electricGuitar"],
       blues: ["bass", "electricGuitar"],
+      kpop: ["bass", "synth"],
+      reggae: ["bass", "electricGuitar"],
+      funk: ["bass", "electricGuitar"],
+      soul: ["bass", "piano"],
+      latin: ["bass", "acousticGuitar"],
     };
 
     const percussionOptions: Record<StyleType, InstrumentType[]> = {
@@ -3683,6 +3806,11 @@ export class InstrumentationAdvisor {
       rnb: ["drumKit"],
       metal: ["drumKit"],
       blues: ["drumKit"],
+      kpop: ["drumKit"],
+      reggae: ["drumKit"],
+      funk: ["drumKit"],
+      soul: ["drumKit"],
+      latin: ["drumKit"],
     };
 
     const pick = (arr: InstrumentType[], count: number) => arr.slice(0, Math.max(1, Math.floor(count * density)));

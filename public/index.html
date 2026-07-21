@@ -29,6 +29,7 @@
     justify-content: center;
     align-items: center;
     overflow: hidden;
+    overscroll-behavior: none;
   }
 
   /* 手机外壳 */
@@ -98,6 +99,18 @@
     transition: background 0.2s;
   }
   .nav-bar button:active { background: rgba(0,0,0,0.05); }
+  .nav-bar button, .input-plus, .input-voice, .input-send, .drawer-header button, .studio-header button {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+  .quick-btn, .func-card button, .s-btn, .s-btn-small, .drawer-footer button {
+    touch-action: manipulation;
+  }
+  .s-btn-small {
+    min-height: 36px;
+    min-width: 36px;
+  }
   .nav-title {
     position: absolute;
     left: 50%;
@@ -562,6 +575,31 @@
     border-radius: 10px;
     background: #f0f0f5;
   }
+  #waveformCanvas {
+    height: 60px;
+    background: #0a0a1a;
+  }
+  .viz-spectrum, .viz-waveform {
+    width: 100%;
+    border-radius: 8px;
+    background: #0a0a1a;
+    display: block;
+  }
+  .viz-spectrum { height: 80px; }
+  .viz-waveform { height: 50px; }
+
+  @media (max-width: 480px) {
+    .func-card { padding: 10px; }
+    .func-card h4 { font-size: 13px; }
+    .msg-bubble { font-size: 13px; padding: 8px 12px; }
+    .welcome h1, .welcome p { font-size: 28px; }
+    .s-card { padding: 10px; }
+    .chat-list { padding: 10px; }
+    .quick-actions { padding: 0 10px 10px; gap: 8px; }
+    .quick-btn { padding: 10px 2px; font-size: 10px; }
+    .input-bar { padding: 8px 10px 20px; }
+    .studio-body { padding: 8px; }
+  }
 
   /* 底部安全区 */
   .safe-bottom { height: 8px; flex-shrink: 0; }
@@ -774,6 +812,7 @@
         <div class="s-card">
           <h3>🌊 实时频谱</h3>
           <canvas id="spectrumCanvas" width="360" height="160"></canvas>
+          <canvas id="waveformCanvas" width="360" height="80"></canvas>
           <button class="s-btn" onclick="startVisualizer()" id="vizBtn">▶ 启动可视化</button>
           <p style="font-size:10px;color:var(--text2);margin-top:6px;">使用模拟音频数据演示</p>
         </div>
@@ -924,6 +963,7 @@
           <div class="s-form"><label>模式</label><select id="emMode"><option value="compose">单次涌现</option><option value="loop">认知闭环</option></select></div>
           <button class="s-btn" onclick="generateEmergence()">🌌 启动涌现引擎</button>
           <div class="s-loading" id="emLoading"><span>MusicSwarm群体智能演化中...</span></div>
+          <div id="emMasteringUI"></div>
           <pre class="s-result" id="emResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
         </div>
         <div class="s-card">
@@ -1197,6 +1237,7 @@ function addFuncCard(type) {
       <div class="form-row"><label>小节数</label><input type="number" id="${cid}_bars" value="8" min="4" max="16"></div>
       <div class="form-row"><label>迭代</label><select id="${cid}_loop"><option value="1">单次</option><option value="3">闭环×3</option><option value="5">闭环×5</option></select></div>
       <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardEmergence('${cid}')">涌现</button></div>
+      <div id="${cid}_mastering"></div>
       <div class="result-mini" id="${cid}_res"></div>
     </div>`;
   } else if (type === 'produce') {
@@ -1207,6 +1248,7 @@ function addFuncCard(type) {
       <div class="form-row"><label>情绪</label><select id="${cid}_emo"><option>happy</option><option>sad</option><option>romantic</option><option>tense</option></select></div>
       <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardProduce('${cid}')">产音乐</button></div>
       <div id="${cid}_player"></div>
+      <div id="${cid}_mastering"></div>
       <div class="result-mini" id="${cid}_res"></div>
     </div>`;
   }
@@ -1359,7 +1401,9 @@ async function runCardEmergence(cid) {
   const bars = parseInt(document.getElementById(cid+'_bars').value);
   const loop = parseInt(document.getElementById(cid+'_loop').value);
   const res = document.getElementById(cid+'_res');
+  const masterUI = document.getElementById(cid+'_mastering');
   res.textContent = '认知涌现引擎启动中...';
+  if (masterUI) masterUI.innerHTML = '';
   try {
     const endpoint = loop > 1 ? '/api/emergence/loop' : '/api/emergence/compose';
     const body = loop > 1
@@ -1368,6 +1412,7 @@ async function runCardEmergence(cid) {
     const r = await fetch(`${API}${endpoint}`, { method:'POST', headers:{'Content-Type':'application/json'}, body });
     const d = await r.json();
     if (d.error) { res.textContent = '错误: '+d.error; return; }
+    if (masterUI) masterUI.innerHTML = renderMasteringUI(d.mastering);
     if (loop > 1) {
       res.textContent = `🌌 认知闭环完成\n迭代: ${d.iterations} 次\n最佳T6: ${d.bestScore?.toFixed?.(3) || d.bestScore}\n胶囊: ${d.finalResult?.capsuleId?.slice(0,8)}...\n旋律: ${d.finalResult?.melody?.slice(0,12).join(' ')}${d.finalResult?.melody?.length>12?'...':''}`;
     } else {
@@ -1381,8 +1426,10 @@ async function runCardProduce(cid) {
   const emotion = document.getElementById(cid+'_emo').value;
   const res = document.getElementById(cid+'_res');
   const player = document.getElementById(cid+'_player');
+  const masterUI = document.getElementById(cid+'_mastering');
   res.textContent = '🚀 自我进化生产线启动...';
   player.innerHTML = '';
+  if (masterUI) masterUI.innerHTML = '';
   try {
     const r = await fetch(`${API}/api/produce`, {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -1394,10 +1441,8 @@ async function runCardProduce(cid) {
     const blob = new Blob([wav], { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
     player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+    if (masterUI) masterUI.innerHTML = renderMasteringUI(d.mastering);
     let text = `🚀 产音乐完成！\n尝试: ${d.attempt} 次 | 修复: ${d.fixed ? '是' : '否'} | 进化: ${d.evolved ? '是' : '否'}\nT6: ${d.composition?.scores?.overall?.toFixed?.(3)}\n诊断: ${d.diagnosis?.healthy ? '健康' : d.diagnosis?.severity}\n问题: ${d.diagnosis?.issues?.join(', ') || '无'}`;
-    if (d.mastering) {
-      text += `\n\n📀 母带处理\nLUFS: ${d.mastering.finalLUFS.toFixed(2)} | 真峰值: ${d.mastering.finalTruePeak.toFixed(4)}\n动态范围: ${d.mastering.metrics?.dynamicRangeLU?.toFixed?.(2)} LU | 响度范围: ${d.mastering.metrics?.loudnessRange?.toFixed?.(2)} LU\n处理链: ${d.mastering.applied.join(', ')}`;
-    }
     text += `\n\n日志:\n${d.productionLog?.slice(0,6).join('\n')}`;
     res.textContent = text;
   } catch(e){ res.textContent = '错误: '+e.message; }
@@ -1510,12 +1555,18 @@ async function applyEffect() {
 let vizRunning = false;
 function startVisualizer() {
   const canvas = document.getElementById('spectrumCanvas');
+  const waveCanvas = document.getElementById('waveformCanvas');
   const ctx = canvas.getContext('2d');
+  const wCtx = waveCanvas.getContext('2d');
   const btn = document.getElementById('vizBtn');
   if (vizRunning) { vizRunning = false; btn.textContent = '▶ 启动可视化'; return; }
   vizRunning = true; btn.textContent = '⏹ 停止';
   function draw() {
-    if (!vizRunning) { ctx.fillStyle='#f0f0f5'; ctx.fillRect(0,0,canvas.width,canvas.height); return; }
+    if (!vizRunning) {
+      ctx.fillStyle='#f0f0f5'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      wCtx.fillStyle='#0a0a1a'; wCtx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
+      return;
+    }
     ctx.fillStyle = 'rgba(240,240,245,0.3)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
     const barCount = 48, barWidth = canvas.width/barCount, time = Date.now()/1000;
@@ -1526,6 +1577,30 @@ function startVisualizer() {
       ctx.fillStyle = `hsla(${hue},80%,60%,0.8)`;
       ctx.fillRect(i*barWidth+1, canvas.height-h, barWidth-2, h);
     }
+    wCtx.fillStyle = '#0a0a1a';
+    wCtx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
+    wCtx.lineWidth = 1.5;
+    wCtx.strokeStyle = '#4caf50';
+    wCtx.beginPath();
+    const sliceWidth = waveCanvas.width / 64;
+    let x = 0;
+    for (let i=0;i<64;i++) {
+      const t = time*4 + i/64*10;
+      const y = waveCanvas.height/2 + Math.sin(t)*20;
+      if (i===0) wCtx.moveTo(x,y); else wCtx.lineTo(x,y);
+      x += sliceWidth;
+    }
+    wCtx.stroke();
+    wCtx.strokeStyle = 'rgba(156,39,176,0.7)';
+    wCtx.beginPath();
+    x = 0;
+    for (let i=0;i<64;i++) {
+      const t = time*4 + i/64*10 + 1;
+      const y = waveCanvas.height/2 + Math.sin(t)*15;
+      if (i===0) wCtx.moveTo(x,y); else wCtx.lineTo(x,y);
+      x += sliceWidth;
+    }
+    wCtx.stroke();
     requestAnimationFrame(draw);
   }
   draw();
@@ -1730,7 +1805,9 @@ async function generateFlawless() {
 async function generateEmergence() {
   const loading = document.getElementById('emLoading');
   const result = document.getElementById('emResult');
+  const masterUI = document.getElementById('emMasteringUI');
   loading.classList.add('show'); result.textContent = '';
+  if (masterUI) masterUI.innerHTML = '';
   const mode = document.getElementById('emMode').value;
   const key = document.getElementById('emKey').value;
   const bars = parseInt(document.getElementById('emBars').value);
@@ -1743,10 +1820,13 @@ async function generateEmergence() {
     const res = await fetch(`${API}${endpoint}`, { method:'POST', headers:{'Content-Type':'application/json'}, body });
     const d = await res.json();
     if (d.error) { result.textContent = '错误: ' + d.error; }
-    else if (mode === 'loop') {
-      result.textContent = `🌌 认知闭环完成\n迭代: ${d.iterations} 次\n最佳T6: ${d.bestScore?.toFixed?.(3) || d.bestScore}\n最终旋律: ${d.finalResult?.melody?.slice(0,16).join(' ')}${d.finalResult?.melody?.length>16?'...':''}`;
-    } else {
-      result.textContent = `🌌 涌现作曲完成\nT6: ${d.scores?.overall?.toFixed?.(3) || d.scores?.overall}\nSwarm聚类: ${d.swarmAnalysis?.clusteringCoeff?.toFixed?.(3)}\nEisbach自信度: ${d.eisbach?.confidence?.toFixed?.(3)}\n胶囊: ${d.capsuleId?.slice(0,10)}...\n旋律: ${d.melody?.slice(0,16).join(' ')}${d.melody?.length>16?'...':''}`;
+    else {
+      if (masterUI) masterUI.innerHTML = renderMasteringUI(d.mastering);
+      if (mode === 'loop') {
+        result.textContent = `🌌 认知闭环完成\n迭代: ${d.iterations} 次\n最佳T6: ${d.bestScore?.toFixed?.(3) || d.bestScore}\n最终旋律: ${d.finalResult?.melody?.slice(0,16).join(' ')}${d.finalResult?.melody?.length>16?'...':''}`;
+      } else {
+        result.textContent = `🌌 涌现作曲完成\nT6: ${d.scores?.overall?.toFixed?.(3) || d.scores?.overall}\nSwarm聚类: ${d.swarmAnalysis?.clusteringCoeff?.toFixed?.(3)}\nEisbach自信度: ${d.eisbach?.confidence?.toFixed?.(3)}\n胶囊: ${d.capsuleId?.slice(0,10)}...\n旋律: ${d.melody?.slice(0,16).join(' ')}${d.melody?.length>16?'...':''}`;
+      }
     }
   } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
@@ -1825,6 +1905,133 @@ function renderMasteringUI(m) {
   <div style="font-size:11px;color:var(--text2);margin-top:4px;">动态范围 ${dr.toFixed(1)} LU | 响度范围 ${lra.toFixed(1)} LU</div>
   <div class="mastering-chain">${tags}</div>`;
 }
+
+/* ================= 实时频谱与波形可视化 ================= */
+let vizAudioCtx = null;
+const vizConnected = new WeakSet();
+
+function ensureVizAudioCtx() {
+  if (!vizAudioCtx) {
+    vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return vizAudioCtx;
+}
+
+function drawSpectrum(analyser, spectrumCanvas, waveformCanvas, isPlayingRef) {
+  if (!isPlayingRef.value) return;
+  requestAnimationFrame(() => drawSpectrum(analyser, spectrumCanvas, waveformCanvas, isPlayingRef));
+
+  const sCtx = spectrumCanvas.getContext('2d');
+  const sw = spectrumCanvas.width;
+  const sh = spectrumCanvas.height;
+  sCtx.fillStyle = '#0a0a1a';
+  sCtx.fillRect(0, 0, sw, sh);
+
+  const bufferLength = analyser.frequencyBinCount;
+  const freqData = new Uint8Array(bufferLength);
+  analyser.getByteFrequencyData(freqData);
+
+  const barCount = 64;
+  const barWidth = sw / barCount;
+  for (let i = 0; i < barCount; i++) {
+    const idx = Math.floor(i / barCount * bufferLength);
+    const val = freqData[idx];
+    const barHeight = (val / 255) * sh * 0.9;
+    const hue = 200 + (i / barCount) * 160;
+    const grad = sCtx.createLinearGradient(0, sh - barHeight, 0, sh);
+    grad.addColorStop(0, `hsla(${hue}, 90%, 65%, 0.95)`);
+    grad.addColorStop(1, `hsla(${hue}, 90%, 45%, 0.5)`);
+    sCtx.fillStyle = grad;
+    sCtx.fillRect(i * barWidth + 0.5, sh - barHeight, barWidth - 1, barHeight);
+  }
+
+  const wCtx = waveformCanvas.getContext('2d');
+  const ww = waveformCanvas.width;
+  const wh = waveformCanvas.height;
+  wCtx.fillStyle = '#0a0a1a';
+  wCtx.fillRect(0, 0, ww, wh);
+
+  const timeData = new Uint8Array(bufferLength);
+  analyser.getByteTimeDomainData(timeData);
+
+  wCtx.lineWidth = 1.5;
+  wCtx.strokeStyle = '#4caf50';
+  wCtx.beginPath();
+  const sliceWidth = ww / bufferLength;
+  let x = 0;
+  for (let i = 0; i < bufferLength; i++) {
+    const v = timeData[i] / 128.0;
+    const y = (v * wh) / 2;
+    if (i === 0) wCtx.moveTo(x, y);
+    else wCtx.lineTo(x, y);
+    x += sliceWidth;
+  }
+  wCtx.stroke();
+
+  wCtx.strokeStyle = 'rgba(156, 39, 176, 0.7)';
+  wCtx.beginPath();
+  x = 0;
+  for (let i = 0; i < bufferLength; i++) {
+    const v = timeData[(i + 2) % bufferLength] / 128.0;
+    const y = (v * wh) / 2;
+    if (i === 0) wCtx.moveTo(x, y);
+    else wCtx.lineTo(x, y);
+    x += sliceWidth;
+  }
+  wCtx.stroke();
+}
+
+function attachVisualizer(audioEl) {
+  if (vizConnected.has(audioEl)) return;
+  vizConnected.add(audioEl);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'margin-top:6px;display:flex;flex-direction:column;gap:4px;';
+
+  const spectrumCanvas = document.createElement('canvas');
+  spectrumCanvas.className = 'viz-spectrum';
+  spectrumCanvas.width = 360;
+  spectrumCanvas.height = 100;
+
+  const waveformCanvas = document.createElement('canvas');
+  waveformCanvas.className = 'viz-waveform';
+  waveformCanvas.width = 360;
+  waveformCanvas.height = 60;
+
+  wrap.appendChild(spectrumCanvas);
+  wrap.appendChild(waveformCanvas);
+  audioEl.parentNode.insertBefore(wrap, audioEl.nextSibling);
+
+  const ctx = ensureVizAudioCtx();
+  const source = ctx.createMediaElementSource(audioEl);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  source.connect(analyser);
+  analyser.connect(ctx.destination);
+
+  const isPlayingRef = { value: false };
+
+  audioEl.addEventListener('play', () => {
+    isPlayingRef.value = true;
+    if (ctx.state === 'suspended') ctx.resume();
+    drawSpectrum(analyser, spectrumCanvas, waveformCanvas, isPlayingRef);
+  });
+
+  audioEl.addEventListener('pause', () => { isPlayingRef.value = false; });
+  audioEl.addEventListener('ended', () => { isPlayingRef.value = false; });
+}
+
+const vizObserver = new MutationObserver((mutations) => {
+  mutations.forEach(mutation => {
+    mutation.addedNodes.forEach(node => {
+      if (node.nodeType === 1) {
+        if (node.tagName === 'AUDIO') attachVisualizer(node);
+        if (node.querySelectorAll) node.querySelectorAll('audio').forEach(attachVisualizer);
+      }
+    });
+  });
+});
+vizObserver.observe(document.body, { childList: true, subtree: true });
 
 /* ================= 工作室标签切换 ================= */
 document.querySelectorAll('.studio-tab').forEach(t => {

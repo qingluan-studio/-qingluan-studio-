@@ -99,6 +99,10 @@ export enum ReverbType {
   Spring = 'spring',
   Cave = 'cave',
   Tunnel = 'tunnel',
+  Cathedral = 'cathedral',
+  Bathroom = 'bathroom',
+  Arena = 'arena',
+  Forest = 'forest',
 }
 
 /** 卷积混响配置 */
@@ -147,6 +151,18 @@ export class ImpulseResponseGenerator {
         break;
       case ReverbType.Tunnel:
         this.generateTunnel(ir, rt60);
+        break;
+      case ReverbType.Cathedral:
+        this.generateCathedral(ir, rt60);
+        break;
+      case ReverbType.Bathroom:
+        this.generateBathroom(ir, rt60);
+        break;
+      case ReverbType.Arena:
+        this.generateArena(ir, rt60);
+        break;
+      case ReverbType.Forest:
+        this.generateForest(ir, rt60);
         break;
       default:
         this.generateRoom(ir, rt60);
@@ -245,6 +261,60 @@ export class ImpulseResponseGenerator {
       const echoDecay: number = Math.exp(decay * i) * Math.pow(0.7, echoIndex);
       const envelope: number = Math.exp(decay * i) * 0.5 + echoDecay * 0.5;
       ir[i] = (Math.random() * 2.0 - 1.0) * envelope;
+    }
+  }
+
+  /** 大教堂脉冲响应：极长混响，低频丰富，高扩散 */
+  private generateCathedral(ir: MonoBuffer, rt60: number): void {
+    const length: number = ir.length;
+    const decay: number = -3.0 / (rt60 * this.sampleRate);
+    for (let i: number = 0; i < length; i++) {
+      const t: number = i / this.sampleRate;
+      const lowEnv: number = Math.exp(decay * 0.6 * i);
+      const highEnv: number = Math.exp(decay * 1.5 * i);
+      const noise: number = Math.random() * 2.0 - 1.0;
+      const lowNoise: number = Math.sin(2.0 * Math.PI * 60.0 * t) * 0.4 + noise * 0.6;
+      ir[i] = lowNoise * lowEnv * 0.65 + noise * highEnv * 0.35;
+    }
+  }
+
+  /** 浴室脉冲响应：短混响，瓷砖反射导致高频增强 */
+  private generateBathroom(ir: MonoBuffer, rt60: number): void {
+    const length: number = ir.length;
+    const decay: number = -3.0 / (rt60 * this.sampleRate);
+    for (let i: number = 0; i < length; i++) {
+      const t: number = i / this.sampleRate;
+      const lowEnv: number = Math.exp(decay * 1.3 * i);
+      const highEnv: number = Math.exp(decay * 0.8 * i);
+      const noise: number = Math.random() * 2.0 - 1.0;
+      const ring: number = Math.sin(2.0 * Math.PI * 8000.0 * t) * Math.exp(-20.0 * t) * 0.3;
+      ir[i] = (noise * 0.7 + ring) * highEnv * 0.6 + noise * lowEnv * 0.4;
+    }
+  }
+
+  /** 竞技场脉冲响应：超长 RT60，高扩散，稀疏早期反射 */
+  private generateArena(ir: MonoBuffer, rt60: number): void {
+    const length: number = ir.length;
+    const decay: number = -3.0 / (rt60 * this.sampleRate);
+    for (let i: number = 0; i < length; i++) {
+      const t: number = i / this.sampleRate;
+      const envelope: number = Math.exp(decay * i) * Math.pow(1.0 - i / length, 0.8);
+      const early: number = i < this.sampleRate * 0.08 ? Math.sin(50.0 * t) * Math.exp(-8.0 * t) * 0.3 : 0;
+      ir[i] = ((Math.random() * 2.0 - 1.0) * envelope + early) * 0.8;
+    }
+  }
+
+  /** 森林脉冲响应：短 RT60，高阻尼，散射感 */
+  private generateForest(ir: MonoBuffer, rt60: number): void {
+    const length: number = ir.length;
+    const decay: number = -3.0 / (rt60 * this.sampleRate);
+    for (let i: number = 0; i < length; i++) {
+      const t: number = i / this.sampleRate;
+      const highDamp: number = Math.exp(decay * 2.5 * i);
+      const lowEnv: number = Math.exp(decay * 0.9 * i);
+      const noise: number = Math.random() * 2.0 - 1.0;
+      const scatter: number = Math.sin(2.0 * Math.PI * 200.0 * t + Math.random() * Math.PI) * 0.2;
+      ir[i] = (noise * lowEnv * 0.6 + scatter * highDamp) * 0.7;
     }
   }
 
@@ -1299,60 +1369,249 @@ export class MultibandCompressor extends AudioEffectBase {
   }
 }
 
-/** 侧链压缩器（基础实现） */
-export class SidechainCompressor extends Compressor {
-  public readonly name: string = 'SidechainCompressor';
-  private sidechainInput: number = 0.0;
-  private filter: BiquadFilter | null = null;
+/** 动态 EQ 配置 */
+export interface DynamicEQConfig {
+  lowFreq: number;
+  midFreq: number;
+  highFreq: number;
+  lowThreshold: number;
+  midThreshold: number;
+  highThreshold: number;
+  lowGain: number;
+  midGain: number;
+  highGain: number;
+  attackMs: number;
+  releaseMs: number;
+}
 
-  constructor(
-    config: Partial<CompressorConfig> & { sidechainFreq?: number } = {},
-    sampleRate: number = DEFAULT_SAMPLE_RATE
-  ) {
-    super(config, sampleRate);
-    if (config.sidechainFreq !== undefined) {
-      this.filter = new BiquadFilter(sampleRate);
-      this.filter.designHighPass(config.sidechainFreq, 12);
-    }
-  }
+/** 动态 EQ：三频段阈值检测 + 动态增益调节 */
+export class DynamicEQ extends AudioEffectBase {
+  public readonly name: string = 'DynamicEQ';
+  private lowPass: BiquadFilter;
+  private midHighPass: BiquadFilter;
+  private midLowPass: BiquadFilter;
+  private highPass: BiquadFilter;
+  private lowThreshold: number;
+  private midThreshold: number;
+  private highThreshold: number;
+  private lowGainDb: number;
+  private midGainDb: number;
+  private highGainDb: number;
+  private midFreq: number;
+  private attackCoeff: number;
+  private releaseCoeff: number;
+  private lowEnvelope: number = 0.0;
+  private midEnvelope: number = 0.0;
+  private highEnvelope: number = 0.0;
+  private currentLowGainDb: number = 0.0;
+  private currentMidGainDb: number = 0.0;
+  private currentHighGainDb: number = 0.0;
 
-  /** 输入侧链信号 */
-  public setSidechainInput(input: number): void {
-    if (this.filter) {
-      this.sidechainInput = this.filter.process(input);
-    } else {
-      this.sidechainInput = input;
-    }
+  constructor(config: Partial<DynamicEQConfig> = {}, sampleRate: number = DEFAULT_SAMPLE_RATE) {
+    super(sampleRate);
+    const lowFreq: number = config.lowFreq ?? 250.0;
+    const highFreq: number = config.highFreq ?? 4000.0;
+    this.midFreq = config.midFreq ?? 1000.0;
+
+    this.lowThreshold = config.lowThreshold ?? -20.0;
+    this.midThreshold = config.midThreshold ?? -20.0;
+    this.highThreshold = config.highThreshold ?? -20.0;
+    this.lowGainDb = config.lowGain ?? -3.0;
+    this.midGainDb = config.midGain ?? -3.0;
+    this.highGainDb = config.highGain ?? -3.0;
+
+    const attackMs: number = config.attackMs ?? 10.0;
+    const releaseMs: number = config.releaseMs ?? 100.0;
+    this.attackCoeff = Math.exp(-1.0 / ((attackMs / 1000.0) * sampleRate));
+    this.releaseCoeff = Math.exp(-1.0 / ((releaseMs / 1000.0) * sampleRate));
+
+    this.lowPass = new BiquadFilter(sampleRate);
+    this.lowPass.designLowPass(lowFreq, 12);
+
+    this.midHighPass = new BiquadFilter(sampleRate);
+    this.midHighPass.designHighPass(lowFreq, 12);
+
+    this.midLowPass = new BiquadFilter(sampleRate);
+    this.midLowPass.designLowPass(highFreq, 12);
+
+    this.highPass = new BiquadFilter(sampleRate);
+    this.highPass.designHighPass(highFreq, 12);
   }
 
   public processSample(input: number, _channel?: number): number {
     if (this.bypass) return input;
 
-    // 使用侧链信号检测，但处理主信号
-    const detected: number = this.detect(this.sidechainInput);
-    this.updateEnvelope(detected);
+    const lowSignal: number = this.lowPass.process(input);
+    const midSignal: number = this.midLowPass.process(this.midHighPass.process(input));
+    const highSignal: number = this.highPass.process(input);
 
-    let envelopeDb: number;
-    if (this.detectorType === DetectorType.RMS) {
-      envelopeDb = this.linearToDb(Math.sqrt(this.envelope));
+    this.lowEnvelope = this.updateEnvelope(this.lowEnvelope, Math.abs(lowSignal));
+    const lowEnvDb: number = this.gainToDb(this.lowEnvelope);
+    const lowTarget: number = lowEnvDb > this.lowThreshold ? this.lowGainDb : 0.0;
+    this.currentLowGainDb = this.smoothGain(this.currentLowGainDb, lowTarget);
+
+    this.midEnvelope = this.updateEnvelope(this.midEnvelope, Math.abs(midSignal));
+    const midEnvDb: number = this.gainToDb(this.midEnvelope);
+    const midTarget: number = midEnvDb > this.midThreshold ? this.midGainDb : 0.0;
+    this.currentMidGainDb = this.smoothGain(this.currentMidGainDb, midTarget);
+
+    this.highEnvelope = this.updateEnvelope(this.highEnvelope, Math.abs(highSignal));
+    const highEnvDb: number = this.gainToDb(this.highEnvelope);
+    const highTarget: number = highEnvDb > this.highThreshold ? this.highGainDb : 0.0;
+    this.currentHighGainDb = this.smoothGain(this.currentHighGainDb, highTarget);
+
+    const lowOut: number = lowSignal * this.dbToGain(this.currentLowGainDb);
+    const midOut: number = midSignal * this.dbToGain(this.currentMidGainDb);
+    const highOut: number = highSignal * this.dbToGain(this.currentHighGainDb);
+
+    return lowOut + midOut + highOut;
+  }
+
+  private updateEnvelope(envelope: number, detected: number): number {
+    if (detected > envelope) {
+      return this.attackCoeff * envelope + (1.0 - this.attackCoeff) * detected;
     } else {
-      envelopeDb = this.linearToDb(this.envelope);
+      return this.releaseCoeff * envelope + (1.0 - this.releaseCoeff) * detected;
     }
+  }
 
+  private smoothGain(current: number, target: number): number {
+    if (target > current) {
+      return this.attackCoeff * current + (1.0 - this.attackCoeff) * target;
+    } else {
+      return this.releaseCoeff * current + (1.0 - this.releaseCoeff) * target;
+    }
+  }
+
+  public processBlock(input: MonoBuffer, output: MonoBuffer): void {
+    const len: number = input.length;
+    if (this.bypass) {
+      for (let i: number = 0; i < len; i++) {
+        output[i] = input[i];
+      }
+      return;
+    }
+    const dryGain: number = 1.0 - this.wet;
+    for (let i: number = 0; i < len; i++) {
+      const wetSample: number = this.processSample(input[i]);
+      output[i] = input[i] * dryGain + wetSample * this.wet;
+    }
+  }
+
+  public reset(): void {
+    this.lowPass.reset();
+    this.midHighPass.reset();
+    this.midLowPass.reset();
+    this.highPass.reset();
+    this.lowEnvelope = 0.0;
+    this.midEnvelope = 0.0;
+    this.highEnvelope = 0.0;
+    this.currentLowGainDb = 0.0;
+    this.currentMidGainDb = 0.0;
+    this.currentHighGainDb = 0.0;
+  }
+}
+
+/** 侧链压缩器配置 */
+export interface SidechainCompressorConfig {
+  threshold: number;
+  ratio: number;
+  attackMs: number;
+  releaseMs: number;
+  makeupGain: number;
+  sidechain?: MonoBuffer;
+}
+
+/** 侧链压缩器：支持外部侧链输入，无侧链时对主信号自身压缩 */
+export class SidechainCompressor extends AudioEffectBase {
+  public readonly name: string = 'SidechainCompressor';
+  private thresholdDb: number;
+  private ratio: number;
+  private attackMs: number;
+  private releaseMs: number;
+  private makeupGainDb: number;
+  private attackCoeff: number;
+  private releaseCoeff: number;
+  private envelope: number = 0.0;
+  private sidechainBuffer: MonoBuffer | null = null;
+  private sidechainIndex: number = 0;
+  private hasSidechainSample: boolean = false;
+  private sidechainSample: number = 0.0;
+
+  constructor(config: Partial<SidechainCompressorConfig> = {}, sampleRate: number = DEFAULT_SAMPLE_RATE) {
+    super(sampleRate);
+    this.thresholdDb = config.threshold ?? -20.0;
+    this.ratio = config.ratio ?? 4.0;
+    this.attackMs = config.attackMs ?? 10.0;
+    this.releaseMs = config.releaseMs ?? 100.0;
+    this.makeupGainDb = config.makeupGain ?? 0.0;
+    this.attackCoeff = Math.exp(-1.0 / ((this.attackMs / 1000.0) * sampleRate));
+    this.releaseCoeff = Math.exp(-1.0 / ((this.releaseMs / 1000.0) * sampleRate));
+    if (config.sidechain) {
+      this.sidechainBuffer = config.sidechain;
+    }
+  }
+
+  /** 设置侧链块缓冲区（用于 processBlock） */
+  public setSidechainBlock(block: MonoBuffer | null): void {
+    this.sidechainBuffer = block;
+    this.sidechainIndex = 0;
+  }
+
+  /** 设置单样本侧链输入（用于 processSample） */
+  public setSidechainInput(sample: number): void {
+    this.sidechainSample = sample;
+    this.hasSidechainSample = true;
+  }
+
+  private updateEnvelope(detected: number): void {
+    if (detected > this.envelope) {
+      this.envelope = this.attackCoeff * this.envelope + (1.0 - this.attackCoeff) * detected;
+    } else {
+      this.envelope = this.releaseCoeff * this.envelope + (1.0 - this.releaseCoeff) * detected;
+    }
+  }
+
+  private compressSample(input: number, detectedInput: number): number {
+    const detected: number = detectedInput * detectedInput;
+    this.updateEnvelope(detected);
+    const envelopeDb: number = this.gainToDb(Math.sqrt(this.envelope));
     let gainDb: number = 0.0;
     const diff: number = envelopeDb - this.thresholdDb;
-
-    if (diff < -this.kneeDb / 2.0) {
-      gainDb = 0.0;
-    } else if (diff > this.kneeDb / 2.0) {
-      gainDb = (this.thresholdDb - envelopeDb) * (1.0 - 1.0 / this.ratio);
-    } else {
-      const kneeRatio: number = (diff + this.kneeDb / 2.0) / this.kneeDb;
-      gainDb = (this.thresholdDb - envelopeDb) * (1.0 - 1.0 / this.ratio) * kneeRatio * kneeRatio / 2.0;
+    if (diff > 0) {
+      gainDb = -diff * (1.0 - 1.0 / this.ratio);
     }
+    return input * this.dbToGain(gainDb + this.makeupGainDb);
+  }
 
-    const gain: number = this.dbToLinear(gainDb + this.makeupGainDb);
-    return input * gain;
+  public processSample(input: number, _channel?: number): number {
+    if (this.bypass) return input;
+    const detectedInput: number = this.hasSidechainSample ? this.sidechainSample : input;
+    return this.compressSample(input, detectedInput);
+  }
+
+  public processBlock(input: MonoBuffer, output: MonoBuffer): void {
+    const len: number = input.length;
+    if (this.bypass) {
+      for (let i: number = 0; i < len; i++) {
+        output[i] = input[i];
+      }
+      return;
+    }
+    const hasSidechain: boolean = this.sidechainBuffer !== null && this.sidechainBuffer.length >= len;
+    const dryGain: number = 1.0 - this.wet;
+    for (let i: number = 0; i < len; i++) {
+      const detectedInput: number = hasSidechain ? this.sidechainBuffer![i] : input[i];
+      const wetSample: number = this.compressSample(input[i], detectedInput);
+      output[i] = input[i] * dryGain + wetSample * this.wet;
+    }
+  }
+
+  public reset(): void {
+    this.envelope = 0.0;
+    this.sidechainIndex = 0;
+    this.hasSidechainSample = false;
+    this.sidechainSample = 0.0;
   }
 }
 
