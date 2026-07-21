@@ -220,6 +220,7 @@
   <div class="tab" data-panel="arranger">伴奏</div>
   <div class="tab" data-panel="lyrics">歌词</div>
   <div class="tab" data-panel="cognitive">认知</div>
+  <div class="tab" data-panel="flawless">无瑕疵</div>
 </div>
 
 <div class="content">
@@ -725,6 +726,119 @@
     </div>
   </div>
 
+  <!-- 无瑕疵合成器面板 -->
+  <div class="panel" id="flawless">
+    <div class="card">
+      <h3>✨ 无瑕疵音乐合成器</h3>
+      <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">瑕疵检测 + 自动修复 + FM合成 + 物理建模 + 认知闭环</p>
+
+      <div class="form-group">
+        <label>功能</label>
+        <select id="flawMode" onchange="toggleFlawMode()">
+          <option value="note">单音合成</option>
+          <option value="chord">和弦合成</option>
+          <option value="arpeggio">琶音合成</option>
+          <option value="drum">打击乐</option>
+          <option value="preset">预设音色</option>
+        </select>
+      </div>
+
+      <!-- 单音 -->
+      <div id="flawNote">
+        <div class="form-group">
+          <label>频率 (Hz)</label>
+          <input type="number" id="flawFreq" value="440" min="20" max="8000">
+        </div>
+        <div class="form-group">
+          <label>时长 (秒)</label>
+          <input type="number" id="flawDur" value="1" min="0.1" max="5" step="0.1">
+        </div>
+        <div class="form-group">
+          <label>波形</label>
+          <select id="flawWave">
+            <option value="sine">正弦波</option>
+            <option value="triangle" selected>三角波</option>
+            <option value="sawtooth">锯齿波</option>
+            <option value="square">方波</option>
+            <option value="superSaw">SuperSaw</option>
+            <option value="noise">粉红噪声</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="flawFm"> FM调制</label>
+        </div>
+      </div>
+
+      <!-- 和弦 -->
+      <div id="flawChord" style="display:none">
+        <div class="form-group">
+          <label>频率列表 (逗号分隔)</label>
+          <input type="text" id="flawChordFreqs" value="261.63,329.63,392.00" placeholder="C大和弦">
+        </div>
+        <div class="form-group">
+          <label>时长 (秒)</label>
+          <input type="number" id="flawChordDur" value="2" min="0.1" max="5" step="0.1">
+        </div>
+      </div>
+
+      <!-- 琶音 -->
+      <div id="flawArp" style="display:none">
+        <div class="form-group">
+          <label>频率列表</label>
+          <input type="text" id="flawArpFreqs" value="261.63,329.63,392.00,523.25" placeholder="C大琶音">
+        </div>
+        <div class="form-group">
+          <label>每音时长 (秒)</label>
+          <input type="number" id="flawArpNoteDur" value="0.5" min="0.1" max="2" step="0.1">
+        </div>
+      </div>
+
+      <!-- 鼓 -->
+      <div id="flawDrum" style="display:none">
+        <div class="form-group">
+          <label>鼓类型</label>
+          <select id="flawDrumType">
+            <option value="kick">底鼓 Kick</option>
+            <option value="snare">军鼓 Snare</option>
+            <option value="hihat">踩镲 HiHat</option>
+            <option value="tom">通鼓 Tom</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 预设 -->
+      <div id="flawPreset" style="display:none">
+        <div class="form-group">
+          <label>预设</label>
+          <select id="flawPresetName">
+            <option value="pure_sine">纯净正弦</option>
+            <option value="warm_triangle">温暖三角波</option>
+            <option value="rich_saw">丰富锯齿波</option>
+            <option value="hollow_square">空心方波</option>
+            <option value="supersaw_lead">SuperSaw主音</option>
+            <option value="fm_e_piano">FM电钢琴</option>
+            <option value="fm_bell">FM钟声</option>
+            <option value="fm_bass">FM贝斯</option>
+            <option value="noise_pad">噪声铺底</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>频率 (Hz)</label>
+          <input type="number" id="flawPresetFreq" value="440" min="20" max="8000">
+        </div>
+        <div class="form-group">
+          <label>时长 (秒)</label>
+          <input type="number" id="flawPresetDur" value="2" min="0.1" max="5" step="0.1">
+        </div>
+      </div>
+
+      <button class="btn" onclick="generateFlawless()">✨ 生成无瑕疵音频</button>
+      <div class="loading" id="flawLoading"><span>瑕疵检测与修复中...</span></div>
+      <div id="flawPlayer"></div>
+      <pre class="result" id="flawResult" style="white-space:pre-wrap;font-family:inherit;font-size:11px;"></pre>
+    </div>
+  </div>
+
 </div>
 
 <div class="footer">青鸾数字音频工作站 v2.0 · 纯代码 · 零外部付费API</div>
@@ -1205,6 +1319,78 @@ async function ceeStatus() {
     const res = await fetch(`${API}/api/cee/status`);
     const data = await res.json();
     result.textContent = JSON.stringify(data, null, 2);
+    floatNote();
+  } catch (e) {
+    result.textContent = '错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+// 无瑕疵合成器模式切换
+function toggleFlawMode() {
+  const mode = document.getElementById('flawMode').value;
+  document.getElementById('flawNote').style.display = mode === 'note' ? 'block' : 'none';
+  document.getElementById('flawChord').style.display = mode === 'chord' ? 'block' : 'none';
+  document.getElementById('flawArp').style.display = mode === 'arpeggio' ? 'block' : 'none';
+  document.getElementById('flawDrum').style.display = mode === 'drum' ? 'block' : 'none';
+  document.getElementById('flawPreset').style.display = mode === 'preset' ? 'block' : 'none';
+}
+
+// 生成无瑕疵音频
+async function generateFlawless() {
+  const loading = document.getElementById('flawLoading');
+  const player = document.getElementById('flawPlayer');
+  const result = document.getElementById('flawResult');
+  loading.classList.add('show');
+  player.innerHTML = '';
+  result.textContent = '';
+
+  const mode = document.getElementById('flawMode').value;
+  let endpoint = '/api/flawless/note';
+  let body = {};
+
+  try {
+    if (mode === 'note') {
+      body = {
+        freq: parseFloat(document.getElementById('flawFreq').value),
+        duration: parseFloat(document.getElementById('flawDur').value),
+        waveform: document.getElementById('flawWave').value,
+        fm: document.getElementById('flawFm').checked,
+      };
+    } else if (mode === 'chord') {
+      endpoint = '/api/flawless/chord';
+      body = {
+        freqs: document.getElementById('flawChordFreqs').value.split(',').map(parseFloat),
+        duration: parseFloat(document.getElementById('flawChordDur').value),
+      };
+    } else if (mode === 'arpeggio') {
+      endpoint = '/api/flawless/arpeggio';
+      body = {
+        freqs: document.getElementById('flawArpFreqs').value.split(',').map(parseFloat),
+        noteDuration: parseFloat(document.getElementById('flawArpNoteDur').value),
+      };
+    } else if (mode === 'drum') {
+      endpoint = '/api/flawless/drum';
+      body = { type: document.getElementById('flawDrumType').value };
+    } else if (mode === 'preset') {
+      endpoint = '/api/flawless/preset';
+      body = {
+        preset: document.getElementById('flawPresetName').value,
+        freq: parseFloat(document.getElementById('flawPresetFreq').value),
+        duration: parseFloat(document.getElementById('flawPresetDur').value),
+      };
+    }
+
+    const res = await fetch(`${API}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}"></audio>`;
+    result.textContent = `✓ 无瑕疵音频生成成功！\n模式: ${mode}\n大小: ${(blob.size / 1024).toFixed(2)} KB`;
     floatNote();
   } catch (e) {
     result.textContent = '错误: ' + e.message;

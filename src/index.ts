@@ -31,6 +31,12 @@ import {
   MemoryBank,
   CognitiveClosedLoop,
 } from './engines/cognitiveEngine.js';
+import {
+  FlawlessSynthesizer,
+  FlawDetector,
+  FlawlessRepair,
+  FLAWLESS_PRESETS,
+} from './synthesis/flawlessSynthesizer.js';
 import * as AudioEffects from './effects/audioEffects.js';
 import * as Visualizer from './visualization/musicVisualizer.js';
 
@@ -444,6 +450,102 @@ app.post('/api/cee/optimize', async (c) => {
   try {
     const result = await ceeClosedLoop.evaluateAndOptimizeLyrics(body.lyrics, body.maxIterations || 3);
     return c.json(result);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ======== 模块2d: 无瑕疵音乐合成器 API ========
+const flawlessSynth = new FlawlessSynthesizer({ sampleRate: 44100, targetQuality: 0.92 });
+
+app.get('/api/flawless/presets', (c) => {
+  return c.json({ presets: Object.keys(FLAWLESS_PRESETS) });
+});
+
+app.post('/api/flawless/note', async (c) => {
+  const body = await c.req.json<{
+    freq: number;
+    duration: number;
+    waveform?: string;
+    velocity?: number;
+    fm?: boolean;
+  }>();
+  try {
+    const result = flawlessSynth.synthesizeNote(
+      body.freq,
+      body.duration,
+      body.velocity || 1.0,
+      (body.waveform as any) || 'sine',
+      body.fm ? { fm: true, fmModRatio: 2, fmIndex: 3 } : undefined
+    );
+    return c.body(new Uint8Array(result.wav), 200, { 'Content-Type': 'audio/wav' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/flawless/chord', async (c) => {
+  const body = await c.req.json<{ freqs: number[]; duration: number; waveform?: string }>();
+  try {
+    const result = flawlessSynth.synthesizeChord(body.freqs, body.duration, (body.waveform as any) || 'triangle');
+    return c.body(new Uint8Array(result.wav), 200, { 'Content-Type': 'audio/wav' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/flawless/arpeggio', async (c) => {
+  const body = await c.req.json<{ freqs: number[]; noteDuration: number; waveform?: string }>();
+  try {
+    const result = flawlessSynth.synthesizeArpeggio(body.freqs, body.noteDuration, (body.waveform as any) || 'sine');
+    return c.body(new Uint8Array(result.wav), 200, { 'Content-Type': 'audio/wav' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/flawless/drum', async (c) => {
+  const body = await c.req.json<{ type: 'kick' | 'snare' | 'hihat' | 'tom'; duration?: number }>();
+  try {
+    const result = flawlessSynth.synthesizeDrum(body.type, body.duration || 0.5);
+    return c.body(new Uint8Array(result.wav), 200, { 'Content-Type': 'audio/wav' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/flawless/preset', async (c) => {
+  const body = await c.req.json<{ preset: string; freq: number; duration: number }>();
+  try {
+    const presetFn = FLAWLESS_PRESETS[body.preset];
+    if (!presetFn) return c.json({ error: '未知预设' }, 400);
+    const result = presetFn(flawlessSynth, body.freq, body.duration);
+    return c.body(new Uint8Array(result.wav), 200, { 'Content-Type': 'audio/wav' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/flawless/detect', async (c) => {
+  const body = await c.req.json<{ samples: number[] }>();
+  try {
+    const detector = new FlawDetector();
+    const pcm = new Float32Array(body.samples);
+    const report = detector.detect(pcm);
+    return c.json(report);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/flawless/repair', async (c) => {
+  const body = await c.req.json<{ samples: number[]; issues: any }>();
+  try {
+    const repair = new FlawlessRepair();
+    const pcm = new Float32Array(body.samples);
+    const repaired = repair.repair(pcm, body.issues);
+    const wav = flawlessSynth['_pcmToWav'](repaired, 44100, 2);
+    return c.body(new Uint8Array(wav), 200, { 'Content-Type': 'audio/wav' });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }
