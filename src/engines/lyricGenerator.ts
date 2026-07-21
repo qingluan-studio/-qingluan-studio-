@@ -225,3 +225,119 @@ const PERSPS: Record<string, Perspective> = {
     dialogues: ['有人说','传说中','故事里','岁月中','时光里','风中传来','雨里听见','梦里遇见','书上写着','歌里唱着'],
   },
 };
+
+// ═════════════════════════════════════════════════════════════
+// 自动填词：旋律音符匹配歌词音节
+// ═════════════════════════════════════════════════════════════
+
+export interface MelodyLyricMapping {
+  noteIndex: number;
+  word: string;
+  syllableCount: number;
+}
+
+export interface MelodyLyricResult {
+  lyrics: string[];
+  mapping: MelodyLyricMapping[];
+}
+
+function pickOne<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/** 根据旋律节奏密度自动生成匹配歌词 */
+export function generateLyricsForMelody(
+  melody: { startTime: number; duration: number; midi: number; velocity: number }[],
+  theme: string,
+  emotion: string
+): MelodyLyricResult {
+  if (melody.length === 0) {
+    return { lyrics: [], mapping: [] };
+  }
+
+  // 风格/情绪到主题/情感词库映射
+  const styleToTheme: Record<string, string> = {
+    pop: 'love', rock: 'anger', jazz: 'city', electronic: 'dream',
+    classical: 'season', folk: 'nature', chinese: 'nature', rnb: 'love',
+    metal: 'anger', blues: 'sorrow',
+  };
+  const emotionMap: Record<string, string> = {
+    happy: 'joy', sad: 'sorrow', tense: 'fear', relaxed: 'hope',
+    epic: 'hope', romantic: 'longing',
+  };
+
+  const normalizedTheme = styleToTheme[theme] || theme || 'nature';
+  const normalizedEmotion = emotionMap[emotion] || emotion || 'joy';
+
+  const themeVocab = THEMES[normalizedTheme] || THEMES['nature'];
+  const emotionVocab = EMOTIONS[normalizedEmotion] || EMOTIONS['joy'];
+
+  const lyrics: string[] = [];
+  const mapping: MelodyLyricMapping[] = [];
+
+  let currentLineWords: string[] = [];
+  let currentLineMappings: MelodyLyricMapping[] = [];
+
+  for (let i = 0; i < melody.length; i++) {
+    const note = melody[i];
+    const prevNote = i > 0 ? melody[i - 1] : null;
+    const gap = prevNote ? (note.startTime - (prevNote.startTime + prevNote.duration)) : 0;
+
+    // 根据节奏密度断句：大间隔 或 当前行字数已够
+    if ((gap > 0.3 || currentLineWords.length >= 6) && currentLineWords.length > 0) {
+      lyrics.push(currentLineWords.join(''));
+      currentLineMappings.forEach((m) => mapping.push(m));
+      currentLineWords = [];
+      currentLineMappings = [];
+    }
+
+    // 判断是否在快速连音串中
+    const isShort = note.duration <= 0.5;
+    const prevShort = i > 0 && melody[i - 1].duration <= 0.5;
+    const nextShort = i < melody.length - 1 && melody[i + 1].duration <= 0.5;
+    const inFastRun = isShort && (prevShort || nextShort);
+
+    let syllableCount: number;
+    let word: string;
+
+    if (note.duration > 0.5) {
+      // 长音符匹配多字词组（2-4 字）
+      syllableCount = Math.min(4, Math.max(2, Math.floor(note.duration / 0.3)));
+      const pool = [
+        ...themeVocab.phrases,
+        ...themeVocab.images,
+        ...emotionVocab.metaphors,
+        ...themeVocab.nouns,
+      ];
+      const candidates = pool.filter((w) => w.length >= syllableCount);
+      word = candidates.length > 0 ? pickOne(candidates).slice(0, syllableCount) : pickOne(themeVocab.nouns);
+    } else if (inFastRun) {
+      // 快速连音匹配单字
+      syllableCount = 1;
+      const pool = [...themeVocab.nouns, ...emotionVocab.words, ...themeVocab.verbs];
+      word = pickOne(pool);
+    } else {
+      // 普通短音符
+      syllableCount = Math.random() > 0.5 ? 1 : 2;
+      if (syllableCount === 1) {
+        const pool = [...themeVocab.nouns, ...emotionVocab.words, ...themeVocab.verbs];
+        word = pickOne(pool);
+      } else {
+        const pool = [...themeVocab.phrases, ...themeVocab.images, ...emotionVocab.metaphors];
+        const candidates = pool.filter((w) => w.length >= 2);
+        word = candidates.length > 0 ? pickOne(candidates).slice(0, 2) : pickOne(themeVocab.nouns);
+      }
+    }
+
+    currentLineWords.push(word);
+    currentLineMappings.push({ noteIndex: i, word, syllableCount });
+  }
+
+  // 收尾最后一行
+  if (currentLineWords.length > 0) {
+    lyrics.push(currentLineWords.join(''));
+    currentLineMappings.forEach((m) => mapping.push(m));
+  }
+
+  return { lyrics, mapping };
+}

@@ -31,6 +31,9 @@ import {
   Delay,
   ReverbType,
 } from '../effects/audioEffects.js';
+import {
+  generateLyricsForMelody,
+} from './lyricGenerator.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
@@ -448,6 +451,7 @@ export interface ProductionResult {
   failed: boolean;
   productionLog: string[];
   mastering?: MasteringResult;
+  lyrics?: string[];
 }
 
 export class SelfEvolvingMusicProducer {
@@ -483,6 +487,7 @@ export class SelfEvolvingMusicProducer {
     let lastComposition: EmergenceMusicResult | undefined;
     let lastArrangement: MultiTrackOutput | undefined;
     let lastPCM: Float32Array | undefined;
+    let lyrics: string[] | undefined;
 
     const currentParams = { ...params };
 
@@ -527,6 +532,23 @@ export class SelfEvolvingMusicProducer {
         );
         this.log(`主旋律渲染完成: ${melodyPCM.length} 采样`);
 
+        // Step 3.5: 自动填词（旋律音符匹配歌词音节）
+        this.log('Step 3.5: 自动填词（旋律匹配歌词音节）');
+        const melodyNotes = composition.melody.map((midi, i) => ({
+          startTime: composition.durations.slice(0, i).reduce((a, b) => a + b, 0),
+          duration: composition.durations[i] || 0.5,
+          midi,
+          velocity: 0.7,
+        }));
+        const lyricResult = generateLyricsForMelody(
+          melodyNotes,
+          currentParams.style || 'pop',
+          currentParams.emotion || 'happy'
+        );
+        lyrics = lyricResult.lyrics;
+        this.log(`填词完成: ${lyrics.length} 句, ${lyrics.join('').length} 字`);
+        this.log(`歌词: ${lyrics.join(' / ')}`);
+
         // Step 4: 专业混音
         this.log('Step 4: 专业混音 (3段分频 + 总线压缩 + 砖墙限制 + 宽度增强)');
         let mixedPCM = crossoverMix(arrangement.mixed, melodyPCM, 0.6, 0.4);
@@ -566,6 +588,7 @@ export class SelfEvolvingMusicProducer {
             failed: false,
             productionLog: [...this.productionLog],
             mastering: mastered,
+            lyrics,
           };
         }
 
@@ -595,6 +618,7 @@ export class SelfEvolvingMusicProducer {
             failed: false,
             productionLog: [...this.productionLog],
             mastering: mastered,
+            lyrics,
           };
         }
 
@@ -633,6 +657,7 @@ export class SelfEvolvingMusicProducer {
       failed: true,
       productionLog: [...this.productionLog],
       mastering: fallbackMastered,
+      lyrics,
     };
   }
 

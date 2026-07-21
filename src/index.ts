@@ -47,8 +47,17 @@ import {
   SelfEvolvingMusicProducer,
   ProductionParams,
 } from './engines/selfEvolvingProducer.js';
+import { noteEventsToMidi } from './export/midiExporter.js';
+import { encodeMp3 } from './export/mp3Encoder.js';
+import { encodeFlac } from './export/flacEncoder.js';
+import {
+  QingluanProject,
+  serializeProject,
+  deserializeProject,
+} from './project/projectManager.js';
 
 const app = new Hono();
+const projectStore = new Map<string, QingluanProject>();
 
 // CORS
 app.use('/*', cors({
@@ -1035,7 +1044,10 @@ app.post('/api/produce', async (c) => {
       diagnosis: result.diagnosis,
       composition: {
         sessionId: result.composition.sessionId,
-        melody: result.composition.melody.slice(0, 24),
+        melody: result.composition.melody,
+        durations: result.composition.durations,
+        key: body.key || 'C',
+        bpm: body.bpm || 120,
         scores: result.composition.scores,
       },
       attempt: result.attempt,
@@ -1054,6 +1066,7 @@ app.post('/api/produce', async (c) => {
           loudnessRange: result.mastering.metrics.loudnessRange,
         },
       } : null,
+      lyrics: result.lyrics || [],
     });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -1062,6 +1075,195 @@ app.post('/api/produce', async (c) => {
 
 app.get('/api/produce/status', (c) => {
   return c.json(producer.getEvolutionReport());
+});
+
+// ======== MIDI 导出 API ========
+app.post('/api/export/midi', async (c) => {
+  const body = await c.req.json<{
+    noteEvents: { midi: number; startTime: number; duration: number; velocity: number }[];
+    bpm: number;
+    key?: string;
+  }>();
+  try {
+    const midi = noteEventsToMidi(body.noteEvents, body.bpm, body.key);
+    return c.json({ midiBase64: Buffer.from(midi).toString('base64') });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ======== 音频导出 API ========
+function decodeWavPcm(wavBase64: string): { pcm: Float32Array; sampleRate: number } {
+  const buffer = Buffer.from(wavBase64, 'base64');
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  const readString = (offset: number, len: number) => {
+    let s = '';
+    for (let i = 0; i < len; i++) s += String.fromCharCode(view.getUint8(offset + i));
+    return s;
+  };
+
+  if (readString(0, 4) !== 'RIFF' || readString(8, 4) !== 'WAVE') {
+    throw new Error('Invalid WAV file');
+  }
+
+  let fmtOffset = 12;
+  let dataOffset = 0;
+  let dataSize = 0;
+  let sampleRate = 44100;
+  let channels = 1;
+  let bitsPerSample = 16;
+
+  while (fmtOffset < buffer.byteLength - 8) {
+    const chunkId = readString(fmtOffset, 4);
+    const chunkSize = view.getUint32(fmtOffset + 4, true);
+    if (chunkId === 'fmt ') {
+      const audioFormat = view.getUint16(fmtOffset + 8, true);
+      channels = view.getUint16(fmtOffset + 10, true);
+      sampleRate = view.getUint32(fmtOffset + 12, true);
+      bitsPerSample = view.getUint16(fmtOffset + 22, true);
+      if (audioFormat !== 1) throw new Error('Only PCM WAV supported');
+    } else if (chunkId === 'data') {
+      dataOffset = fmtOffset + 8;
+      dataSize = chunkSize;
+      break;
+    }
+    fmtOffset += 8 + chunkSize + (chunkSize % 2);
+  }
+
+  if (dataOffset === 0) throw new Error('WAV data chunk not found');
+
+  const numSamples = Math.floor(dataSize / (channels * (bitsPerSample / 8)));
+  const pcm = new Float32Array(numSamples);
+
+  if (bitsPerSample === 16) {
+    for (let i = 0; i < numSamples; i++) {
+      let sum = 0;
+      for (let ch = 0; ch < channels; ch++) {
+        sum += view.getInt16(dataOffset + (i * channels + ch) * 2, true);
+      }
+      pcm[i] = (sum / channels) / 32768;
+    }
+  } else if (bitsPerSample === 24) {
+    for (let i = 0; i < numSamples; i++) {
+      let sum = 0;
+      for (let ch = 0; ch < channels; ch++) {
+        const off = dataOffset + (i * channels + ch) * 3;
+        const lo = view.getUint8(off);
+        const mid = view.getUint8(off + 1);
+        const hi = view.getUint8(off + 2);
+        let val = (hi << 16) | (mid << 8) | lo;
+        if (val & 0x800000) val |= ~0xFFFFFF;
+        sum += val;
+      }
+      pcm[i] = (sum / channels) / 8388608;
+    }
+  } else if (bitsPerSample === 32) {
+    for (let i = 0; i < numSamples; i++) {
+      let sum = 0;
+      for (let ch = 0; ch < channels; ch++) {
+        sum += view.getInt32(dataOffset + (i * channels + ch) * 4, true);
+      }
+      pcm[i] = (sum / channels) / 2147483648;
+    }
+  } else {
+    throw new Error(`Unsupported bits per sample: ${bitsPerSample}`);
+  }
+
+  return { pcm: pcm as Float32Array, sampleRate };
+}
+
+app.post('/api/export/audio', async (c) => {
+  const body = await c.req.json<{
+    wavBase64: string;
+    format: 'mp3' | 'flac';
+    bitrate?: number;
+  }>();
+  try {
+    const { pcm, sampleRate } = decodeWavPcm(body.wavBase64);
+    let audioBuffer: ArrayBuffer;
+    let format = body.format;
+    if (format === 'mp3') {
+      const bitrate = body.bitrate || 128;
+      audioBuffer = encodeMp3(pcm as Float32Array, sampleRate, bitrate);
+    } else {
+      const compressionLevel = 5;
+      audioBuffer = encodeFlac(pcm as Float32Array, sampleRate, compressionLevel);
+    }
+    const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+    return c.json({ audioBase64, format });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Export failed' }, 500);
+  }
+});
+
+// ======== 项目管理 API ========
+app.post('/api/project/save', async (c) => {
+  try {
+    const body = await c.req.json<QingluanProject>();
+    const projectId =
+      'proj_' +
+      Date.now().toString(36) +
+      '_' +
+      Math.random().toString(36).slice(2, 6);
+    projectStore.set(projectId, body);
+    const baseUrl = new URL(c.req.url).origin;
+    const downloadUrl = `${baseUrl}/api/project/download?id=${projectId}`;
+    return c.json({ projectId, downloadUrl });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Save failed' }, 500);
+  }
+});
+
+app.get('/api/project/load', (c) => {
+  const id = c.req.query('id');
+  if (!id || !projectStore.has(id)) {
+    return c.json({ error: 'Project not found' }, 404);
+  }
+  return c.json(projectStore.get(id)!);
+});
+
+app.get('/api/project/list', (c) => {
+  const projects = Array.from(projectStore.entries()).map(
+    ([projectId, proj]) => ({
+      projectId,
+      name: proj.name,
+      createdAt: proj.createdAt,
+      style: proj.compositionParams.style,
+      key: proj.compositionParams.key,
+    })
+  );
+  return c.json({ projects });
+});
+
+app.get('/api/project/download', (c) => {
+  const id = c.req.query('id');
+  if (!id || !projectStore.has(id)) {
+    return c.json({ error: 'Project not found' }, 404);
+  }
+  const proj = projectStore.get(id)!;
+  const serialized = serializeProject(proj);
+  return c.body(serialized, 200, {
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${encodeURIComponent(
+      proj.name
+    )}.qingluan"`,
+  });
+});
+
+app.post('/api/project/import', async (c) => {
+  try {
+    const body = await c.req.json<{ data: string }>();
+    const proj = deserializeProject(body.data);
+    const projectId =
+      'proj_' +
+      Date.now().toString(36) +
+      '_' +
+      Math.random().toString(36).slice(2, 6);
+    projectStore.set(projectId, proj);
+    return c.json({ projectId, project: proj });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Import failed' }, 400);
+  }
 });
 
 // ======== 启动服务 ========
