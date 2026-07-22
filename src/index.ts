@@ -488,7 +488,7 @@ app.post('/api/cee/optimize', async (c) => {
 });
 
 // ======== 模块2d: 无瑕疵音乐合成器 API ========
-const flawlessSynth = new FlawlessSynthesizer({ sampleRate: 44100, targetQuality: 0.92 });
+const flawlessSynth = new FlawlessSynthesizer({ sampleRate: 22050, targetQuality: 0.92 });
 
 app.get('/api/flawless/presets', (c) => {
   return c.json({ presets: Object.keys(FLAWLESS_PRESETS) });
@@ -1235,7 +1235,7 @@ function decodeWavPcm(wavBase64: string): { pcm: Float32Array; sampleRate: numbe
   let fmtOffset = 12;
   let dataOffset = 0;
   let dataSize = 0;
-  let sampleRate = 44100;
+  let sampleRate = 22050;
   let channels = 1;
   let bitsPerSample = 16;
 

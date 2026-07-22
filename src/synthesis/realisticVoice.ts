@@ -12,7 +12,7 @@
 // ==================== 基础类型定义 ====================
 
 /** 采样率类型 */
-export type SampleRate = 44100 | 48000 | 96000;
+export type SampleRate = 22050 | 44100 | 48000 | 96000;
 
 /** 性别分类 */
 export type Gender = 'male' | 'female' | 'child';
@@ -2793,7 +2793,7 @@ export function renderFromJianpuAndLyrics(
  */
 export function createDefaultRenderConfig(): RenderConfig {
   return {
-    sampleRate: 44100,
+    sampleRate: 22050,
     strategy: 'hybrid',
     gender: 'female',
     timbre: 'warm',

@@ -10,7 +10,7 @@
 // ============================================================================
 
 /** 采样率，默认 44100Hz */
-export const DEFAULT_SAMPLE_RATE: number = 44100;
+export const DEFAULT_SAMPLE_RATE: number = 22050;
 
 /** 单声道音频缓冲区 */
 export type MonoBuffer = Float32Array;

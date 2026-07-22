@@ -49,7 +49,7 @@ import {
 // Part 0: 音频工具
 // ═════════════════════════════════════════════════════════════
 
-const SAMPLE_RATE = 44100;
+const SAMPLE_RATE = 22050;
 
 function midiToFreq(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
@@ -529,7 +529,7 @@ export class SelfEvolvingMusicProducer {
 
         // Step 2: 编曲（伴奏）
         this.log('Step 2: 真人级伴奏编曲 (物理建模 + 人性化)');
-        const barsPerSection = Math.max(4, Math.floor((currentParams.barCount || 8) / 2));
+        const barsPerSection = Math.max(4, currentParams.barCount || 8);
         const arrangement = createArrangement(
           currentParams.key || 'C',
           currentParams.bpm || 120,

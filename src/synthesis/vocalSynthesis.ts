@@ -7,7 +7,7 @@
 // ==================== 基础类型与常量 ====================
 
 /** 采样率枚举 */
-export type SampleRate = 44100 | 48000;
+export type SampleRate = 22050 | 44100 | 48000;
 
 /** 音频缓冲区类型 */
 export type AudioBuffer = Float32Array;
@@ -155,7 +155,7 @@ export interface SpectralFrame {
 // ==================== 全局常量 ====================
 
 /** 默认采样率 */
-export const DEFAULT_SAMPLE_RATE: SampleRate = 44100;
+export const DEFAULT_SAMPLE_RATE: SampleRate = 22050;
 
 /** 标准音A4频率 */
 export const A4_FREQUENCY = 440.0;

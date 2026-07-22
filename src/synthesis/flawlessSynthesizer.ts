@@ -33,7 +33,7 @@ export interface FlawlessConfig {
 }
 
 const DEFAULT_CONFIG: FlawlessConfig = {
-  sampleRate: 44100,
+  sampleRate: 22050,
   bitDepth: 16,
   channels: 2,
   maxDuration: 30,
@@ -126,7 +126,7 @@ function ifft(real: Float32Array, imag: Float32Array): void {
 export class PureWaveformGenerator {
   sampleRate: number;
 
-  constructor(sampleRate = 44100) {
+  constructor(sampleRate = 22050) {
     this.sampleRate = sampleRate;
   }
 
@@ -300,7 +300,7 @@ export class FlawlessFMSynthesizer {
   sampleRate: number;
   private _waveGen: PureWaveformGenerator;
 
-  constructor(sampleRate = 44100) {
+  constructor(sampleRate = 22050) {
     this.sampleRate = sampleRate;
     this._waveGen = new PureWaveformGenerator(sampleRate);
   }
@@ -421,7 +421,7 @@ export class FlawDetector {
   sampleRate: number;
   private _windowSize: number;
 
-  constructor(sampleRate = 44100) {
+  constructor(sampleRate = 22050) {
     this.sampleRate = sampleRate;
     this._windowSize = 2048;
   }
@@ -631,7 +631,7 @@ export class FlawDetector {
 export class FlawlessRepair {
   sampleRate: number;
 
-  constructor(sampleRate = 44100) {
+  constructor(sampleRate = 22050) {
     this.sampleRate = sampleRate;
   }
 

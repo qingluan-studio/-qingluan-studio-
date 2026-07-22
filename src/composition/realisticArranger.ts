@@ -10,7 +10,7 @@
  */
 
 // ==================== 全局常量 ====================
-const SAMPLE_RATE = 44100;
+const SAMPLE_RATE = 22050;
 const TWO_PI = Math.PI * 2;
 const MAX_TRACKS = 16;
 
@@ -612,9 +612,9 @@ export class PianoSynthesizer extends InstrumentSynthesizer {
     const len = Math.floor((duration + 4.0) * SAMPLE_RATE);
     const buf = new Float32Array(len);
 
-    // 12个泛音
-    const harmonics = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-    const harmonicAmps = [1.0, 0.55, 0.35, 0.25, 0.18, 0.12, 0.08, 0.06, 0.04, 0.03, 0.02, 0.015];
+    // 8个核心泛音（优化性能，保留关键频谱能量）
+    const harmonics = [1, 2, 3, 4, 5, 6, 7, 8];
+    const harmonicAmps = [1.0, 0.55, 0.35, 0.25, 0.18, 0.12, 0.08, 0.05];
 
     for (let h = 0; h < harmonics.length; h++) {
       const hf = freq * harmonics[h];
@@ -3225,13 +3225,22 @@ export function generateStandardSections(
     quality: ch.quality === 'minor' ? 'min7' : 'maj7' as ChordQuality,
   }));
 
+  // 根据总小节数合理分配各段落长度
+  const totalBars = barsPerSection;
+  const introBars = Math.max(1, Math.round(totalBars * 0.1));
+  const verseBars = Math.max(2, Math.round(totalBars * 0.25));
+  const preChorusBars = Math.max(1, Math.round(totalBars * 0.1));
+  const chorusBars = Math.max(2, Math.round(totalBars * 0.25));
+  const bridgeBars = Math.max(1, Math.round(totalBars * 0.1));
+  const outroBars = totalBars - (introBars + verseBars + preChorusBars + chorusBars + bridgeBars);
+
   return [
-    { type: "intro", bars: 4, chordProgression: progression.slice(0, 2) },
-    { type: "verse", bars: barsPerSection, chordProgression: progression },
-    { type: "preChorus", bars: 4, chordProgression: progression.slice(2, 6) },
-    { type: "chorus", bars: barsPerSection, chordProgression: progression },
-    { type: "bridge", bars: 4, chordProgression: bridgeProgression },
-    { type: "outro", bars: 4, chordProgression: progression.slice(0, 2) },
+    { type: "intro", bars: introBars, chordProgression: progression.slice(0, 2) },
+    { type: "verse", bars: verseBars, chordProgression: progression },
+    { type: "preChorus", bars: preChorusBars, chordProgression: progression.slice(2, 6) },
+    { type: "chorus", bars: chorusBars, chordProgression: progression },
+    { type: "bridge", bars: bridgeBars, chordProgression: bridgeProgression },
+    { type: "outro", bars: Math.max(1, outroBars), chordProgression: progression.slice(0, 2) },
   ];
 }
 
