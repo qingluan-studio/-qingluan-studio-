@@ -49,12 +49,15 @@ import { composeByChemistry } from '../composition/chemicalComposition.js';
 import { composeTopologicalMelody } from '../composition/topologicalMelody.js';
 import { composeByCellularAutomata } from '../composition/caMusicGrowth.js';
 import { StreamComposer, ConceptGraph, ConsciousnessWalker, generateConsciousnessStream } from './streamOfConsciousness.js';
+import { HumanizationEngine, humanizeNotes } from './humanizationEngine.js';
+import { PhraseComposer, composeWithPhrases } from '../composition/phraseComposer.js';
+import { AnalogArtifactEngine, addStudioFeel } from '../effects/analogArtifacts.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
 // ═════════════════════════════════════════════════════════════
 
-const SAMPLE_RATE = 22050;
+const SAMPLE_RATE = 44100;
 
 function midiToFreq(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
@@ -485,6 +488,10 @@ export interface ProductionParams {
   caGenerations?: number;
   consciousnessTheme?: string;
   consciousnessTemperature?: number;
+  usePhraseStructure?: boolean; // 使用乐句结构作曲
+  useHumanization?: boolean;    // 使用人性化演奏
+  useAnalogFeel?: boolean;      // 使用模拟录音痕迹
+  analogIntensity?: number;     // 模拟痕迹强度 0-1
 }
 
 export interface ProductionResult {
@@ -626,6 +633,69 @@ export class SelfEvolvingMusicProducer {
         const scoreStr = composition.scores?.overall?.toFixed(3) || 'N/A';
         this.log(`作曲完成: ${noteCount} 音符, T6=${scoreStr}`);
 
+        // Step 1.5: 乐句结构重组（如果启用）
+        if (currentParams.usePhraseStructure) {
+          this.log('Step 1.5: 乐句结构作曲 (提问-回答 / 情绪弧线 / 呼吸感)');
+          try {
+            const phraseNotes = composeWithPhrases({
+              keyRoot: keyToMidi(currentParams.key || 'C'),
+              scale: [0, 2, 4, 5, 7, 9, 11],
+              bpm: currentParams.bpm || 120,
+              totalBars: currentParams.barCount || 16,
+              emotion: (currentParams.emotion || 'happy') as any,
+              style: (currentParams.style || 'pop') as any,
+            });
+            // 将 phraseNotes 转换为 melody 和 durations
+            const newMelody: number[] = [];
+            const newDurations: number[] = [];
+            for (const n of phraseNotes) {
+              newMelody.push(n.midi);
+              newDurations.push(n.duration);
+            }
+            if (newMelody.length > 0) {
+              composition.melody = newMelody;
+              composition.durations = newDurations;
+              this.log(`乐句结构重组完成: ${phraseNotes.length} 音符, ${(phraseNotes[phraseNotes.length-1]?.startTime || 0).toFixed(1)}秒`);
+            }
+          } catch (e: any) {
+            this.log(`乐句结构作曲失败: ${e.message}，继续使用原旋律`);
+          }
+        }
+
+        // Step 1.6: 人性化演奏处理
+        if (currentParams.useHumanization) {
+          this.log('Step 1.6: 人性化演奏 (时间微偏移 / 力度随机化 / 音高漂移)');
+          try {
+            const humanizer = new HumanizationEngine(Number(currentParams.seed || 1) + attempt);
+            const hNotes = composition.melody.map((midi, i) => ({
+              midi,
+              startTime: composition.durations.slice(0, i).reduce((a, b) => a + b, 0),
+              duration: composition.durations[i] || 0.5,
+              velocity: 0.7,
+            }));
+            const humanized = humanizer.humanize(hNotes, {
+              timingVariance: 0.008,
+              velocityVariance: 0.12,
+              pitchDrift: 5,
+              swingAmount: currentParams.style === 'jazz' ? 0.25 : 0,
+              grooveTemplate: currentParams.style === 'jazz' ? 'swing' : currentParams.style === 'latin' ? 'latin' : 'straight',
+            });
+            // 将 humanized notes 重新排序并提取
+            humanized.sort((a, b) => a.startTime - b.startTime);
+            const newMelody: number[] = [];
+            const newDurations: number[] = [];
+            for (const n of humanized) {
+              newMelody.push(n.midi);
+              newDurations.push(n.duration);
+            }
+            composition.melody = newMelody;
+            composition.durations = newDurations;
+            this.log(`人性化演奏处理完成: 处理了 ${humanized.length} 个音符`);
+          } catch (e: any) {
+            this.log(`人性化演奏失败: ${e.message}`);
+          }
+        }
+
         // Step 2: 编曲（伴奏）
         this.log('Step 2: 真人级伴奏编曲 (物理建模 + 人性化)');
         const barsPerSection = Math.max(4, currentParams.barCount || 16);
@@ -732,8 +802,20 @@ export class SelfEvolvingMusicProducer {
 
         // Step 9: 专业母带处理（录棚级）
         this.log('Step 9: 专业母带处理 (LUFS标准化 / 多段压缩 / 真峰值限制)');
-        const mastered = this.masteringChain.process(mixedPCM, -14);
+        let mastered = this.masteringChain.process(mixedPCM, -14);
         this.log(`母带完成: ${mastered.finalLUFS.toFixed(2)} LUFS, TP=${mastered.finalTruePeak.toFixed(4)}, 应用=[${mastered.applied.join(', ')}]`);
+
+        // Step 9.5: 模拟录音痕迹（如果启用）
+        if (currentParams.useAnalogFeel) {
+          this.log('Step 9.5: 模拟录音痕迹 (磁带饱和 / 电子管温暖 / 底噪 / 黑胶感)');
+          try {
+            const intensity = currentParams.analogIntensity ?? 0.4;
+            mastered.pcm = addStudioFeel(mastered.pcm, this.sampleRate, intensity);
+            this.log(`模拟录音痕迹添加完成: intensity=${intensity.toFixed(2)}`);
+          } catch (e: any) {
+            this.log(`模拟录音痕迹失败: ${e.message}`);
+          }
+        }
 
         // 如果健康，直接输出
         if (diagnosis.healthy) {

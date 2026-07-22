@@ -4,7 +4,7 @@
 // 根据轨道动态特征、风格、乐器类型自动分配混音参数
 // ============================================================
 
-const SAMPLE_RATE = 22050;
+const SAMPLE_RATE = 44100;
 
 /** 单轨自动混音参数 */
 export interface TrackAutoMixParams {

@@ -925,6 +925,12 @@
           <div class="s-form"><label>调性</label><select id="key"><option value="C">C大调</option><option value="Am">A小调</option><option value="G">G大调</option><option value="Em">E小调</option><option value="F">F大调</option><option value="Dm">D小调</option><option value="D">D大调</option><option value="Bm">B小调</option></select></div>
           <div class="s-form"><label>长度（音符数）</label><input type="number" id="length" value="16" min="4" max="64"></div>
           <div class="s-form"><label>BPM</label><input type="number" id="bpm" value="120" min="40" max="240"></div>
+          <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.03); border-radius:8px;">
+            <p style="font-size:11px; color:var(--text2); margin-bottom:6px;">真人级增强</p>
+            <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="composeUsePhrase"> 乐句结构</label></div>
+            <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="composeUseHumanize"> 人性化演奏</label></div>
+            <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="composeUseAnalog"> 模拟录音感</label></div>
+          </div>
           <button class="s-btn" onclick="compose()">✨ 生成旋律</button>
           <button class="s-btn-small" onclick="autoArrange()">🎹 自动编曲</button>
           <div class="s-loading" id="composeLoading"><span>AI 正在创作中...</span></div>
@@ -1563,6 +1569,13 @@
           <div class="s-form"><label>调性</label><select id="ntProdKey"><option value="C">C</option><option value="G">G</option><option value="Am">Am</option><option value="F">F</option></select></div>
           <div class="s-form"><label>BPM</label><input type="number" id="ntProdBpm" value="120" min="40" max="240"></div>
           <div class="s-form"><label>小节数</label><input type="number" id="ntProdBars" value="16" min="4" max="128"></div>
+          <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.03); border-radius:8px;">
+            <p style="font-size:11px; color:var(--text2); margin-bottom:6px;">真人级增强（可选）</p>
+            <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="ntUsePhrase"> 乐句结构作曲（提问-回答/呼吸感）</label></div>
+            <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="ntUseHumanize"> 人性化演奏（时间偏移/力度随机）</label></div>
+            <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="ntUseAnalog" onchange="document.getElementById('ntAnalogIntensity').style.display=this.checked?'block':'none'"> 模拟录音痕迹（磁带/电子管/底噪）</label></div>
+            <div class="s-form" id="ntAnalogIntensity" style="display:none;"><label>痕迹强度</label><input type="range" id="ntAnalogSlider" min="0" max="100" value="40"></div>
+          </div>
           <button class="s-btn" onclick="runNtProduction()">🚀 非传统完整生产</button>
           <div class="s-loading" id="ntProdLoading"><span>非传统生产线运行中...</span></div>
           <div id="ntProdPlayer"></div>
@@ -2473,6 +2486,9 @@ async function compose() {
         key: document.getElementById('key').value,
         length: parseInt(document.getElementById('length').value),
         bpm: parseInt(document.getElementById('bpm').value),
+        usePhraseStructure: document.getElementById('composeUsePhrase')?.checked || false,
+        useHumanization: document.getElementById('composeUseHumanize')?.checked || false,
+        useAnalogFeel: document.getElementById('composeUseAnalog')?.checked || false,
       })
     });
     const data = await res.json();
@@ -2500,6 +2516,9 @@ async function fullSong() {
         bpm: parseInt(document.getElementById('bpm').value),
         length: parseInt(document.getElementById('length').value),
         algorithm: document.getElementById('algo').value,
+        usePhraseStructure: document.getElementById('composeUsePhrase')?.checked || false,
+        useHumanization: document.getElementById('composeUseHumanize')?.checked || false,
+        useAnalogFeel: document.getElementById('composeUseAnalog')?.checked || false,
       })
     });
     const data = await res.json();
@@ -5544,6 +5563,10 @@ async function runNtProduction() {
       nonTraditionalEngine: engine,
       emotion: 'happy',
       useAutoMix: true,
+      usePhraseStructure: document.getElementById('ntUsePhrase')?.checked || false,
+      useHumanization: document.getElementById('ntUseHumanize')?.checked || false,
+      useAnalogFeel: document.getElementById('ntUseAnalog')?.checked || false,
+      analogIntensity: (+document.getElementById('ntAnalogSlider')?.value || 40) / 100,
     };
     
     const res = await fetch('/api/produce', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });

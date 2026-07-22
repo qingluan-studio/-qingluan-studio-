@@ -44,6 +44,12 @@ export type VoiceTechnique =
   | 'kunqu'        // 昆曲 — 婉转细腻，水磨调，滑音极多
   | 'mongolianThroat' // 呼麦 — 基频+泛音分离，同时发出两个音高
   | 'tibetanChant' // 诵经 — 极低频、长持续、大量低频泛音
+  | 'sichuanOpera'      // 川剧高腔：突然的真假声转换，高亢锐利
+  | 'shaoxingOpera'     // 越剧：柔美婉转，多用头声，气息绵长
+  | 'qinqiang'          // 秦腔：粗犷豪放，爆发力强，大量滑音
+  | 'henanOpera'        // 豫剧：明亮清脆，吐字清晰，节奏明快
+  | 'mongolianLongSong' // 蒙古长调：极长气息，大量装饰音，辽阔感
+  | 'tibetanFolk'       // 藏族民歌：高亢辽远，颤音独特，装饰音丰富
   | 'pp' | 'p' | 'mp' | 'mf' | 'f' | 'ff'; // 力度
 
 /** 共振峰精细参数 */
@@ -1080,6 +1086,65 @@ export function applyBreathyEffect(source: Float32Array, breathiness: number): F
   return result;
 }
 
+/** 呼吸噪声位置类型 */
+export type BreathPosition = 'chest' | 'head' | 'falsetto' | 'slide';
+
+/**
+ * 位置相关呼吸噪声精细化
+ * 根据发声位置生成不同的呼吸噪声频谱特征
+ * @param length 采样点数
+ * @param position 发声位置
+ * @param intensity 噪声强度 (0-1)
+ * @param sampleRate 采样率
+ * @returns 精细化呼吸噪声
+ */
+export function generatePositionedBreathNoise(
+  length: number,
+  position: BreathPosition,
+  intensity: number,
+  sampleRate: number
+): Float32Array {
+  const noise = generateWhiteNoise(length, intensity);
+  let filtered: Float32Array;
+
+  switch (position) {
+    case 'chest':
+      // 胸声：低频呼吸噪声（<500Hz），模拟胸腔共鸣的隆隆声
+      filtered = onePoleLowPass(noise, 500, sampleRate);
+      // 增加一点粉红噪声感
+      for (let i = 0; i < filtered.length; i++) {
+        filtered[i] *= (1 + Math.sin(i * 0.001) * 0.1);
+      }
+      break;
+    case 'head':
+      // 头声：高频嘶嘶声（>4kHz），模拟头腔的气流声
+      filtered = onePoleHighPass(noise, 4000, sampleRate);
+      break;
+    case 'falsetto':
+      // 假声：极轻微的气流声，几乎无噪声
+      filtered = onePoleHighPass(noise, 6000, sampleRate);
+      for (let i = 0; i < filtered.length; i++) {
+        filtered[i] *= 0.15;
+      }
+      break;
+    case 'slide':
+      // 滑音过程中：呼吸噪声随音高连续变化（中高频渐变）
+      filtered = new Float32Array(length);
+      for (let i = 0; i < length; i++) {
+        const t = i / length;
+        const cutoff = 500 + t * 3500; // 500Hz -> 4000Hz
+        // 简化为随时间改变截止频率（使用一阶高通近似）
+        const alpha = 1 / (1 + 1 / (2 * Math.PI * cutoff / sampleRate));
+        filtered[i] = noise[i] * alpha;
+      }
+      break;
+    default:
+      filtered = noise;
+  }
+
+  return filtered;
+}
+
 /**
  * 应用头声效果
  * 提高基频感知，减少低频能量
@@ -1335,6 +1400,200 @@ export function applyTibetanChantEffect(buffer: Float32Array, sampleRate: number
 }
 
 /**
+ * 应用川剧高腔效果
+ * 突然的真假声转换，高亢锐利
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applySichuanOperaEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 高频泛音增强（+6dB @ 3-5kHz）
+  result = peakingEQ(result, 3500, 6, 4, sampleRate);
+  result = peakingEQ(result, 4500, 4, 3.5, sampleRate);
+  // 突然 falsetto 切换：每 1-2 秒随机触发，持续 100-300ms
+  const triggerInterval = Math.floor((1.5) * sampleRate);
+  const falsettoDurationMin = Math.floor(0.1 * sampleRate);
+  const falsettoDurationMax = Math.floor(0.3 * sampleRate);
+  for (let i = 0; i < result.length; i++) {
+    const cyclePos = i % triggerInterval;
+    const isFalsetto = cyclePos < falsettoDurationMin + Math.random() * (falsettoDurationMax - falsettoDurationMin);
+    if (isFalsetto) {
+      // 尖锐起音：快速 attack 增强 + 高频噪声
+      const noise = (Math.random() * 2 - 1) * 0.15;
+      result[i] = result[i] * 1.3 + noise;
+    }
+  }
+  // 尖锐起音：整体压缩模拟紧绷声带
+  for (let i = 0; i < result.length; i++) {
+    result[i] = Math.tanh(result[i] * 1.6);
+  }
+  return result;
+}
+
+/**
+ * 应用越剧唱法效果
+ * 柔美婉转，多用头声，气息绵长
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyShaoxingOperaEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 头声主导：高通模拟 f1 降 100Hz、f2 升 200Hz 后的明亮头腔感
+  result = onePoleHighPass(result, 350, sampleRate);
+  // 气息声增强 30%
+  const breathNoise = generateWhiteNoise(buffer.length, 0.12);
+  const breathFiltered = onePoleLowPass(breathNoise, 2000, sampleRate);
+  for (let i = 0; i < result.length; i++) {
+    result[i] = result[i] * 0.85 + breathFiltered[i] * 0.35;
+  }
+  // 慢速颤音 4.5Hz，幅度 ±40 cents
+  const vibratoRate = 4.5;
+  const vibratoDepthCents = 40;
+  const vibratoDepthRatio = Math.pow(2, vibratoDepthCents / 1200) - 1;
+  for (let i = 0; i < result.length; i++) {
+    const t = i / sampleRate;
+    const vibrato = Math.sin(2 * Math.PI * vibratoRate * t);
+    const shift = vibrato * vibratoDepthRatio;
+    // 相位偏移近似音高偏移
+    const idx = Math.round(i + shift * 10);
+    result[i] = buffer[Math.max(0, Math.min(buffer.length - 1, idx))];
+  }
+  // 尾音下滑：每个长音结尾 -50 cents 滑音（简化为整体衰减+轻微音高拉低）
+  const fadeStart = Math.floor(result.length * 0.75);
+  for (let i = fadeStart; i < result.length; i++) {
+    const t = (i - fadeStart) / (result.length - fadeStart);
+    const slideDown = 1 - t * 0.03; // 约 -50 cents 的振幅/频率感衰减
+    result[i] *= (1 - t * 0.3) * slideDown;
+  }
+  return result;
+}
+
+/**
+ * 应用秦腔唱法效果
+ * 粗犷豪放，爆发力强，大量滑音
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyQinqiangEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 极强的胸声：低频增强
+  const chest = onePoleLowPass(buffer, 600, sampleRate);
+  for (let i = 0; i < result.length; i++) {
+    result[i] = result[i] * 0.7 + chest[i] * 0.5;
+  }
+  // 粗犷失真：轻度削波模拟声带极限
+  for (let i = 0; i < result.length; i++) {
+    result[i] = Math.tanh(result[i] * 1.8) * 0.95;
+  }
+  // 大量滑音：portamento，每个音符开始和结束 ±100 cents（简化为动态音高调制）
+  for (let i = 0; i < result.length; i++) {
+    const t = i / result.length;
+    // 开始上滑，结束下滑
+    const slide = Math.sin(Math.PI * t) * 0.06; // ±100 cents 近似
+    const idx = Math.round(i + slide * 8);
+    result[i] = buffer[Math.max(0, Math.min(buffer.length - 1, idx))];
+  }
+  return result;
+}
+
+/**
+ * 应用豫剧唱法效果
+ * 明亮清脆，吐字清晰，节奏明快
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyHenanOperaEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 明亮清脆：f2 提升到 2200Hz，f3 提升到 3200Hz 的感知（提升中高频）
+  result = peakingEQ(result, 2200, 3, 2.5, sampleRate);
+  result = peakingEQ(result, 3200, 3, 2.0, sampleRate);
+  // 轻快颤音 5.5Hz，幅度 ±25 cents
+  const vibratoRate = 5.5;
+  const vibratoDepthRatio = Math.pow(2, 25 / 1200) - 1;
+  for (let i = 0; i < result.length; i++) {
+    const t = i / sampleRate;
+    const vibrato = Math.sin(2 * Math.PI * vibratoRate * t);
+    const shift = vibrato * vibratoDepthRatio;
+    const idx = Math.round(i + shift * 6);
+    result[i] = buffer[Math.max(0, Math.min(buffer.length - 1, idx))];
+  }
+  // 快速吐字感：轻微预加重高频
+  result = onePoleHighPass(result, 800, sampleRate);
+  return result;
+}
+
+/**
+ * 应用蒙古长调效果
+ * 极长气息，大量装饰音，辽阔感
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyMongolianLongSongEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 喉音共鸣：subharmonic 增强，模拟喉部振动
+  const subharmonic = onePoleLowPass(buffer, 250, sampleRate);
+  for (let i = 0; i < result.length; i++) {
+    result[i] = result[i] * 0.75 + subharmonic[i] * 0.4;
+  }
+  // 大量装饰音：每个主音前加快速经过音（简化为高频微扰）
+  const ornamentRate = 12;
+  for (let i = 0; i < result.length; i++) {
+    const t = i / sampleRate;
+    const ornament = Math.sin(2 * Math.PI * ornamentRate * t) * Math.exp(-t * 0.5);
+    result[i] += ornament * 0.08;
+  }
+  // 辽阔空间感：模拟远距离传播，高频衰减，低频保留
+  const low = onePoleLowPass(buffer, 2000, sampleRate);
+  const high = onePoleHighPass(buffer, 2000, sampleRate);
+  for (let i = 0; i < result.length; i++) {
+    result[i] = low[i] * 0.9 + high[i] * 0.3;
+  }
+  return result;
+}
+
+/**
+ * 应用藏族民歌效果
+ * 高亢辽远，颤音独特，装饰音丰富
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyTibetanFolkEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 高亢辽远：整体亮度提升
+  result = peakingEQ(result, 2800, 4, 2.0, sampleRate);
+  result = onePoleHighPass(result, 250, sampleRate);
+  // 独特脉冲式颤音：快速开关音高（8Hz 方波调制）
+  const pulseRate = 8;
+  for (let i = 0; i < result.length; i++) {
+    const t = i / sampleRate;
+    const pulse = Math.sign(Math.sin(2 * Math.PI * pulseRate * t));
+    const shift = pulse * 0.02; // 快速 ±20 cents 开关
+    const idx = Math.round(i + shift * 5);
+    result[i] = buffer[Math.max(0, Math.min(buffer.length - 1, idx))];
+  }
+  // 装饰音丰富：上滑音、下滑音、回音（简化为回声）
+  // 自然回声感：延迟 200ms，feedback 0.3
+  const delaySamples = Math.floor(0.2 * sampleRate);
+  const echo = new Float32Array(result.length);
+  for (let i = 0; i < result.length; i++) {
+    echo[i] = result[i];
+    if (i >= delaySamples) {
+      echo[i] += echo[i - delaySamples] * 0.3;
+    }
+  }
+  for (let i = 0; i < result.length; i++) {
+    result[i] = result[i] * 0.7 + echo[i] * 0.3;
+  }
+  return result;
+}
+
+/**
  * 应用断奏效果 (Staccato)
  * 缩短音符时长，产生跳跃感
  * @param buffer 输入音频
@@ -1492,6 +1751,73 @@ function _generateVowelSegment(
 }
 
 /**
+ * 滑音曲线库
+ * 更多自然滑音类型，模拟不同乐器/唱法的滑音特征
+ * @param length 采样点数
+ * @param fromF0 起始基频
+ * @param toF0 目标基频
+ * @param curveType 曲线类型
+ * @returns 基频曲线
+ */
+export function generatePortamentoCurve(
+  length: number,
+  fromF0: number,
+  toF0: number,
+  curveType: 'portamentoVocal' | 'portamentoViolin' | 'portamentoErhu' | 'portamentoPeking' | 'linear' | 'exp' | 'log' | 'sigmoid' = 'portamentoVocal'
+): Float32Array {
+  const curve = new Float32Array(length);
+  const logFrom = Math.log2(fromF0);
+  const logTo = Math.log2(toF0);
+
+  for (let i = 0; i < length; i++) {
+    const t = i / length;
+    let eased: number;
+    switch (curveType) {
+      case 'portamentoVocal':
+        // 人声自然滑音：先慢后快再慢（ease-in-out 但更柔和）
+        eased = t < 0.5
+          ? 4 * t * t * t
+          : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        break;
+      case 'portamentoViolin':
+        // 弦乐滑音：线性
+        eased = t;
+        break;
+      case 'portamentoErhu':
+        // 二胡滑音：先快后极慢，带揉弦感
+        eased = 1 - Math.pow(1 - t, 3);
+        break;
+      case 'portamentoPeking':
+        // 京剧滑音：阶梯式（经过几个中间音）
+        {
+          const steps = 5;
+          const stepIndex = Math.floor(t * steps);
+          const stepT = (t * steps) - stepIndex;
+          // 每个阶梯内用平滑过渡
+          eased = (stepIndex + stepT * stepT * (3 - 2 * stepT)) / steps;
+        }
+        break;
+      case 'linear':
+        eased = t;
+        break;
+      case 'exp':
+        eased = t * t;
+        break;
+      case 'log':
+        eased = Math.sqrt(t);
+        break;
+      case 'sigmoid':
+      default:
+        eased = t * t * (3 - 2 * t);
+        break;
+    }
+    const logFreq = logFrom + (logTo - logFrom) * eased;
+    curve[i] = Math.pow(2, logFreq);
+  }
+  return curve;
+}
+
+/**
  * 生成滑音基频曲线 (Portamento / Glissando)
  * @param length 采样点数
  * @param sampleRate 采样率
@@ -1557,6 +1883,47 @@ export function generateVibratoCurve(
   for (let i = 0; i < length; i++) {
     curve[i] = depthHz * Math.sin(phase);
     phase += phaseInc;
+  }
+  return curve;
+}
+
+/**
+ * 多层颤音生成器
+ * 三层叠加：主颤音(5Hz, ±30cents) + 微颤音(8Hz, ±5cents) + 慢速音高漂移(0.5Hz, ±10cents)
+ * 比单层正弦颤音真实得多
+ * @param length 采样点数
+ * @param sampleRate 采样率
+ * @param baseF0 基础基频 (Hz)
+ * @returns 基频偏移数组 (Hz)
+ */
+export function generateMultiLayerVibrato(
+  length: number,
+  sampleRate: number,
+  baseF0: number
+): Float32Array {
+  const curve = new Float32Array(length);
+  // 主颤音：5Hz, ±30 cents -> Hz
+  const mainDepthHz = baseF0 * (Math.pow(2, 30 / 1200) - 1);
+  const mainPhaseInc = (2 * Math.PI * 5) / sampleRate;
+  // 微颤音：8Hz, ±5 cents -> Hz
+  const microDepthHz = baseF0 * (Math.pow(2, 5 / 1200) - 1);
+  const microPhaseInc = (2 * Math.PI * 8) / sampleRate;
+  // 慢速音高漂移：0.5Hz, ±10 cents -> Hz
+  const driftDepthHz = baseF0 * (Math.pow(2, 10 / 1200) - 1);
+  const driftPhaseInc = (2 * Math.PI * 0.5) / sampleRate;
+
+  let mainPhase = 0;
+  let microPhase = Math.PI / 3; // 不同初始相位避免同步
+  let driftPhase = Math.PI * 0.7;
+
+  for (let i = 0; i < length; i++) {
+    const main = mainDepthHz * Math.sin(mainPhase);
+    const micro = microDepthHz * Math.sin(microPhase);
+    const drift = driftDepthHz * Math.sin(driftPhase);
+    curve[i] = main + micro + drift;
+    mainPhase += mainPhaseInc;
+    microPhase += microPhaseInc;
+    driftPhase += driftPhaseInc;
   }
   return curve;
 }
@@ -1666,6 +2033,24 @@ export function applyVoiceDescriptor(
         break;
       case 'tibetanChant':
         result = applyTibetanChantEffect(result, sampleRate);
+        break;
+      case 'sichuanOpera':
+        result = applySichuanOperaEffect(result, sampleRate);
+        break;
+      case 'shaoxingOpera':
+        result = applyShaoxingOperaEffect(result, sampleRate);
+        break;
+      case 'qinqiang':
+        result = applyQinqiangEffect(result, sampleRate);
+        break;
+      case 'henanOpera':
+        result = applyHenanOperaEffect(result, sampleRate);
+        break;
+      case 'mongolianLongSong':
+        result = applyMongolianLongSongEffect(result, sampleRate);
+        break;
+      case 'tibetanFolk':
+        result = applyTibetanFolkEffect(result, sampleRate);
         break;
       case 'staccato':
         result = applyStaccatoEffect(result, sampleRate);
@@ -2175,6 +2560,95 @@ export function lfGlottalFlowModel(
 }
 
 /**
+ * 非线性声带闭合模型 (Nonlinear Vocal Fold)
+ * 在双质点模型基础上增加非线性闭合模拟
+ * 不同唱法有不同的 vocalTension 和 subglottalPressure
+ */
+export class NonlinearVocalFold {
+  vocalTension: number;
+  subglottalPressure: number;
+
+  constructor(tension = 0.7, pressure = 0.6) {
+    this.vocalTension = tension;
+    this.subglottalPressure = pressure;
+  }
+
+  /**
+   * 根据唱法名称自动设置参数
+   */
+  setByTechnique(technique: string): void {
+    switch (technique) {
+      case 'pekingOpera':
+        this.vocalTension = 0.9;
+        this.subglottalPressure = 0.85;
+        break;
+      case 'shaoxingOpera':
+        this.vocalTension = 0.6;
+        this.subglottalPressure = 0.5;
+        break;
+      case 'mongolianLongSong':
+        this.vocalTension = 0.7;
+        this.subglottalPressure = 0.4;
+        break;
+      case 'qinqiang':
+        this.vocalTension = 0.95;
+        this.subglottalPressure = 0.9;
+        break;
+      case 'sichuanOpera':
+        this.vocalTension = 0.92;
+        this.subglottalPressure = 0.88;
+        break;
+      case 'henanOpera':
+        this.vocalTension = 0.75;
+        this.subglottalPressure = 0.65;
+        break;
+      case 'tibetanFolk':
+        this.vocalTension = 0.65;
+        this.subglottalPressure = 0.55;
+        break;
+      default:
+        this.vocalTension = 0.7;
+        this.subglottalPressure = 0.6;
+    }
+  }
+
+  /**
+   * 生成一个声门周期
+   * @param periodSamples 周期采样数
+   * @param technique 演唱技巧
+   * @returns 单个周期波形
+   */
+  generateCycle(periodSamples: number, technique = ''): Float32Array {
+    this.setByTechnique(technique);
+    const cycle = new Float32Array(Math.floor(periodSamples));
+    // 开放商 (Open Quotient) 随张力/压力动态调整
+    const oq = 0.35 + (1 - this.vocalTension) * 0.25 + (1 - this.subglottalPressure) * 0.1;
+    const closingSpeed = 1 + this.vocalTension * 2;
+    const leakage = this.subglottalPressure * 0.025;
+
+    for (let i = 0; i < cycle.length; i++) {
+      const normPhase = i / cycle.length;
+      let glottalFlow = 0;
+      if (normPhase < oq) {
+        const openPhase = normPhase / oq;
+        // 非对称上升/下降
+        glottalFlow = Math.pow(openPhase, 1.5) * (3 - 2 * openPhase);
+        if (openPhase > 0.65) {
+          const decay = (openPhase - 0.65) / 0.35;
+          glottalFlow *= (1 - Math.pow(decay, closingSpeed));
+        }
+      } else {
+        // 闭合相微小泄漏
+        glottalFlow = leakage * (1 - (normPhase - oq) / (1 - oq));
+      }
+      // 压力影响振幅
+      cycle[i] = glottalFlow * this.subglottalPressure;
+    }
+    return cycle;
+  }
+}
+
+/**
  * 综合物理模型合成器
  * 整合双质点声带、波导、鼻腔、唇辐射
  * @param length 采样点数
@@ -2628,7 +3102,8 @@ export function renderNoteEvent(note: NoteEvent, config: RenderConfig): Float32A
   // 生成基频曲线 (含颤音和混沌抖动)
   const baseCurve = new Float32Array(length);
   if (voice.techniques.includes('legatoSlide') && voice.targetF0 && voice.targetF0 !== f0) {
-    const glide = _generateVowelSegment(f0, voice.targetF0, note.duration + config.tailLength, sampleRate, 'sigmoid');
+    // 使用人声自然滑音曲线
+    const glide = generatePortamentoCurve(length, f0, voice.targetF0, 'portamentoVocal');
     for (let i = 0; i < length; i++) {
       baseCurve[i] = glide[i] ?? f0;
     }
@@ -2637,7 +3112,8 @@ export function renderNoteEvent(note: NoteEvent, config: RenderConfig): Float32A
       baseCurve[i] = f0;
     }
   }
-  const vibrato = generateVibratoCurve(length, sampleRate, voice.vibratoDepth, voice.vibratoRate);
+  // 升级为多层颤音（主颤音 + 微颤音 + 慢速漂移）
+  const vibrato = generateMultiLayerVibrato(length, sampleRate, f0);
   const jitter = generateChaoticF0Jitter(length, sampleRate, f0, 1.5, 'lorenz');
   const f0Curve = new Float32Array(length);
   for (let i = 0; i < length; i++) {
@@ -2793,7 +3269,7 @@ export function renderFromJianpuAndLyrics(
  */
 export function createDefaultRenderConfig(): RenderConfig {
   return {
-    sampleRate: 22050,
+    sampleRate: 44100,
     strategy: 'hybrid',
     gender: 'female',
     timbre: 'warm',

@@ -75,6 +75,9 @@ import { composeByChemistry } from './composition/chemicalComposition.js';
 import { composeTopologicalMelody } from './composition/topologicalMelody.js';
 import { composeByCellularAutomata } from './composition/caMusicGrowth.js';
 import { StreamComposer, ConceptGraph, ConsciousnessWalker, generateConsciousnessStream } from './engines/streamOfConsciousness.js';
+import { HumanizationEngine } from './engines/humanizationEngine.js';
+import { PhraseComposer, composeWithPhrases } from './composition/phraseComposer.js';
+import { AnalogArtifactEngine, addStudioFeel } from './effects/analogArtifacts.js';
 
 const app = new Hono();
 const projectStore = new Map<string, QingluanProject>();
@@ -102,7 +105,7 @@ app.get('/api/health', (c) => {
     status: 'ok',
     name: '青鸾数字音频工作站',
     version: '2.0.0',
-    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint', 'selfModifyingSynth', 'chemicalComposition', 'topologicalMelody', 'caMusicGrowth', 'streamOfConsciousness'],
+    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint', 'selfModifyingSynth', 'chemicalComposition', 'topologicalMelody', 'caMusicGrowth', 'streamOfConsciousness', 'humanizationEngine', 'phraseComposer', 'analogArtifacts'],
   });
 });
 
@@ -493,7 +496,7 @@ app.post('/api/cee/optimize', async (c) => {
 });
 
 // ======== 模块2d: 无瑕疵音乐合成器 API ========
-const flawlessSynth = new FlawlessSynthesizer({ sampleRate: 22050, targetQuality: 0.92 });
+const flawlessSynth = new FlawlessSynthesizer({ sampleRate: 44100, targetQuality: 0.92 });
 
 app.get('/api/flawless/presets', (c) => {
   return c.json({ presets: Object.keys(FLAWLESS_PRESETS) });
@@ -1101,6 +1104,44 @@ app.get('/api/produce/status', (c) => {
   return c.json(producer.getEvolutionReport());
 });
 
+// ======== 新引擎独立 API ========
+
+app.post('/api/humanize', async (c) => {
+  const body = await c.req.json<{notes?: Array<{midi: number; startTime: number; duration: number; velocity: number}>; seed?: number; style?: string}>();
+  try {
+    const engine = new HumanizationEngine(body.seed || 1);
+    const result = engine.humanize(body.notes || [], {
+      timingVariance: 0.008,
+      velocityVariance: 0.12,
+      grooveTemplate: body.style === 'jazz' ? 'swing' : 'straight',
+    });
+    return c.json({ notes: result });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/phrase/compose', async (c) => {
+  const body = await c.req.json<{keyRoot?: number; scale?: number[]; bpm?: number; totalBars?: number; emotion?: string; style?: string}>();
+  try {
+    const notes = composeWithPhrases({ keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], bpm: body.bpm || 120, totalBars: body.totalBars || 16, emotion: body.emotion as any, style: body.style as any });
+    return c.json({ notes });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/analog/process', async (c) => {
+  const body = await c.req.json<{wavBase64: string; intensity?: number}>();
+  try {
+    const pcm = Buffer.from(body.wavBase64, 'base64');
+    // 简化为直接返回，实际应该从 WAV 提取 PCM
+    return c.json({ message: '请直接在前端使用 AnalogArtifactEngine' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // ======== 非传统引擎独立 API ========
 
 function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
@@ -1120,14 +1161,14 @@ app.post('/api/engine/selfmodifying', async (c) => {
   const body = await c.req.json<{freq?: number; duration?: number; evolutionRate?: number; mutationIntensity?: number; notes?: Array<{freq: number; duration: number; startTime: number}>}>();
   try {
     if (body.notes && body.notes.length > 0) {
-      const pcm = createSelfModifyingTrack(body.notes, 22050);
-      const wav = pcmToWav(pcm, 22050);
-      return c.json({ wavBase64: Buffer.from(wav).toString('base64'), duration: pcm.length / 22050 });
+      const pcm = createSelfModifyingTrack(body.notes, 44100);
+      const wav = pcmToWav(pcm, 44100);
+      return c.json({ wavBase64: Buffer.from(wav).toString('base64'), duration: pcm.length / 44100 });
     } else {
-      const synth = new SelfModifyingSynth(22050);
+      const synth = new SelfModifyingSynth(44100);
       const pcm = synth.generate({ baseFreq: body.freq || 440, duration: body.duration || 2, evolutionRate: body.evolutionRate, mutationIntensity: body.mutationIntensity });
-      const wav = pcmToWav(pcm, 22050);
-      return c.json({ wavBase64: Buffer.from(wav).toString('base64'), history: synth.getEvolutionHistory(), duration: pcm.length / 22050 });
+      const wav = pcmToWav(pcm, 44100);
+      return c.json({ wavBase64: Buffer.from(wav).toString('base64'), history: synth.getEvolutionHistory(), duration: pcm.length / 44100 });
     }
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -1168,8 +1209,8 @@ app.post('/api/engine/consciousness', async (c) => {
   const body = await c.req.json<{theme?: string; bpm?: number; bars?: number; baseKey?: number; temperature?: number}>();
   try {
     const pcm = generateConsciousnessStream({ theme: body.theme || '雨', bpm: body.bpm || 90, bars: body.bars || 8, baseKey: body.baseKey || 60, temperature: body.temperature ?? 1.0 });
-    const wav = pcmToWav(pcm, 22050);
-    return c.json({ wavBase64: Buffer.from(wav).toString('base64'), duration: pcm.length / 22050 });
+    const wav = pcmToWav(pcm, 44100);
+    return c.json({ wavBase64: Buffer.from(wav).toString('base64'), duration: pcm.length / 44100 });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }
@@ -1314,7 +1355,7 @@ function decodeWavPcm(wavBase64: string): { pcm: Float32Array; sampleRate: numbe
   let fmtOffset = 12;
   let dataOffset = 0;
   let dataSize = 0;
-  let sampleRate = 22050;
+  let sampleRate = 44100;
   let channels = 1;
   let bitsPerSample = 16;
 

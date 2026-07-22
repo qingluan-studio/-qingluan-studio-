@@ -5,7 +5,7 @@
 // 动态调整振荡器参数（波形、频率、振幅、相位），形成声音
 // 的"活"的演化效果。
 // 技术栈: 纯数学 PCM Float32Array + 自实现 FFT + 规则引擎
-// 采样率: 22050 Hz
+// 采样率: 44100 Hz
 // ============================================================
 
 // ═════════════════════════════════════════════════════════════
@@ -231,7 +231,7 @@ const BUILTIN_RULES: ModificationRule[] = [
       return state.entropy < 0.6 && state.waveform === 'sine';
     },
     action: (spectrum: Float32Array, state: SynthState) => {
-      const analysis = analyzeSpectrum(spectrum, 22050);
+      const analysis = analyzeSpectrum(spectrum, 44100);
       if (analysis.lowEnergyRatio > 0.7) {
         return { waveform: 'sawtooth' as const, amplitude: clamp(state.amplitude * 0.9, 0.05, 1.0) };
       }
@@ -245,7 +245,7 @@ const BUILTIN_RULES: ModificationRule[] = [
     name: 'EntropyRule',
     condition: (_spectrum: Float32Array, state: SynthState) => state.entropy < 0.3,
     action: (spectrum: Float32Array, state: SynthState) => {
-      const analysis = analyzeSpectrum(spectrum, 22050);
+      const analysis = analyzeSpectrum(spectrum, 44100);
       if (analysis.entropy < 0.25) {
         if (state.waveform !== 'noise' && state.waveform !== 'fm') {
           return { waveform: 'fm' as const, modulationIndex: clamp(state.modulationIndex + 0.5, 0, 5) };
@@ -264,7 +264,7 @@ const BUILTIN_RULES: ModificationRule[] = [
     name: 'ResonanceRule',
     condition: () => true,
     action: (spectrum: Float32Array, state: SynthState) => {
-      const analysis = analyzeSpectrum(spectrum, 22050);
+      const analysis = analyzeSpectrum(spectrum, 44100);
       // 如果某一段能量极度集中（peak 过于尖锐），做微小频率偏移
       if (analysis.entropy < 0.15 && analysis.totalEnergy > 100) {
         const detune = 1 + (Math.random() * 0.04 - 0.02); // ±2%
@@ -306,7 +306,7 @@ const BUILTIN_RULES: ModificationRule[] = [
       return state.harmonicDecay > 0.3 && Math.random() < 0.2;
     },
     action: (spectrum: Float32Array, state: SynthState) => {
-      const analysis = analyzeSpectrum(spectrum, 22050);
+      const analysis = analyzeSpectrum(spectrum, 44100);
       // 简单启发：若中频能量高，说明存在显著 2/3 次谐波，尝试跳到 2 倍频
       if (analysis.midEnergyRatio > 0.3) {
         const harmonicMultiplier = [2, 3, 1.5][Math.floor(Math.random() * 3)];
@@ -326,7 +326,7 @@ export class SelfModifyingSynth {
   private rules: ModificationRule[];
   private evolutionHistory: Array<{ time: number; state: SynthState }>;
 
-  constructor(sampleRate = 22050) {
+  constructor(sampleRate = 44100) {
     this.sampleRate = sampleRate;
     this.rules = [...BUILTIN_RULES];
     this.evolutionHistory = [];
@@ -492,7 +492,7 @@ export class SelfModifyingSynth {
 
 export function createSelfModifyingTrack(
   notes: Array<{ freq: number; duration: number; startTime: number }>,
-  sampleRate = 22050
+  sampleRate = 44100
 ): Float32Array {
   if (notes.length === 0) {
     return new Float32Array(0);

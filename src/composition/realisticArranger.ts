@@ -10,7 +10,7 @@
  */
 
 // ==================== 全局常量 ====================
-const SAMPLE_RATE = 22050;
+const SAMPLE_RATE = 44100;
 const TWO_PI = Math.PI * 2;
 const MAX_TRACKS = 16;
 
@@ -612,9 +612,9 @@ export class PianoSynthesizer extends InstrumentSynthesizer {
     const len = Math.floor((duration + 4.0) * SAMPLE_RATE);
     const buf = new Float32Array(len);
 
-    // 8个核心泛音（优化性能，保留关键频谱能量）
-    const harmonics = [1, 2, 3, 4, 5, 6, 7, 8];
-    const harmonicAmps = [1.0, 0.55, 0.35, 0.25, 0.18, 0.12, 0.08, 0.05];
+    // 12个核心泛音（高精细度物理建模）
+    const harmonics = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const harmonicAmps = [1.0, 0.6, 0.4, 0.3, 0.25, 0.2, 0.15, 0.12, 0.1, 0.08, 0.06, 0.05];
 
     for (let h = 0; h < harmonics.length; h++) {
       const hf = freq * harmonics[h];

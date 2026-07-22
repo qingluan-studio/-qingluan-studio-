@@ -155,7 +155,7 @@ export interface SpectralFrame {
 // ==================== 全局常量 ====================
 
 /** 默认采样率 */
-export const DEFAULT_SAMPLE_RATE: SampleRate = 22050;
+export const DEFAULT_SAMPLE_RATE: SampleRate = 44100;
 
 /** 标准音A4频率 */
 export const A4_FREQUENCY = 440.0;
