@@ -154,6 +154,7 @@ export interface ArrangementInput {
 /** 多轨音频输出 */
 export interface MultiTrackOutput {
   tracks: Float32Array[];
+  trackNames?: string[];
   mixed: Float32Array;
   sampleRate: number;
   duration: number;
@@ -3072,13 +3073,18 @@ export default class RealisticArrangerEngine {
 
     // 7. 分离立体声为单声道各轨（返回单声道 buffer 列表）
     const tracks: Float32Array[] = [];
+    const trackNames: string[] = [];
     for (const cfg of trackConfigs) {
       const buf = trackBuffers.get(cfg.instrument);
-      if (buf) tracks.push(buf);
+      if (buf) {
+        tracks.push(buf);
+        trackNames.push(cfg.instrument);
+      }
     }
 
     return {
       tracks,
+      trackNames,
       mixed,
       sampleRate: this.sampleRate,
       duration: totalDuration,

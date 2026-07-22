@@ -34,6 +34,16 @@ import {
 import {
   generateLyricsForMelody,
 } from './lyricGenerator.js';
+import {
+  generateFingerprint,
+  getFingerprintPrefix,
+} from './audioFingerprint.js';
+import {
+  autoMixTracks,
+  applyAutoMix,
+  AutoMixResult,
+  TrackAutoMixParams,
+} from './autoMixer.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
@@ -110,6 +120,10 @@ function calculateDCOffset(buf: Float32Array): number {
   let sum = 0;
   for (let i = 0; i < buf.length; i++) sum += buf[i];
   return sum / buf.length;
+}
+
+function linearToDb(linear: number): number {
+  return 20 * Math.log10(Math.max(1e-12, linear));
 }
 
 function removeDCOffset(buf: Float32Array): Float32Array {
@@ -435,9 +449,10 @@ export interface ProductionParams {
   barCount?: number;
   emotion?: string;
   intensity?: number;
-  seed?: number;
+  seed?: string | number;
   waveform?: string;
   maxAttempts?: number;
+  useAutoMix?: boolean;
 }
 
 export interface ProductionResult {
@@ -452,6 +467,8 @@ export interface ProductionResult {
   productionLog: string[];
   mastering?: MasteringResult;
   lyrics?: string[];
+  fingerprint: string;
+  autoMixSettings?: AutoMixResult;
 }
 
 export class SelfEvolvingMusicProducer {
@@ -488,6 +505,7 @@ export class SelfEvolvingMusicProducer {
     let lastArrangement: MultiTrackOutput | undefined;
     let lastPCM: Float32Array | undefined;
     let lyrics: string[] | undefined;
+    let autoMixSettings: AutoMixResult | undefined;
 
     const currentParams = { ...params };
 
@@ -504,7 +522,7 @@ export class SelfEvolvingMusicProducer {
           barCount: currentParams.barCount,
           emotion: currentParams.emotion,
           intensity: currentParams.intensity,
-          seed: (currentParams.seed || 1) + attempt,
+          seed: Number(currentParams.seed || 1) + attempt,
         });
         lastComposition = composition;
         this.log(`作曲完成: ${composition.melody.length} 音符, T6=${composition.scores.overall.toFixed(3)}`);
@@ -550,8 +568,41 @@ export class SelfEvolvingMusicProducer {
         this.log(`歌词: ${lyrics.join(' / ')}`);
 
         // Step 4: 专业混音
-        this.log('Step 4: 专业混音 (3段分频 + 总线压缩 + 砖墙限制 + 宽度增强)');
-        let mixedPCM = crossoverMix(arrangement.mixed, melodyPCM, 0.6, 0.4);
+        let mixedPCM: Float32Array;
+
+        if (currentParams.useAutoMix) {
+          this.log('Step 4: AI 自动混音 (动态分析 + 智能声像/EQ/压缩/闪避)');
+          const tracks = new Map<string, Float32Array>();
+          // 加入编曲各轨
+          const names = arrangement.trackNames || [];
+          for (let i = 0; i < arrangement.tracks.length; i++) {
+            const name = names[i] || `track_${i}`;
+            tracks.set(name, arrangement.tracks[i]);
+          }
+          // 加入主旋律轨
+          tracks.set('melody', melodyPCM);
+
+          autoMixSettings = autoMixTracks(tracks, currentParams.style || 'pop');
+
+          // 输出每轨参数到日志
+          for (const [name, params] of Object.entries(autoMixSettings)) {
+            const duck = params.duckingReduction ? ` | 闪避-${params.duckingReduction.toFixed(1)}dB` : '';
+            this.log(`  [${name}] 增益=${params.gain.toFixed(3)} 声像=${params.pan.toFixed(2)} EQ=[${params.eqLow},${params.eqMid},${params.eqHigh}] 压缩=${params.compressorRatio}:1(阈值${linearToDb(params.compressorThreshold).toFixed(1)}dB)${duck}`);
+          }
+
+          // 应用自动混音
+          const stereoMixed = applyAutoMix(tracks, autoMixSettings, this.sampleRate);
+          // Downmix 为单声道供后续处理
+          const monoLen = stereoMixed.length / 2;
+          mixedPCM = new Float32Array(monoLen);
+          for (let i = 0; i < monoLen; i++) {
+            mixedPCM[i] = (stereoMixed[i * 2] + stereoMixed[i * 2 + 1]) * 0.5;
+          }
+        } else {
+          this.log('Step 4: 专业混音 (3段分频 + 总线压缩 + 砖墙限制 + 宽度增强)');
+          mixedPCM = crossoverMix(arrangement.mixed, melodyPCM, 0.6, 0.4);
+        }
+
         mixedPCM = busCompressor(mixedPCM, 0.4, 3, 8, 80);
         mixedPCM = brickwallLimiter(mixedPCM, 0.97, 128);
         mixedPCM = enhanceWidth(mixedPCM, 0.25);
@@ -576,6 +627,8 @@ export class SelfEvolvingMusicProducer {
         // 如果健康，直接输出
         if (diagnosis.healthy) {
           this.log('✓ 通过诊断，输出最终音频');
+          const fingerprint = generateFingerprint(mastered.pcm, this.sampleRate);
+          this.log(`指纹: ${getFingerprintPrefix(fingerprint, 16)}`);
           const wav = pcmToWav(mastered.pcm, this.sampleRate);
           return {
             wav,
@@ -589,6 +642,8 @@ export class SelfEvolvingMusicProducer {
             productionLog: [...this.productionLog],
             mastering: mastered,
             lyrics,
+            fingerprint,
+            autoMixSettings,
           };
         }
 
@@ -606,6 +661,8 @@ export class SelfEvolvingMusicProducer {
 
         if (reDiagnosis.healthy) {
           this.log('✓ 修复后通过诊断，输出最终音频');
+          const fingerprint = generateFingerprint(mastered.pcm, this.sampleRate);
+          this.log(`指纹: ${getFingerprintPrefix(fingerprint, 16)}`);
           const wav = pcmToWav(mastered.pcm, this.sampleRate);
           return {
             wav,
@@ -619,6 +676,8 @@ export class SelfEvolvingMusicProducer {
             productionLog: [...this.productionLog],
             mastering: mastered,
             lyrics,
+            fingerprint,
+            autoMixSettings,
           };
         }
 
@@ -645,6 +704,8 @@ export class SelfEvolvingMusicProducer {
     const fallbackPCM = lastPCM || lastArrangement?.mixed || new Float32Array(this.sampleRate * 2);
     this.log('Step 9: 尽力而为输出 — 应用快速母带');
     const fallbackMastered = this.masteringChain.quickMaster(fallbackPCM, -14);
+    const fingerprint = generateFingerprint(fallbackMastered.pcm, this.sampleRate);
+    this.log(`指纹: ${getFingerprintPrefix(fingerprint, 16)}`);
     const wav = pcmToWav(fallbackMastered.pcm, this.sampleRate);
     return {
       wav,
@@ -658,6 +719,8 @@ export class SelfEvolvingMusicProducer {
       productionLog: [...this.productionLog],
       mastering: fallbackMastered,
       lyrics,
+      fingerprint,
+      autoMixSettings,
     };
   }
 
@@ -827,7 +890,7 @@ export class SelfEvolvingMusicProducer {
     }
 
     // 通用进化：每次尝试都稍微改变seed
-    params.seed = (params.seed || 1) + attempt * 100;
+    params.seed = Number(params.seed || 1) + attempt * 100;
 
     // 边界保护
     params.intensity = Math.max(0.1, Math.min(1.0, params.intensity || 0.5));

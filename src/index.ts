@@ -47,6 +47,16 @@ import {
   SelfEvolvingMusicProducer,
   ProductionParams,
 } from './engines/selfEvolvingProducer.js';
+import {
+  generateFingerprint,
+  compareFingerprints,
+  findSimilarFingerprints,
+  getGlobalHashHex,
+} from './engines/audioFingerprint.js';
+import {
+  parseVoiceCommand,
+  getSupportedCommands,
+} from './engines/voiceCommand.js';
 import { noteEventsToMidi } from './export/midiExporter.js';
 import { encodeMp3 } from './export/mp3Encoder.js';
 import { encodeFlac } from './export/flacEncoder.js';
@@ -55,6 +65,11 @@ import {
   serializeProject,
   deserializeProject,
 } from './project/projectManager.js';
+import {
+  globalPluginSandbox,
+  PluginCodePayload,
+} from './plugin/pluginSystem.js';
+import type { ScaleType, ChordType } from './engines/musicTheory.js';
 
 const app = new Hono();
 const projectStore = new Map<string, QingluanProject>();
@@ -82,7 +97,7 @@ app.get('/api/health', (c) => {
     status: 'ok',
     name: '青鸾数字音频工作站',
     version: '2.0.0',
-    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer'],
+    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint'],
   });
 });
 
@@ -1020,9 +1035,10 @@ app.post('/api/produce', async (c) => {
     barCount?: number;
     emotion?: string;
     intensity?: number;
-    seed?: number;
+    seed?: string | number;
     waveform?: string;
     maxAttempts?: number;
+    useAutoMix?: boolean;
   }>();
   try {
     const result = await producer.produce({
@@ -1035,6 +1051,7 @@ app.post('/api/produce', async (c) => {
       seed: body.seed,
       waveform: body.waveform,
       maxAttempts: body.maxAttempts || 3,
+      useAutoMix: body.useAutoMix,
     });
 
     const wavBlob = new Blob([result.wav], { type: 'audio/wav' });
@@ -1067,6 +1084,8 @@ app.post('/api/produce', async (c) => {
         },
       } : null,
       lyrics: result.lyrics || [],
+      fingerprint: result.fingerprint,
+      autoMixSettings: result.autoMixSettings || null,
     });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -1376,6 +1395,24 @@ app.post('/api/cover/generate', async (c) => {
   } catch (e: any) {
     return c.json({ error: e.message || 'Cover generation failed' }, 500);
   }
+});
+
+// ======== 语音控制 API ========
+app.post('/api/voice/parse', async (c) => {
+  const body = await c.req.json<{ text: string }>();
+  if (!body.text || typeof body.text !== 'string') {
+    return c.json({ error: '缺少 text 字段' }, 400);
+  }
+  try {
+    const result = parseVoiceCommand(body.text);
+    return c.json(result);
+  } catch (e: any) {
+    return c.json({ error: e.message || '解析失败' }, 500);
+  }
+});
+
+app.get('/api/voice/supportedCommands', (c) => {
+  return c.json(getSupportedCommands());
 });
 
 // ======== 项目管理 API ========
@@ -1861,6 +1898,262 @@ app.post('/api/collab/kick', async (c) => {
     });
   }
   return c.json({ ok: true });
+});
+
+// ======== 模块9: 插件系统 API ========
+const pluginCodeStore = new Map<string, { payload: PluginCodePayload; registeredAt: number }>();
+
+app.post('/api/plugin/register', async (c) => {
+  try {
+    const body = await c.req.json<PluginCodePayload>();
+    const plugin = globalPluginSandbox.register(body);
+    pluginCodeStore.set(body.name, { payload: body, registeredAt: Date.now() });
+    return c.json({ success: true, message: `插件 "${plugin.name}" v${plugin.version} 注册成功` });
+  } catch (e: any) {
+    return c.json({ success: false, message: e.message || '注册失败' }, 400);
+  }
+});
+
+app.get('/api/plugin/list', (c) => {
+  const type = c.req.query('type') as 'effect' | 'instrument' | 'visualizer' | undefined;
+  const plugins = globalPluginSandbox.getRegistry().list(type).map((p) => ({
+    name: p.name,
+    version: p.version,
+    type: p.type,
+    parameters: p.parameters,
+  }));
+  return c.json({ plugins });
+});
+
+app.post('/api/plugin/test', async (c) => {
+  try {
+    const body = await c.req.json<{
+      name: string;
+      input: number[];
+      params: Record<string, number>;
+      sampleRate: number;
+      frequency?: number;
+      duration?: number;
+      velocity?: number;
+    }>();
+    const plugin = globalPluginSandbox.getRegistry().get(body.name);
+    if (!plugin) {
+      return c.json({ error: `插件 "${body.name}" 未找到` }, 404);
+    }
+    const sampleRate = body.sampleRate || 44100;
+    if (plugin.type === 'instrument' && plugin.generateNote) {
+      const note = plugin.generateNote(
+        body.frequency || 440,
+        body.duration || 0.5,
+        body.velocity || 0.8,
+        body.params || {},
+        sampleRate
+      );
+      return c.json({ output: Array.from(note) });
+    } else {
+      const input = new Float32Array(body.input || []);
+      const output = new Float32Array(input.length);
+      plugin.processBlock(input, output, body.params || {}, sampleRate);
+      return c.json({ output: Array.from(output) });
+    }
+  } catch (e: any) {
+    return c.json({ error: e.message || '测试失败' }, 500);
+  }
+});
+
+app.post('/api/plugin/unregister', async (c) => {
+  try {
+    const body = await c.req.json<{ name: string }>();
+    const removed = globalPluginSandbox.getRegistry().unregister(body.name);
+    pluginCodeStore.delete(body.name);
+    return c.json({ success: removed, message: removed ? `插件 "${body.name}" 已删除` : '插件不存在' });
+  } catch (e: any) {
+    return c.json({ success: false, message: e.message || '删除失败' }, 500);
+  }
+});
+
+// ======== 模块10: 音乐教育 API ========
+interface EduScoreEntry {
+  game: string;
+  score: number;
+  level: string;
+  timestamp: number;
+}
+const eduLeaderboard: EduScoreEntry[] = [];
+
+const EDU_INTERVALS: { name: string; semitones: number; nameCN: string }[] = [
+  { name: 'P1', semitones: 0, nameCN: '纯一度' },
+  { name: 'm2', semitones: 1, nameCN: '小二度' },
+  { name: 'M2', semitones: 2, nameCN: '大二度' },
+  { name: 'm3', semitones: 3, nameCN: '小三度' },
+  { name: 'M3', semitones: 4, nameCN: '大三度' },
+  { name: 'P4', semitones: 5, nameCN: '纯四度' },
+  { name: 'TT', semitones: 6, nameCN: '三全音' },
+  { name: 'P5', semitones: 7, nameCN: '纯五度' },
+  { name: 'm6', semitones: 8, nameCN: '小六度' },
+  { name: 'M6', semitones: 9, nameCN: '大六度' },
+  { name: 'm7', semitones: 10, nameCN: '小七度' },
+  { name: 'M7', semitones: 11, nameCN: '大七度' },
+  { name: 'P8', semitones: 12, nameCN: '纯八度' },
+];
+
+const EDU_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickOptions<T>(correct: T, pool: T[], count: number): T[] {
+  const filtered = pool.filter((x) => x !== correct);
+  const shuffled = shuffleArray(filtered);
+  return shuffleArray([correct, ...shuffled.slice(0, count - 1)]);
+}
+
+app.get('/api/edu/interval', (c) => {
+  const rootNote = EDU_NOTES[Math.floor(Math.random() * EDU_NOTES.length)];
+  const interval = EDU_INTERVALS[Math.floor(Math.random() * EDU_INTERVALS.length)];
+  const rootSemitone = MusicTheoryEngine.utils.noteToSemitone(rootNote);
+  const targetSemitone = (rootSemitone + interval.semitones) % 12;
+  const targetNote = MusicTheoryEngine.utils.semitoneToNote(targetSemitone);
+  const octave = interval.semitones > 5 ? 4 : 4;
+  const note2Octave = rootSemitone + interval.semitones > 11 ? octave + 1 : octave;
+  const note1 = `${rootNote}${octave}`;
+  const note2 = `${targetNote}${note2Octave}`;
+  const options = pickOptions(interval.nameCN, EDU_INTERVALS.map((i) => i.nameCN), 4);
+  return c.json({ note1, note2, correctAnswer: interval.nameCN, options });
+});
+
+app.get('/api/edu/scale', (c) => {
+  const allScales = MusicTheoryEngine.scales.getAll();
+  const scaleDef = allScales[Math.floor(Math.random() * allScales.length)];
+  const rootNote = EDU_NOTES[Math.floor(Math.random() * EDU_NOTES.length)];
+  const scaleType = (Object.keys({ ...MusicTheoryEngine.scales.western, ...MusicTheoryEngine.scales.chinese, ...MusicTheoryEngine.scales.japanese, ...MusicTheoryEngine.scales.world }) as ScaleType[]).find(
+    (k) => MusicTheoryEngine.scales.getDefinition(k).name === scaleDef.name
+  ) ?? 'major';
+  const pitches = MusicTheoryEngine.scales.generate(rootNote, scaleType, 4);
+  const notes = pitches.map((p) => `${p.note}${p.octave}`);
+  const allNames = allScales.map((s) => s.nameCN);
+  const options = pickOptions(scaleDef.nameCN, allNames, 4);
+  return c.json({ notes, correctAnswer: scaleDef.nameCN, options });
+});
+
+app.get('/api/edu/chord', (c) => {
+  const chordDefs = MusicTheoryEngine.chords.definitions;
+  const chordTypes = Object.keys(chordDefs) as ChordType[];
+  const chordType = chordTypes[Math.floor(Math.random() * chordTypes.length)];
+  const rootNote = EDU_NOTES[Math.floor(Math.random() * EDU_NOTES.length)];
+  const chord = MusicTheoryEngine.chords.generate(rootNote, chordType, 4, 0);
+  const notes = chord.notes.map((n) => `${n.note}${n.octave}`);
+  const allNames = chordTypes.map((t) => chordDefs[t].nameCN);
+  const options = pickOptions(chordDefs[chordType].nameCN, allNames, 4);
+  return c.json({ notes, correctAnswer: chordDefs[chordType].nameCN, options });
+});
+
+app.post('/api/edu/score', async (c) => {
+  const body = await c.req.json<{ game: string; score: number; level: string }>();
+  const entry: EduScoreEntry = {
+    game: body.game || 'unknown',
+    score: Number(body.score) || 0,
+    level: body.level || '',
+    timestamp: Date.now(),
+  };
+  eduLeaderboard.push(entry);
+  // 只保留最近1000条
+  if (eduLeaderboard.length > 1000) {
+    eduLeaderboard.splice(0, eduLeaderboard.length - 1000);
+  }
+  return c.json({ ok: true });
+});
+
+app.get('/api/edu/leaderboard', (c) => {
+  const game = c.req.query('game') || 'all';
+  let list = eduLeaderboard;
+  if (game !== 'all') {
+    list = eduLeaderboard.filter((e) => e.game === game);
+  }
+  const sorted = [...list].sort((a, b) => b.score - a.score).slice(0, 10);
+  return c.json({ game, leaderboard: sorted });
+});
+
+// ======== 模块10: 版权指纹系统 API ========
+interface FingerprintEntry {
+  fingerprint: string;
+  globalHash: string;
+  metadata: {
+    title: string;
+    style: string;
+    createdAt: string;
+  };
+}
+
+const fingerprintDatabase = new Map<string, FingerprintEntry>();
+
+app.post('/api/fingerprint/generate', async (c) => {
+  const body = await c.req.json<{ wavBase64: string }>();
+  try {
+    const { pcm, sampleRate } = decodeWavPcm(body.wavBase64);
+    const fingerprint = generateFingerprint(pcm, sampleRate);
+    const globalHash = getGlobalHashHex(fingerprint);
+    return c.json({ fingerprint, globalHash });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Fingerprint generation failed' }, 500);
+  }
+});
+
+app.post('/api/fingerprint/compare', async (c) => {
+  const body = await c.req.json<{ fp1: string; fp2: string }>();
+  try {
+    const similarity = compareFingerprints(body.fp1, body.fp2);
+    const p1 = body.fp1.split(':')[0];
+    const p2 = body.fp2.split(':')[0];
+    const minLen = Math.min(p1.length, p2.length);
+    const maxLen = Math.max(p1.length, p2.length);
+    const hammingDistance = Math.round((1 - similarity) * maxLen * 8);
+    return c.json({ similarity, hammingDistance });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Comparison failed' }, 500);
+  }
+});
+
+app.get('/api/fingerprint/database', (c) => {
+  const entries = Array.from(fingerprintDatabase.values());
+  return c.json({ entries });
+});
+
+app.post('/api/fingerprint/store', async (c) => {
+  const body = await c.req.json<{ fingerprint: string; metadata: { title: string; style: string; createdAt: string } }>();
+  try {
+    const { fingerprint, metadata } = body;
+    const globalHash = getGlobalHashHex(fingerprint);
+    fingerprintDatabase.set(fingerprint, { fingerprint, globalHash, metadata });
+    return c.json({ success: true, stored: fingerprintDatabase.size });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Store failed' }, 500);
+  }
+});
+
+app.post('/api/fingerprint/search', async (c) => {
+  const body = await c.req.json<{ fingerprint: string }>();
+  try {
+    const dbFingerprints = Array.from(fingerprintDatabase.keys());
+    const results = findSimilarFingerprints(body.fingerprint, dbFingerprints, 5);
+    const enriched = results.map((r) => {
+      const entry = fingerprintDatabase.get(r.fp);
+      return {
+        fingerprint: r.fp,
+        similarity: r.similarity,
+        metadata: entry?.metadata || null,
+      };
+    });
+    return c.json({ results: enriched });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Search failed' }, 500);
+  }
 });
 
 // ======== 启动服务 ========

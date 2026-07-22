@@ -438,6 +438,83 @@
   }
   .input-send:active { opacity: 0.85; }
 
+  /* 语音相关样式 */
+  .voice-samples {
+    padding: 8px 16px 4px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--phone-bg);
+  }
+  .voice-sample-title {
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .voice-sample-list {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .voice-sample-chip {
+    white-space: nowrap;
+    padding: 5px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 11px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .voice-sample-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .voice-sample-chip:active {
+    transform: scale(0.96);
+  }
+  .voice-status {
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    background: var(--phone-bg);
+    border-top: 1px solid var(--border);
+  }
+  .voice-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff3b30;
+    animation: voicePulse 1.2s infinite;
+  }
+  @keyframes voicePulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.6); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .voice-text {
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .input-voice.recording {
+    background: #ff3b30;
+    color: #fff;
+    animation: voicePulse 1.2s infinite;
+  }
+  .voice-hint {
+    padding: 6px 16px;
+    font-size: 11px;
+    color: #ff3b30;
+    text-align: center;
+    flex-shrink: 0;
+    background: var(--phone-bg);
+    border-top: 1px solid var(--border);
+  }
+
   /* 工作室面板（隐藏的高级功能） */
   .studio {
     position: absolute;
@@ -651,6 +728,33 @@
   .collab-status.online { color: #00c9a7; }
   .collab-status.offline { color: var(--text3); }
   .collab-locked-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; background: #ffebee; color: #c62828; font-size: 10px; font-weight: 700; margin-left: 6px; }
+
+  /* 教育面板 */
+  .edu-tabs { display: flex; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .edu-tabs span { padding: 6px 14px; border-radius: 14px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; background: rgba(0,0,0,0.04); }
+  .edu-tabs span.active { background: var(--accent); color: #fff; }
+  .edu-section { display: none; padding: 12px 16px; }
+  .edu-section.active { display: block; }
+  .edu-gamebar { display: flex; gap: 16px; margin-bottom: 10px; font-size: 13px; color: var(--text2); }
+  .edu-gamebar b { color: var(--accent); }
+  .edu-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .edu-options button { padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border); background: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; color: var(--text); }
+  .edu-options button:hover { background: rgba(91,77,255,0.08); border-color: var(--accent); }
+  .edu-options button.correct { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+  .edu-options button.wrong { background: #ffebee; border-color: #ef5350; color: #c62828; }
+  .edu-meter { margin-top: 10px; padding: 10px; border-radius: 12px; background: #fafafa; border: 1px solid var(--border); }
+  .edu-meter-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .edu-meter-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .edu-meter-bar > div { height: 100%; background: linear-gradient(90deg, #ef5350, #ffca28, #66bb6a); border-radius: 4px; transition: width 0.2s; }
+  .edu-rank-progress { height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin: 6px 0 10px; }
+  .edu-rank-progress > div { height: 100%; background: linear-gradient(90deg, #8d6e63, #bdbdbd, #ffd700, #e0e0e0, #00bcd4, #ff5722); border-radius: 3px; transition: width 0.3s; }
+  .edu-melody-seq { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; min-height: 32px; }
+  .edu-melody-seq .melody-note { padding: 4px 10px; border-radius: 8px; background: rgba(91,77,255,0.1); color: var(--accent); font-size: 12px; font-weight: 600; }
+  .piano-wrap { display: flex; position: relative; height: 120px; user-select: none; margin-top: 8px; }
+  .piano-key { flex: 1; height: 100%; background: #fff; border: 1px solid #ccc; border-radius: 0 0 4px 4px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font-size: 10px; color: #666; cursor: pointer; }
+  .piano-key:active { background: #eee; }
+  .piano-key.black { position: absolute; width: 60%; height: 60%; background: #222; color: #fff; border-color: #222; z-index: 2; border-radius: 0 0 3px 3px; }
+  .piano-key.black:active { background: #444; }
 </style>
 </head>
 <body>
@@ -672,6 +776,7 @@
     <div class="nav-pills">
       <span class="active" onclick="switchNav(this,'chat')">创作</span>
       <span onclick="switchNav(this,'studio')">工作室</span>
+      <span onclick="switchNav(this,'plugin')">插件</span>
       <span onclick="switchNav(this,'collab')">协作</span>
       <span onclick="switchNav(this,'project')">项目</span>
     </div>
@@ -752,6 +857,23 @@
     </div>
   </div>
 
+  <!-- 快捷语音指令卡片 -->
+  <div class="voice-samples" id="voiceSamples">
+    <div class="voice-sample-title">🎤 试试语音指令</div>
+    <div class="voice-sample-list">
+      <button class="voice-sample-chip" onclick="setChatInput('来一首欢快的流行歌')">"来一首欢快的流行歌"</button>
+      <button class="voice-sample-chip" onclick="setChatInput('给我一段忧伤的中国风伴奏')">"给我一段忧伤的中国风伴奏"</button>
+      <button class="voice-sample-chip" onclick="setChatInput('写一首摇滚风格的歌，快节奏')">"写一首摇滚风格的歌，快节奏"</button>
+      <button class="voice-sample-chip" onclick="setChatInput('来一首古典音乐，慢节奏')">"来一首古典音乐，慢节奏"</button>
+    </div>
+  </div>
+
+  <!-- 语音识别状态 -->
+  <div class="voice-status" id="voiceStatus" style="display:none;">
+    <span class="voice-pulse"></span>
+    <span class="voice-text" id="voiceText">正在聆听...</span>
+  </div>
+
   <!-- 底部输入 -->
   <div class="input-bar">
     <button class="input-plus" onclick="toggleQuickMore()">+</button>
@@ -759,7 +881,7 @@
       <input type="text" id="chatInput" placeholder="" onkeydown="if(event.key==='Enter')sendChat()">
       <span class="hint" id="inputHint">发消息或按住说话...</span>
     </div>
-    <button class="input-voice">🎙</button>
+    <button class="input-voice" id="voiceBtn" onclick="toggleVoiceInput()" title="语音输入">🎙</button>
     <button class="input-send" onclick="sendChat()">➤</button>
   </div>
 
@@ -783,10 +905,13 @@
       <div class="studio-tab" data-sp="s-flawless">无瑕疵</div>
       <div class="studio-tab" data-sp="s-emergence">涌现</div>
       <div class="studio-tab" data-sp="s-produce">产音乐</div>
+      <div class="studio-tab" data-sp="s-fingerprint">版权指纹</div>
+      <div class="studio-tab" data-sp="s-plugin">插件</div>
       <div class="studio-tab" data-sp="s-video">视频配乐</div>
       <div class="studio-tab" data-sp="s-cover">封面</div>
       <div class="studio-tab" data-sp="s-collab">协作</div>
       <div class="studio-tab" data-sp="s-project">项目</div>
+      <div class="studio-tab" data-sp="s-edu">教育</div>
     </div>
     <div class="studio-body">
 
@@ -1038,6 +1163,7 @@
           <div class="s-form"><label>小节数</label><input type="number" id="prodBars" value="8" min="4" max="16"></div>
           <div class="s-form"><label>最大尝试</label><select id="prodAttempts"><option value="1">1次</option><option value="2">2次</option><option value="3" selected>3次</option><option value="5">5次</option></select></div>
           <div class="s-form"><label>母带预设</label><select id="prodMastering"><option value="streaming">流媒体 (-14 LUFS)</option><option value="loud"> loud (-9 LUFS)</option><option value="cd">CD (-12 LUFS)</option><option value="quick">快速母带</option></select></div>
+          <div class="s-form"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="prodUseAutoMix"> 使用AI自动混音</label></div>
           <button class="s-btn" onclick="generateProduce()">🚀 一键产音乐</button>
           <div class="s-loading" id="prodLoading"><span>作曲 → 编曲 → 渲染 → 混音 → 母带 ...</span></div>
           <div id="prodPlayer"></div>
@@ -1046,6 +1172,8 @@
           </div>
           <button class="s-btn" id="prodExportAudio" style="display:none;background:rgba(91,77,255,0.1);color:var(--accent);margin-top:4px;" onclick="exportStudioAudio()">🎵 导出音频</button>
           <button class="s-btn" id="prodExportMidi" style="display:none;background:rgba(91,77,255,0.1);color:var(--accent);margin-top:4px;" onclick="exportStudioMidi()">🎼 导出 MIDI</button>
+          <button class="s-btn" id="prodOptimizeMix" style="display:none;background:rgba(91,77,255,0.1);color:var(--accent);margin-top:4px;" onclick="optimizeMix()">🔧 一键优化混音</button>
+          <div id="prodAutoMixTable"></div>
           <div id="prodMasteringUI"></div>
           <pre class="s-result" id="prodResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
         </div>
@@ -1076,6 +1204,83 @@
           <h3>💡 音乐封面推荐</h3>
           <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">根据当前产音乐的情绪与风格自动推荐</p>
           <div id="coverRecommendResult"></div>
+        </div>
+      </div>
+
+      <!-- 版权指纹 -->
+      <div class="studio-panel" id="s-fingerprint">
+        <div class="s-card">
+          <h3>🔐 版权指纹工作室</h3>
+          <div class="s-form"><label>输入音频 WAV Base64</label><textarea id="fpWavBase64" rows="3" placeholder="粘贴 WAV 文件的 Base64..."></textarea></div>
+          <div class="s-form"><label>或上传本地音频文件</label><input type="file" id="fpFileInput" accept="audio/wav" onchange="loadFpFile(this)"></div>
+          <button class="s-btn" onclick="generateFingerprintFromInput()">🔐 生成指纹</button>
+          <div class="s-loading" id="fpLoading"><span>指纹计算中...</span></div>
+          <div class="s-result" id="fpResult"></div>
+        </div>
+        <div class="s-card">
+          <h3>🔍 相似度检测</h3>
+          <div class="s-form"><label>音频1 WAV Base64</label><textarea id="fpCompare1" rows="2" placeholder="音频1 Base64..."></textarea></div>
+          <div class="s-form"><label>音频2 WAV Base64</label><textarea id="fpCompare2" rows="2" placeholder="音频2 Base64..."></textarea></div>
+          <button class="s-btn" onclick="compareFingerprintsUI()">🔍 比较相似度</button>
+          <div class="s-loading" id="fpCompareLoading"><span>比较中...</span></div>
+          <div class="s-result" id="fpCompareResult"></div>
+        </div>
+        <div class="s-card">
+          <h3>🗄 指纹数据库</h3>
+          <button class="s-btn" onclick="listFingerprintDatabase()">📋 刷新列表</button>
+          <button class="s-btn" onclick="storeCurrentFingerprint()" style="margin-top:8px;background:rgba(91,77,255,0.1);color:var(--accent);">💾 存储当前指纹</button>
+          <div class="s-form" style="margin-top:8px;"><label>标题</label><input type="text" id="fpStoreTitle" placeholder="音乐标题"></label></div>
+          <div class="s-form"><label>风格</label><input type="text" id="fpStoreStyle" placeholder="风格"></label></div>
+          <div id="fpDatabaseList" style="margin-top:10px;"></div>
+        </div>
+        <div class="s-card">
+          <h3>🎯 相似度搜索</h3>
+          <div class="s-form"><label>上传音频搜索</label><input type="file" id="fpSearchFile" accept="audio/wav" onchange="searchSimilarFromFile(this)"></div>
+          <div class="s-form"><label>或使用当前指纹</label><button class="s-btn-small" onclick="searchSimilarCurrent()">🔎 搜索相似音乐</button></div>
+          <div class="s-loading" id="fpSearchLoading"><span>搜索中...</span></div>
+          <div class="s-result" id="fpSearchResult"></div>
+        </div>
+      </div>
+
+      <!-- 插件 -->
+      <div class="studio-panel" id="s-plugin">
+        <div class="s-card">
+          <h3>🔌 插件工作室</h3>
+          <div class="s-form"><label>插件名称</label><input type="text" id="pluginName" placeholder="如 SimpleDistortion"></div>
+          <div class="s-form"><label>版本</label><input type="text" id="pluginVersion" value="1.0.0"></div>
+          <div class="s-form"><label>类型</label><select id="pluginType" onchange="onPluginTypeChange()">
+            <option value="effect">效果器 (effect)</option>
+            <option value="instrument">乐器 (instrument)</option>
+            <option value="visualizer">可视化 (visualizer)</option>
+          </select></div>
+          <div class="s-form"><label>参数配置</label>
+            <div id="pluginParamsWrap" style="margin-bottom:6px;"></div>
+            <button class="s-btn-small" onclick="addPluginParam()">+ 添加参数</button>
+          </div>
+          <div class="s-form"><label>代码编辑器</label>
+            <textarea id="pluginCode" rows="14" style="font-family:'Courier New',monospace;font-size:12px;resize:vertical;"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="s-btn" onclick="registerPlugin()" style="flex:1;">🔌 注册插件</button>
+            <button class="s-btn" onclick="testPlugin()" style="flex:1;background:rgba(91,77,255,0.1);color:var(--accent);">🧪 测试插件</button>
+          </div>
+          <div class="s-loading" id="pluginLoading"><span>编译中...</span></div>
+          <div class="s-result" id="pluginResult"></div>
+        </div>
+        <div class="s-card">
+          <h3>📋 已注册插件</h3>
+          <div id="pluginList" style="margin-top:8px;"></div>
+          <button class="s-btn-small" onclick="refreshPluginList()" style="margin-top:8px;">🔄 刷新列表</button>
+        </div>
+        <div class="s-card">
+          <h3>🧪 测试输出</h3>
+          <canvas id="pluginTestCanvas" width="360" height="120" style="width:100%;height:120px;border-radius:10px;background:#0a0a1a;"></canvas>
+        </div>
+        <div class="s-card">
+          <h3>📦 示例插件</h3>
+          <button class="s-btn-small" onclick="loadExamplePlugin('distortion')">SimpleDistortion（软削波失真）</button>
+          <button class="s-btn-small" onclick="loadExamplePlugin('sine')">SimpleSineSynth（正弦波合成器）</button>
+          <button class="s-btn-small" onclick="loadExamplePlugin('scope')">SimpleScope（示波器效果）</button>
         </div>
       </div>
 
@@ -1181,6 +1386,96 @@
         </div>
       </div>
 
+      <!-- 音乐教育 -->
+      <div class="studio-panel" id="s-edu">
+        <div class="edu-tabs">
+          <span class="active" onclick="switchEduTab('theory',this)">乐理练习</span>
+          <span onclick="switchEduTab('ear',this)">视唱练耳</span>
+          <span onclick="switchEduTab('game',this)">和弦挑战</span>
+        </div>
+
+        <!-- 乐理练习 -->
+        <div id="edu-theory" class="edu-section active">
+          <div class="s-card">
+            <h3>🎵 音程识别</h3>
+            <div class="edu-gamebar">
+              <span>得分: <b id="intScore">0</b></span>
+              <span>连胜: <b id="intStreak">0</b></span>
+            </div>
+            <button class="s-btn" onclick="eduIntervalNext()">▶ 播放音程</button>
+            <div class="edu-options" id="intOptions"></div>
+            <div class="s-result" id="intResult"></div>
+          </div>
+          <div class="s-card">
+            <h3>🎹 音阶练习</h3>
+            <button class="s-btn" onclick="eduScaleNext()">▶ 播放音阶</button>
+            <div class="edu-options" id="scaleOptions"></div>
+            <div class="s-result" id="scaleResultEdu"></div>
+          </div>
+          <div class="s-card">
+            <h3>🎸 和弦识别</h3>
+            <button class="s-btn" onclick="eduChordNext()">▶ 播放和弦</button>
+            <div class="edu-options" id="chordOptions"></div>
+            <div class="s-result" id="chordResultEdu"></div>
+          </div>
+        </div>
+
+        <!-- 视唱练耳 -->
+        <div id="edu-ear" class="edu-section">
+          <div class="s-card">
+            <h3>🎤 单音模唱</h3>
+            <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">点击播放后，对着麦克风哼唱相同音高，偏差&lt;50音分算正确。</p>
+            <button class="s-btn" onclick="eduSingNext()">▶ 播放目标音</button>
+            <button class="s-btn-small" onclick="eduSingStartMic()">🎙 开始收音</button>
+            <button class="s-btn-small" onclick="eduSingStopMic()">⏹ 停止收音</button>
+            <div class="edu-meter">
+              <div class="edu-meter-label">目标: <span id="singTarget">-</span></div>
+              <div class="edu-meter-label">检测: <span id="singDetected">-</span></div>
+              <div class="edu-meter-label">偏差: <span id="singCents">-</span></div>
+              <div class="edu-meter-bar"><div id="singBar" style="width:0%"></div></div>
+            </div>
+            <div class="s-result" id="singResult"></div>
+          </div>
+          <div class="s-card">
+            <h3>🎼 旋律听写</h3>
+            <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">播放后，在虚拟钢琴上点击还原旋律。</p>
+            <button class="s-btn" onclick="eduMelodyPlay()">▶ 播放旋律</button>
+            <button class="s-btn-small" onclick="eduMelodyClear()">清空</button>
+            <button class="s-btn-small" onclick="eduMelodyCheck()">检查</button>
+            <div class="edu-melody-seq" id="melodySeq"></div>
+            <div class="piano-wrap" id="pianoWrap"></div>
+            <div class="s-result" id="melodyResult"></div>
+          </div>
+        </div>
+
+        <!-- 和弦挑战 -->
+        <div id="edu-game" class="edu-section">
+          <div class="s-card">
+            <h3>⚡ 限时和弦识别</h3>
+            <div class="edu-gamebar">
+              <span>时间: <b id="gameTime">60</b>s</span>
+              <span>得分: <b id="gameScore">0</b></span>
+              <span>段位: <b id="gameRank">青铜</b></span>
+            </div>
+            <div class="edu-rank-progress">
+              <div id="rankFill" style="width:0%"></div>
+            </div>
+            <button class="s-btn" id="gameStartBtn" onclick="eduGameStart()">开始挑战</button>
+            <div id="gamePlayArea" style="display:none;">
+              <button class="s-btn" onclick="eduGamePlayChord()">▶ 播放和弦</button>
+              <div class="edu-options" id="gameOptions"></div>
+            </div>
+            <canvas id="gameSpectrum" width="340" height="80" style="margin-top:8px;border-radius:10px;background:#0a0a1a;"></canvas>
+            <div class="s-result" id="gameResult"></div>
+          </div>
+          <div class="s-card">
+            <h3>🏆 排行榜</h3>
+            <button class="s-btn-small" onclick="eduLoadLeaderboard()">刷新</button>
+            <div id="eduLeaderboard" style="margin-top:8px;font-size:13px;"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
     <div class="safe-bottom"></div>
   </div>
@@ -1195,6 +1490,7 @@ const API = 'http://localhost:3221';
 /* ================= MIDI/音频 导出数据缓存 ================= */
 const _midiData = {};
 const _audioData = {};
+let _currentFingerprint = '';
 
 /* ================= 项目管理系统 ================= */
 let currentProject = null;
@@ -1221,6 +1517,7 @@ function initCurrentProject() {
 }
 initCurrentProject();
 initCloudSync();
+populatePluginSelects();
 
 function collectCompositionParams() {
   return {
@@ -1686,7 +1983,8 @@ function renderMessage(m) {
   return `<div class="msg-row ${cls}"><div class="msg-avatar">${avatar}</div><div><div class="msg-bubble">${escapeHtml(m.content)}</div><div class="msg-time">${time}</div></div></div>`;
 }
 function escapeHtml(t) {
-  const d=document.createElement('div'); d.textContent=t; return d.innerHTML;
+  if (t == null) return '';
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 /* ================= UI 控制 ================= */
@@ -1704,10 +2002,11 @@ function closeAll() {
 function switchNav(el, mode) {
   document.querySelectorAll('.nav-pills span').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
-  if (mode==='studio' || mode==='project' || mode==='collab') { document.getElementById('studio').classList.add('open'); }
+  if (mode==='studio' || mode==='project' || mode==='collab' || mode==='plugin') { document.getElementById('studio').classList.add('open'); }
   else { document.getElementById('studio').classList.remove('open'); }
   if (mode==='project') { switchStudioTab('s-project'); }
   if (mode==='collab') { switchStudioTab('s-collab'); }
+  if (mode==='plugin') { switchStudioTab('s-plugin'); refreshPluginList(); }
 }
 function switchStudioTab(tabId) {
   document.querySelectorAll('.studio-tab').forEach(x => x.classList.remove('active'));
@@ -2831,6 +3130,19 @@ async function getCapsules() {
     result.textContent = JSON.stringify(d, null, 2).slice(0, 1200);
   } catch(e){ result.textContent = '错误: '+e.message; }
 }
+let _lastProduceParams = null;
+
+function renderAutoMixTable(autoMixSettings) {
+  const container = document.getElementById('prodAutoMixTable');
+  if (!container || !autoMixSettings) { if (container) container.innerHTML = ''; return; }
+  const rows = Object.entries(autoMixSettings).map(([name, p]) => {
+    const thresholdDb = p.compressorThreshold > 0 ? (20 * Math.log10(p.compressorThreshold)).toFixed(1) : '-∞';
+    const duck = p.duckingReduction ? `<span style="color:#ff6b9d">闪避 -${p.duckingReduction.toFixed(1)}dB</span>` : '-';
+    return `<tr><td style="padding:6px;border-bottom:1px solid var(--border);font-weight:600;font-size:12px;">${name}</td><td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;">${p.gain.toFixed(3)}</td><td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;">${p.pan.toFixed(2)}</td><td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;">${p.eqLow}/${p.eqMid}/${p.eqHigh}</td><td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;">${p.compressorRatio}:1 @ ${thresholdDb}dB</td><td style="padding:6px;border-bottom:1px solid var(--border);font-size:12px;">${duck}</td></tr>`;
+  }).join('');
+  container.innerHTML = `<div style="margin-top:10px;"><h4 style="font-size:13px;margin-bottom:6px;color:var(--accent);">🎚 AI 自动混音参数</h4><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f7f7f7;"><th style="padding:6px;font-size:11px;text-align:left;">轨道</th><th style="padding:6px;font-size:11px;text-align:left;">增益</th><th style="padding:6px;font-size:11px;text-align:left;">声像</th><th style="padding:6px;font-size:11px;text-align:left;">EQ低/中/高(dB)</th><th style="padding:6px;font-size:11px;text-align:left;">压缩</th><th style="padding:6px;font-size:11px;text-align:left;">闪避</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 async function generateProduce() {
   const loading = document.getElementById('prodLoading');
   const result = document.getElementById('prodResult');
@@ -2839,20 +3151,27 @@ async function generateProduce() {
   const exportMidiBtn = document.getElementById('prodExportMidi');
   const exportAudioBtn = document.getElementById('prodExportAudio');
   const exportRow = document.getElementById('prodExportRow');
+  const optimizeBtn = document.getElementById('prodOptimizeMix');
+  const autoMixTable = document.getElementById('prodAutoMixTable');
   loading.classList.add('show'); result.textContent = ''; player.innerHTML = ''; masterUI.innerHTML = '';
+  if (autoMixTable) autoMixTable.innerHTML = '';
   if (exportMidiBtn) exportMidiBtn.style.display = 'none';
   if (exportAudioBtn) exportAudioBtn.style.display = 'none';
   if (exportRow) exportRow.style.display = 'none';
+  if (optimizeBtn) optimizeBtn.style.display = 'none';
   const style = document.getElementById('prodStyle').value;
   const key = document.getElementById('prodKey').value;
   const emotion = document.getElementById('prodEmotion').value;
   const bars = parseInt(document.getElementById('prodBars').value);
   const attempts = parseInt(document.getElementById('prodAttempts').value);
   const masteringPreset = document.getElementById('prodMastering').value;
+  const useAutoMix = document.getElementById('prodUseAutoMix').checked;
   try {
+    const body = { style, key, emotion, barCount: bars, bpm: 120, maxAttempts: attempts, masteringPreset, useAutoMix };
+    _lastProduceParams = { ...body };
     const res = await fetch(`${API}/api/produce`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ style, key, emotion, barCount: bars, bpm: 120, maxAttempts: attempts, masteringPreset })
+      body: JSON.stringify(body)
     });
     const d = await res.json();
     if (d.error) { result.textContent = '错误: ' + d.error; }
@@ -2863,6 +3182,10 @@ async function generateProduce() {
       player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
       masterUI.innerHTML = renderMasteringUI(d.mastering);
       let text = `🚀 产音乐完成！\n尝试: ${d.attempt} 次 | 修复: ${d.fixed ? '是' : '否'} | 进化: ${d.evolved ? '是' : '否'}\nT6: ${d.composition?.scores?.overall?.toFixed?.(3)}\n诊断: ${d.diagnosis?.healthy ? '健康' : d.diagnosis?.severity}\n问题: ${d.diagnosis?.issues?.join(', ') || '无'}\n日志:\n${d.productionLog?.slice(0,8).join('\n')}`;
+      if (d.fingerprint) {
+        text += `\n\n🔐 声学指纹: ${d.fingerprint.slice(0,16)}...`;
+        _currentFingerprint = d.fingerprint;
+      }
       if (d.lyrics && d.lyrics.length > 0) {
         text += `\n\n📝 匹配歌词:\n${d.lyrics.join('\n')}`;
       }
@@ -2872,6 +3195,8 @@ async function generateProduce() {
       if (exportMidiBtn) exportMidiBtn.style.display = 'block';
       if (exportAudioBtn) exportAudioBtn.style.display = 'block';
       if (exportRow) exportRow.style.display = 'block';
+      if (optimizeBtn) optimizeBtn.style.display = 'block';
+      renderAutoMixTable(d.autoMixSettings);
       currentProject.compositionParams = { key, bpm: 120, style, emotion, barCount: bars };
       currentProject.melody = normalizeMelody(d.composition?.melody || [], d.composition?.durations || []);
       currentProject.lyrics = d.lyrics || [];
@@ -2883,6 +3208,55 @@ async function generateProduce() {
       }
       // 自动推荐封面
       autoRecommendCover(style, emotion, d.lyrics || []);
+    }
+  } catch(e){ result.textContent = '错误: '+e.message; }
+  loading.classList.remove('show');
+}
+
+async function optimizeMix() {
+  if (!_lastProduceParams) { showToast('请先生成音乐'); return; }
+  const loading = document.getElementById('prodLoading');
+  const result = document.getElementById('prodResult');
+  const player = document.getElementById('prodPlayer');
+  const masterUI = document.getElementById('prodMasteringUI');
+  const optimizeBtn = document.getElementById('prodOptimizeMix');
+  const autoMixTable = document.getElementById('prodAutoMixTable');
+  loading.classList.add('show'); result.textContent = ''; player.innerHTML = ''; masterUI.innerHTML = '';
+  if (autoMixTable) autoMixTable.innerHTML = '';
+  try {
+    const body = { ..._lastProduceParams, useAutoMix: true };
+    const res = await fetch(`${API}/api/produce`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const d = await res.json();
+    if (d.error) { result.textContent = '错误: ' + d.error; }
+    else {
+      const wav = Uint8Array.from(atob(d.wavBase64), c => c.charCodeAt(0));
+      const blob = new Blob([wav], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+      masterUI.innerHTML = renderMasteringUI(d.mastering);
+      let text = `🔧 优化混音完成！\n尝试: ${d.attempt} 次 | 修复: ${d.fixed ? '是' : '否'} | 进化: ${d.evolved ? '是' : '否'}\nT6: ${d.composition?.scores?.overall?.toFixed?.(3)}\n诊断: ${d.diagnosis?.healthy ? '健康' : d.diagnosis?.severity}\n问题: ${d.diagnosis?.issues?.join(', ') || '无'}\n日志:\n${d.productionLog?.slice(0,8).join('\n')}`;
+      if (d.fingerprint) {
+        text += `\n\n🔐 声学指纹: ${d.fingerprint.slice(0,16)}...`;
+        _currentFingerprint = d.fingerprint;
+      }
+      if (d.lyrics && d.lyrics.length > 0) {
+        text += `\n\n📝 匹配歌词:\n${d.lyrics.join('\n')}`;
+      }
+      result.textContent = text;
+      _midiData['studio'] = d.composition;
+      _audioData['studio'] = d.wavBase64;
+      renderAutoMixTable(d.autoMixSettings);
+      currentProject.melody = normalizeMelody(d.composition?.melody || [], d.composition?.durations || []);
+      currentProject.lyrics = d.lyrics || [];
+      if (d.mastering) {
+        currentProject.masteringSettings = { targetLUFS: d.mastering.finalLUFS || -14, applied: d.mastering.applied || [] };
+      }
+      if (d.composition?.scores) {
+        currentProject.cognitiveState.t6History.push({ timestamp: new Date().toISOString(), scores: d.composition.scores });
+      }
     }
   } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
@@ -3569,6 +3943,227 @@ async function runCardVideoAnalyze(cid) {
   }
 }
 
+/* ================= 插件系统 ================= */
+let pluginParams = [];
+function onPluginTypeChange() {
+  const type = document.getElementById('pluginType').value;
+  const codeEl = document.getElementById('pluginCode');
+  if (!codeEl.value.trim()) {
+    if (type === 'effect') loadExamplePlugin('distortion');
+    else if (type === 'instrument') loadExamplePlugin('sine');
+    else loadExamplePlugin('scope');
+  }
+}
+function addPluginParam() {
+  const idx = pluginParams.length;
+  pluginParams.push({ name: '', type: 'number', default: 0, min: 0, max: 1 });
+  renderPluginParams();
+}
+function removePluginParam(idx) {
+  pluginParams.splice(idx, 1);
+  renderPluginParams();
+}
+function updatePluginParam(idx, key, val) {
+  if (key === 'default') {
+    const p = pluginParams[idx];
+    if (p.type === 'number') val = parseFloat(val) || 0;
+    else if (p.type === 'boolean') val = val === 'true' || val === true;
+  }
+  if (key === 'min' || key === 'max') val = val === '' ? undefined : parseFloat(val);
+  pluginParams[idx][key] = val;
+}
+function renderPluginParams() {
+  const wrap = document.getElementById('pluginParamsWrap');
+  wrap.innerHTML = pluginParams.map((p, i) => `
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+      <input type="text" placeholder="名称" value="${escapeHtml(p.name)}" onchange="updatePluginParam(${i},'name',this.value)" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:12px;">
+      <select onchange="updatePluginParam(${i},'type',this.value)" style="padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:12px;">
+        <option value="number" ${p.type==='number'?'selected':''}>number</option>
+        <option value="boolean" ${p.type==='boolean'?'selected':''}>boolean</option>
+        <option value="enum" ${p.type==='enum'?'selected':''}>enum</option>
+      </select>
+      <input type="text" placeholder="默认值" value="${escapeHtml(String(p.default))}" onchange="updatePluginParam(${i},'default',this.value)" style="width:70px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:12px;">
+      <input type="number" placeholder="min" value="${p.min!==undefined?p.min:''}" onchange="updatePluginParam(${i},'min',this.value)" style="width:60px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:12px;">
+      <input type="number" placeholder="max" value="${p.max!==undefined?p.max:''}" onchange="updatePluginParam(${i},'max',this.value)" style="width:60px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:12px;">
+      <button class="s-btn-small" onclick="removePluginParam(${i})" style="background:rgba(255,0,0,0.06);color:#d44;">✕</button>
+    </div>
+  `).join('');
+}
+function getPluginPayload() {
+  const params = pluginParams.map(p => {
+    const out = { name: p.name, type: p.type, default: p.default };
+    if (p.min !== undefined) out.min = p.min;
+    if (p.max !== undefined) out.max = p.max;
+    return out;
+  });
+  return {
+    name: document.getElementById('pluginName').value.trim(),
+    version: document.getElementById('pluginVersion').value.trim() || '1.0.0',
+    type: document.getElementById('pluginType').value,
+    parameters: params,
+    code: document.getElementById('pluginCode').value.trim(),
+  };
+}
+async function registerPlugin() {
+  const loading = document.getElementById('pluginLoading');
+  const result = document.getElementById('pluginResult');
+  loading.classList.add('show'); result.textContent = '';
+  try {
+    const payload = getPluginPayload();
+    if (!payload.name) throw new Error('插件名称不能为空');
+    if (!payload.code) throw new Error('插件代码不能为空');
+    const r = await fetch(`${API}/api/plugin/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (d.success) {
+      result.textContent = `✓ ${d.message}`;
+      refreshPluginList();
+      populatePluginSelects();
+    } else {
+      throw new Error(d.message);
+    }
+  } catch (e) { result.textContent = '错误: ' + e.message; }
+  loading.classList.remove('show');
+}
+async function testPlugin() {
+  const loading = document.getElementById('pluginLoading');
+  const result = document.getElementById('pluginResult');
+  const canvas = document.getElementById('pluginTestCanvas');
+  loading.classList.add('show'); result.textContent = '';
+  try {
+    const payload = getPluginPayload();
+    if (!payload.name) throw new Error('插件名称不能为空');
+    if (!payload.code) throw new Error('插件代码不能为空');
+    // Compile client-side for quick test
+    const scopeKeys = ['Math','NaN','Infinity','undefined'];
+    const scopeVals = [Math,NaN,Infinity,undefined];
+    const factory = new Function(...scopeKeys, `
+      "use strict";
+      return (function(input, output, params, sampleRate) {
+        ${payload.code}
+        if (typeof processBlock !== 'function') throw new Error('processBlock not defined');
+        return processBlock(input, output, params, sampleRate);
+      });
+    `);
+    const processBlock = factory(...scopeVals);
+    const sampleRate = 44100;
+    const blockSize = 256;
+    const input = new Float32Array(blockSize);
+    // Create a simple test signal: mix of sine and noise
+    for (let i = 0; i < blockSize; i++) {
+      input[i] = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.5 + (Math.random() - 0.5) * 0.1;
+    }
+    const output = new Float32Array(blockSize);
+    const params = {};
+    for (const p of payload.parameters) {
+      if (p.type === 'number') params[p.name] = typeof p.default === 'number' ? p.default : 0;
+      else if (p.type === 'boolean') params[p.name] = p.default === true ? 1 : 0;
+      else params[p.name] = 0;
+    }
+    processBlock(input, output, params, sampleRate);
+
+    // Draw output on canvas
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 1.5; ctx.beginPath();
+    let maxVal = 0;
+    for (let i = 0; i < blockSize; i++) maxVal = Math.max(maxVal, Math.abs(output[i]));
+    const scale = maxVal > 0 ? (h / 2 - 8) / maxVal : 1;
+    for (let i = 0; i < blockSize; i++) {
+      const x = (i / (blockSize - 1)) * w;
+      const y = h / 2 - output[i] * scale;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    result.textContent = `✓ 客户端测试通过！输出峰值: ${maxVal.toFixed(4)}`;
+  } catch (e) { result.textContent = '测试错误: ' + e.message; }
+  loading.classList.remove('show');
+}
+async function refreshPluginList() {
+  const listEl = document.getElementById('pluginList');
+  try {
+    const r = await fetch(`${API}/api/plugin/list`);
+    const d = await r.json();
+    if (!d.plugins || d.plugins.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--text2);font-size:12px;">暂无已注册插件</div>';
+      return;
+    }
+    listEl.innerHTML = d.plugins.map(p => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(91,77,255,0.05);border-radius:10px;margin-bottom:6px;">
+        <div>
+          <div style="font-weight:600;font-size:13px;">${escapeHtml(p.name)} <span style="font-size:10px;color:var(--text3);">v${escapeHtml(p.version)}</span></div>
+          <div style="font-size:11px;color:var(--text2);">类型: ${p.type} | 参数: ${p.parameters.length}个</div>
+        </div>
+        <button class="s-btn-small" onclick="deletePlugin('${escapeHtml(p.name)}')" style="background:rgba(255,0,0,0.06);color:#d44;">删除</button>
+      </div>
+    `).join('');
+  } catch (e) { listEl.innerHTML = '<div style="color:#d44;font-size:12px;">加载失败: ' + e.message + '</div>'; }
+}
+async function deletePlugin(name) {
+  if (!confirm(`确定删除插件 "${name}" 吗？`)) return;
+  try {
+    const r = await fetch(`${API}/api/plugin/unregister`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const d = await r.json();
+    if (d.success) { showToast(d.message); refreshPluginList(); populatePluginSelects(); }
+    else throw new Error(d.message);
+  } catch (e) { showToast('删除失败: ' + e.message); }
+}
+function populatePluginSelects() {
+  // Populate effect/instrument selects if they exist on the page
+  fetch(`${API}/api/plugin/list`).then(r => r.json()).then(d => {
+    const plugins = d.plugins || [];
+    const effectSelect = document.getElementById('effectType');
+    if (effectSelect) {
+      // Remove old custom options
+      Array.from(effectSelect.options).forEach(opt => { if (opt.dataset.custom === 'true') effectSelect.removeChild(opt); });
+      plugins.filter(p => p.type === 'effect').forEach(p => {
+        const opt = document.createElement('option'); opt.value = 'plugin:' + p.name; opt.textContent = '🔌 ' + p.name; opt.dataset.custom = 'true';
+        effectSelect.appendChild(opt);
+      });
+    }
+    const waveSelect = document.getElementById('flawWave');
+    if (waveSelect) {
+      Array.from(waveSelect.options).forEach(opt => { if (opt.dataset.custom === 'true') waveSelect.removeChild(opt); });
+      plugins.filter(p => p.type === 'instrument').forEach(p => {
+        const opt = document.createElement('option'); opt.value = 'plugin:' + p.name; opt.textContent = '🔌 ' + p.name; opt.dataset.custom = 'true';
+        waveSelect.appendChild(opt);
+      });
+    }
+  }).catch(() => {});
+}
+function loadExamplePlugin(name) {
+  const examples = {
+    distortion: {
+      name: 'SimpleDistortion', version: '1.0.0', type: 'effect',
+      params: [{ name:'drive', type:'number', default:0.5, min:0, max:1 }, { name:'mix', type:'number', default:0.5, min:0, max:1 }],
+      code: `// 软削波失真效果器\nfunction processBlock(input, output, params, sampleRate) {\n  const drive = params.drive || 0.5;\n  const mix = params.mix || 0.5;\n  const threshold = 1.0 / (1.0 + drive * 3.0);\n  for (let i = 0; i < input.length; i++) {\n    const x = input[i];\n    // 软削波\n    const clipped = x > threshold ? threshold + (x - threshold) / (1.0 + Math.pow(x - threshold, 2))\n      : (x < -threshold ? -threshold + (x + threshold) / (1.0 + Math.pow(x + threshold, 2)) : x);\n    output[i] = x * (1.0 - mix) + clipped * mix;\n  }\n}`
+    },
+    sine: {
+      name: 'SimpleSineSynth', version: '1.0.0', type: 'instrument',
+      params: [{ name:'attack', type:'number', default:0.01, min:0, max:1 }, { name:'release', type:'number', default:0.2, min:0, max:1 }],
+      code: `// 正弦波合成器\nfunction processBlock(input, output, params, sampleRate) {\n  // 效果器占位\n  for (let i = 0; i < input.length; i++) output[i] = input[i];\n}\nfunction generateNote(frequency, duration, velocity, params, sampleRate) {\n  const attack = params.attack || 0.01;\n  const release = params.release || 0.2;\n  const samples = Math.floor(duration * sampleRate);\n  const out = new Float32Array(samples);\n  const attackSamples = Math.max(1, Math.floor(attack * sampleRate));\n  const releaseSamples = Math.max(1, Math.floor(release * sampleRate));\n  const sustainSamples = Math.max(0, samples - attackSamples - releaseSamples);\n  for (let i = 0; i < samples; i++) {\n    const t = i / sampleRate;\n    const env = i < attackSamples ? (i / attackSamples)\n      : (i < attackSamples + sustainSamples ? 1.0\n      : Math.max(0, 1.0 - (i - attackSamples - sustainSamples) / releaseSamples));\n    out[i] = Math.sin(2.0 * Math.PI * frequency * t) * env * velocity;\n  }\n  return out;\n}`
+    },
+    scope: {
+      name: 'SimpleScope', version: '1.0.0', type: 'visualizer',
+      params: [{ name:'gain', type:'number', default:1.0, min:0.1, max:5.0 }],
+      code: `// 示波器效果（增益+限幅）\nfunction processBlock(input, output, params, sampleRate) {\n  const gain = params.gain || 1.0;\n  for (let i = 0; i < input.length; i++) {\n    const v = input[i] * gain;\n    output[i] = Math.max(-1.0, Math.min(1.0, v));\n  }\n}`
+    }
+  };
+  const ex = examples[name];
+  if (!ex) return;
+  document.getElementById('pluginName').value = ex.name;
+  document.getElementById('pluginVersion').value = ex.version;
+  document.getElementById('pluginType').value = ex.type;
+  pluginParams = ex.params.map(p => ({ ...p }));
+  renderPluginParams();
+  document.getElementById('pluginCode').value = ex.code;
+}
 /* ================= 工作室标签切换 ================= */
 document.querySelectorAll('.studio-tab').forEach(t => {
   t.addEventListener('click', () => {
@@ -3896,11 +4491,888 @@ generateProduce = async function() {
   broadcastCollabEvent('noteAdded', { count: currentProject.melody?.length || 0 });
 };
 
+/* ================= 语音控制 ================= */
+function setChatInput(text) {
+  const input = document.getElementById('chatInput');
+  const hint = document.getElementById('inputHint');
+  if (input) {
+    input.value = text;
+    if (hint) hint.style.display = 'none';
+    input.focus();
+  }
+}
+
+let recognition = null;
+let isRecording = false;
+let voiceFinalTranscript = '';
+
+function initSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return null;
+  const rec = new SpeechRecognition();
+  rec.lang = 'zh-CN';
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+
+  rec.onstart = () => {
+    isRecording = true;
+    voiceFinalTranscript = '';
+    const btn = document.getElementById('voiceBtn');
+    const status = document.getElementById('voiceStatus');
+    const text = document.getElementById('voiceText');
+    if (btn) btn.classList.add('recording');
+    if (status) status.style.display = 'flex';
+    if (text) text.textContent = '正在聆听...';
+  };
+
+  rec.onend = () => {
+    isRecording = false;
+    const btn = document.getElementById('voiceBtn');
+    const status = document.getElementById('voiceStatus');
+    if (btn) btn.classList.remove('recording');
+    if (status) status.style.display = 'none';
+    // 如果有最终识别结果，自动填入并发送
+    if (voiceFinalTranscript.trim()) {
+      setChatInput(voiceFinalTranscript.trim());
+      sendChat();
+    }
+    voiceFinalTranscript = '';
+  };
+
+  rec.onresult = (event) => {
+    let interim = '';
+    let final = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        final += transcript;
+      } else {
+        interim += transcript;
+      }
+    }
+    if (final) voiceFinalTranscript += final;
+    const text = document.getElementById('voiceText');
+    if (text) text.textContent = voiceFinalTranscript + interim || '正在聆听...';
+  };
+
+  rec.onerror = (event) => {
+    console.error('语音识别错误:', event.error);
+    const text = document.getElementById('voiceText');
+    if (text) {
+      if (event.error === 'not-allowed') text.textContent = '麦克风权限被拒绝';
+      else if (event.error === 'no-speech') text.textContent = '未检测到语音，请重试';
+      else text.textContent = '语音识别出错: ' + event.error;
+    }
+    stopVoiceRecognition();
+  };
+
+  return rec;
+}
+
+function toggleVoiceInput() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showToast('您的浏览器不支持语音识别');
+    return;
+  }
+  if (isRecording) {
+    stopVoiceRecognition();
+  } else {
+    startVoiceRecognition();
+  }
+}
+
+function startVoiceRecognition() {
+  if (!recognition) recognition = initSpeechRecognition();
+  if (!recognition) {
+    showToast('您的浏览器不支持语音识别');
+    return;
+  }
+  try {
+    recognition.start();
+  } catch (e) {
+    showToast('无法启动语音识别');
+  }
+}
+
+function stopVoiceRecognition() {
+  if (recognition && isRecording) {
+    try { recognition.stop(); } catch (e) {}
+  }
+  isRecording = false;
+  const btn = document.getElementById('voiceBtn');
+  const status = document.getElementById('voiceStatus');
+  if (btn) btn.classList.remove('recording');
+  if (status) status.style.display = 'none';
+}
+
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'zh-CN';
+  utter.rate = 1.1;
+  utter.pitch = 1.0;
+  window.speechSynthesis.speak(utter);
+}
+
+// 语音命令解析并执行
+async function handleVoiceCommand(text) {
+  try {
+    const r = await fetch(`${API}/api/voice/parse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const cmd = await r.json();
+    if (cmd.error) {
+      addMessage('ai', '语音解析出错: ' + cmd.error);
+      return;
+    }
+
+    // 播报已理解
+    speak('已理解，正在生成...');
+    addMessage('ai', `🎤 语音指令解析结果：\n风格: ${cmd.style || '默认'}\n情绪: ${cmd.emotion || '默认'}\n调性: ${cmd.key || 'C'}\nBPM: ${cmd.bpm || '默认'}\n动作: ${cmd.action}`);
+
+    // 根据 action 执行对应操作
+    if (cmd.action === 'arrange') {
+      // 只生成伴奏
+      const cid = 'voice_' + Date.now();
+      addFuncCard('arranger');
+      // 找到最新添加的卡片并自动填写参数
+      setTimeout(() => {
+        const cards = document.querySelectorAll('.func-card');
+        const card = cards[cards.length - 1];
+        if (!card) return;
+        const cid2 = card.id;
+        if (cmd.style) {
+          const styleSel = document.getElementById(cid2 + '_style');
+          if (styleSel) styleSel.value = cmd.style;
+        }
+        if (cmd.emotion) {
+          const emoSel = document.getElementById(cid2 + '_emo');
+          if (emoSel) emoSel.value = cmd.emotion;
+        }
+        runCardArranger(cid2).then(() => speak('生成完成'));
+      }, 100);
+    } else if (cmd.action === 'compose') {
+      // 生成旋律
+      const cid = 'voice_' + Date.now();
+      addFuncCard('compose');
+      setTimeout(() => {
+        const cards = document.querySelectorAll('.func-card');
+        const card = cards[cards.length - 1];
+        if (!card) return;
+        const cid2 = card.id;
+        if (cmd.style) {
+          const styleMap = {流行:'pop',摇滚:'rock',电子:'electronic',古典:'classical',中国风:'chinese'};
+          const styleSel = document.getElementById(cid2 + '_style');
+          if (styleSel) {
+            const mapped = styleMap[cmd.style] || cmd.style;
+            const options = Array.from(styleSel.options).map(o => o.value);
+            if (options.includes(mapped)) styleSel.value = mapped;
+          }
+        }
+        if (cmd.key) {
+          const keyMap = {'C':'C大调','G':'G大调','Am':'A小调','F':'F大调'};
+          const keySel = document.getElementById(cid2 + '_key');
+          if (keySel && keyMap[cmd.key]) keySel.value = keyMap[cmd.key];
+        }
+        if (cmd.bpm) {
+          const bpmInput = document.getElementById(cid2 + '_bpm');
+          if (bpmInput) bpmInput.value = String(cmd.bpm);
+        }
+        runCardCompose(cid2).then(() => speak('生成完成'));
+      }, 100);
+    } else {
+      // full：使用 produce 一键产音乐
+      const cid = 'voice_' + Date.now();
+      addFuncCard('produce');
+      setTimeout(() => {
+        const cards = document.querySelectorAll('.func-card');
+        const card = cards[cards.length - 1];
+        if (!card) return;
+        const cid2 = card.id;
+        if (cmd.style) {
+          const styleSel = document.getElementById(cid2 + '_style');
+          if (styleSel) styleSel.value = cmd.style;
+        }
+        if (cmd.emotion) {
+          const emoSel = document.getElementById(cid2 + '_emo');
+          if (emoSel) emoSel.value = cmd.emotion;
+        }
+        if (cmd.key) {
+          const keySel = document.getElementById(cid2 + '_key');
+          if (keySel) keySel.value = cmd.key;
+        }
+        runCardProduce(cid2).then(() => {
+          speak('生成完成');
+          // 如果包含歌词请求，同时生成歌词
+          if (cmd.includeLyrics !== false && cmd.includeVoice) {
+            addFuncCard('realistic');
+          }
+        });
+      }, 100);
+    }
+  } catch (e) {
+    addMessage('ai', '语音命令处理失败: ' + (e && e.message ? e.message : String(e)));
+  }
+}
+
+// 修改 sendChat 以支持语音命令自动解析
+const _origSendChat = sendChat;
+sendChat = function() {
+  const v = document.getElementById('chatInput').value.trim();
+  if (!v) return;
+  // 如果消息看起来像作曲指令，自动解析
+  if (/来一首|给我一段|写一首|生成一首|伴奏|编曲|作曲|旋律|风格/.test(v)) {
+    _origSendChat();
+    handleVoiceCommand(v);
+    return;
+  }
+  _origSendChat();
+};
+
+/* ================= 音频文件备用方案 ================= */
+function initAudioFileUpload() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'audio/*';
+  input.id = 'audioFileInput';
+  input.style.display = 'none';
+  input.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      const data = audioBuffer.getChannelData(0);
+
+      // 简单分析：计算 RMS 能量和零交叉率作为节奏/音高参考
+      let sum = 0;
+      let zeroCrossings = 0;
+      for (let i = 0; i < data.length; i++) {
+        sum += data[i] * data[i];
+        if (i > 0 && data[i] * data[i - 1] < 0) zeroCrossings++;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      const zcr = zeroCrossings / (data.length - 1);
+      const estimatedPitch = zcr > 0 ? audioBuffer.sampleRate / (2 * zcr) : 0;
+
+      addMessage('ai', `🎵 音频分析结果：\n文件名: ${file.name}\n采样率: ${audioBuffer.sampleRate}Hz\n时长: ${audioBuffer.duration.toFixed(2)}s\nRMS能量: ${rms.toFixed(4)}\n估计基频: ${estimatedPitch.toFixed(1)}Hz\n（此功能为语音识别备用方案）`);
+    } catch (err) {
+      showToast('音频解析失败');
+    }
+  });
+  document.body.appendChild(input);
+}
+
+function triggerAudioUpload() {
+  const input = document.getElementById('audioFileInput');
+  if (input) input.click();
+  else showToast('音频上传未初始化');
+}
+
+// 如果浏览器不支持语音识别，在语音按钮上添加点击提示
+function checkVoiceSupport() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    const btn = document.getElementById('voiceBtn');
+    if (btn) {
+      btn.title = '您的浏览器不支持语音识别，点击上传音频文件';
+      btn.onclick = triggerAudioUpload;
+    }
+    // 显示提示条
+    const bar = document.querySelector('.input-bar');
+    if (bar) {
+      const hint = document.createElement('div');
+      hint.className = 'voice-hint';
+      hint.id = 'voiceBrowserHint';
+      hint.textContent = '您的浏览器不支持语音识别，可使用音频文件分析作为备用';
+      bar.parentElement.insertBefore(hint, bar);
+    }
+    initAudioFileUpload();
+  }
+}
+
+/* ================= 版权指纹系统 ================= */
+async function loadFpFile(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let base64 = '';
+    for (let i = 0; i < bytes.length; i++) {
+      base64 += String.fromCharCode(bytes[i]);
+    }
+    document.getElementById('fpWavBase64').value = btoa(base64);
+  } catch (e) {
+    showToast('文件读取失败: ' + e.message);
+  }
+  input.value = '';
+}
+
+async function generateFingerprintFromInput() {
+  const loading = document.getElementById('fpLoading');
+  const result = document.getElementById('fpResult');
+  const base64 = document.getElementById('fpWavBase64').value.trim();
+  if (!base64) { showToast('请输入 WAV Base64 或上传文件'); return; }
+  loading.classList.add('show'); result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/fingerprint/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wavBase64: base64 })
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    _currentFingerprint = d.fingerprint;
+    result.innerHTML = `<div style="font-size:12px;word-break:break-all;"><b>指纹:</b> ${escapeHtml(d.fingerprint.slice(0,16))}... <span style="color:var(--accent);cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">点击展开</span><pre style="display:none;margin-top:4px;background:rgba(0,0,0,0.03);padding:6px;border-radius:6px;font-size:10px;">${escapeHtml(d.fingerprint)}</pre></div><div style="font-size:11px;color:var(--text2);margin-top:4px;">全局哈希: ${escapeHtml(d.globalHash)}</div>`;
+  } catch (e) { result.textContent = '错误: ' + e.message; }
+  loading.classList.remove('show');
+}
+
+async function compareFingerprintsUI() {
+  const loading = document.getElementById('fpCompareLoading');
+  const result = document.getElementById('fpCompareResult');
+  const b1 = document.getElementById('fpCompare1').value.trim();
+  const b2 = document.getElementById('fpCompare2').value.trim();
+  if (!b1 || !b2) { showToast('请提供两段音频'); return; }
+  loading.classList.add('show'); result.textContent = '';
+  try {
+    let fp1, fp2;
+    if (b1.length > 64 && b1.includes(':')) {
+      fp1 = b1;
+    } else {
+      const r1 = await fetch(`${API}/api/fingerprint/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wavBase64: b1 }) });
+      const d1 = await r1.json();
+      fp1 = d1.fingerprint;
+    }
+    if (b2.length > 64 && b2.includes(':')) {
+      fp2 = b2;
+    } else {
+      const r2 = await fetch(`${API}/api/fingerprint/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wavBase64: b2 }) });
+      const d2 = await r2.json();
+      fp2 = d2.fingerprint;
+    }
+    const res = await fetch(`${API}/api/fingerprint/compare`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fp1, fp2 })
+    });
+    const d = await res.json();
+    result.textContent = `相似度: ${(d.similarity * 100).toFixed(2)}%\n汉明距离: ${d.hammingDistance}`;
+  } catch (e) { result.textContent = '错误: ' + e.message; }
+  loading.classList.remove('show');
+}
+
+async function listFingerprintDatabase() {
+  const listEl = document.getElementById('fpDatabaseList');
+  try {
+    const res = await fetch(`${API}/api/fingerprint/database`);
+    const d = await res.json();
+    if (!d.entries || d.entries.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--text2);font-size:12px;">数据库为空</div>';
+      return;
+    }
+    listEl.innerHTML = d.entries.map((e, i) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(91,77,255,0.05);border-radius:10px;margin-bottom:6px;">
+        <div>
+          <div style="font-weight:600;font-size:13px;">${escapeHtml(e.metadata?.title || '未命名')}</div>
+          <div style="font-size:11px;color:var(--text2);">${escapeHtml(e.metadata?.style || '')} | ${escapeHtml(e.metadata?.createdAt || '')}</div>
+          <div style="font-size:10px;color:var(--text3);word-break:break-all;">${escapeHtml(e.fingerprint.slice(0,24))}...</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) { listEl.innerHTML = '<div style="color:#d44;font-size:12px;">错误: ' + e.message + '</div>'; }
+}
+
+async function storeCurrentFingerprint() {
+  if (!_currentFingerprint) { showToast('无可用指纹，请先生成音乐或上传音频'); return; }
+  const title = document.getElementById('fpStoreTitle').value.trim() || '未命名';
+  const style = document.getElementById('fpStoreStyle').value.trim() || '未知';
+  try {
+    const res = await fetch(`${API}/api/fingerprint/store`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint: _currentFingerprint, metadata: { title, style, createdAt: new Date().toISOString() } })
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    showToast('指纹已存储');
+    listFingerprintDatabase();
+  } catch (e) { showToast('存储失败: ' + e.message); }
+}
+
+async function searchSimilarFromFile(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const loading = document.getElementById('fpSearchLoading');
+  const result = document.getElementById('fpSearchResult');
+  loading.classList.add('show'); result.textContent = '';
+  try {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binStr = '';
+    for (let i = 0; i < bytes.length; i++) binStr += String.fromCharCode(bytes[i]);
+    const base64 = btoa(binStr);
+    const genRes = await fetch(`${API}/api/fingerprint/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wavBase64: base64 })
+    });
+    const genD = await genRes.json();
+    if (genD.error) throw new Error(genD.error);
+    const searchRes = await fetch(`${API}/api/fingerprint/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint: genD.fingerprint })
+    });
+    const searchD = await searchRes.json();
+    renderFpSearchResults(searchD.results);
+  } catch (e) { result.textContent = '错误: ' + e.message; }
+  loading.classList.remove('show');
+  input.value = '';
+}
+
+async function searchSimilarCurrent() {
+  if (!_currentFingerprint) { showToast('无可用指纹，请先生成音乐或上传音频'); return; }
+  const loading = document.getElementById('fpSearchLoading');
+  const result = document.getElementById('fpSearchResult');
+  loading.classList.add('show'); result.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/fingerprint/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint: _currentFingerprint })
+    });
+    const d = await res.json();
+    renderFpSearchResults(d.results);
+  } catch (e) { result.textContent = '错误: ' + e.message; }
+  loading.classList.remove('show');
+}
+
+function renderFpSearchResults(results) {
+  const result = document.getElementById('fpSearchResult');
+  if (!results || results.length === 0) {
+    result.textContent = '未找到相似音乐';
+    return;
+  }
+  result.innerHTML = results.map((r, i) => `
+    <div style="padding:8px 10px;background:rgba(91,77,255,0.05);border-radius:10px;margin-bottom:6px;">
+      <div style="font-weight:600;font-size:13px;">#${i+1} ${escapeHtml(r.metadata?.title || '未命名')}</div>
+      <div style="font-size:11px;color:var(--text2);">相似度: ${(r.similarity*100).toFixed(2)}% | ${escapeHtml(r.metadata?.style || '')}</div>
+      <div style="font-size:10px;color:var(--text3);word-break:break-all;">${escapeHtml(r.fingerprint.slice(0,24))}...</div>
+    </div>
+  `).join('');
+}
+
 /* ================= 初始化 ================= */
 ensureSession();
 renderDrawer();
 renderChat();
 fetch(`${API}/api/health`).then(r=>r.json()).then(d=>console.log('青鸾DAW 已连接:', d.name, d.version)).catch(()=>console.log('后端未连接'));
+checkVoiceSupport();
+
+/* ================= 音乐教育模块 ================= */
+const eduAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function noteToFreq(note) {
+  const map = { 'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11 };
+  const m = note.match(/^([A-G][#b]?)(\d+)$/);
+  if (!m) return 440;
+  const semi = map[m[1]] || 0;
+  const oct = parseInt(m[2], 10);
+  return 440 * Math.pow(2, (semi + (oct - 4) * 12 - 9) / 12);
+}
+
+function eduPlayTone(freq, duration, type = 'sine', when = 0) {
+  const t = when || eduAudioCtx.currentTime;
+  const osc = eduAudioCtx.createOscillator();
+  const gain = eduAudioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.3, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.connect(gain);
+  gain.connect(eduAudioCtx.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+  return { osc, gain };
+}
+
+function eduPlayNote(note, duration, when) {
+  eduPlayTone(noteToFreq(note), duration, 'sine', when);
+}
+
+function eduPlayNotes(notes, duration, stagger) {
+  const d = duration || 0.5;
+  const s = stagger || 0;
+  const now = eduAudioCtx.currentTime;
+  notes.forEach((n, i) => eduPlayNote(n, d, now + i * s));
+}
+
+function eduPlayChordNotes(notes, duration) {
+  const d = duration || 1;
+  const now = eduAudioCtx.currentTime;
+  notes.forEach(n => eduPlayNote(n, d, now));
+}
+
+function switchEduTab(tab, el) {
+  document.querySelectorAll('.edu-tabs span').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.edu-section').forEach(s => s.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else document.querySelector(`.edu-tabs span[onclick*="'${tab}'"]`).classList.add('active');
+  document.getElementById('edu-' + tab).classList.add('active');
+}
+
+/* ---- 乐理练习 ---- */
+let intScore = 0, intStreak = 0;
+let currentInt = null, currentScale = null, currentChord = null;
+
+async function eduIntervalNext() {
+  const res = await fetch(`${API}/api/edu/interval`);
+  const data = await res.json();
+  currentInt = data;
+  eduPlayNotes([data.note1, data.note2], 0.6, 0.5);
+  const wrap = document.getElementById('intOptions');
+  wrap.innerHTML = data.options.map(o => `<button onclick="eduIntervalAnswer('${o}')">${o}</button>`).join('');
+  document.getElementById('intResult').textContent = '';
+}
+
+function eduIntervalAnswer(ans) {
+  if (!currentInt) return;
+  const correct = ans === currentInt.correctAnswer;
+  const btns = document.querySelectorAll('#intOptions button');
+  btns.forEach(b => {
+    if (b.textContent === currentInt.correctAnswer) b.classList.add('correct');
+    else if (b.textContent === ans) b.classList.add('wrong');
+  });
+  if (correct) { intScore += 10; intStreak++; }
+  else { intStreak = 0; }
+  document.getElementById('intScore').textContent = intScore;
+  document.getElementById('intStreak').textContent = intStreak;
+  document.getElementById('intResult').textContent = correct ? '✅ 正确！' : `❌ 错误，正确答案是 ${currentInt.correctAnswer}`;
+}
+
+async function eduScaleNext() {
+  const res = await fetch(`${API}/api/edu/scale`);
+  const data = await res.json();
+  currentScale = data;
+  eduPlayNotes(data.notes, 0.4, 0.3);
+  const wrap = document.getElementById('scaleOptions');
+  wrap.innerHTML = data.options.map(o => `<button onclick="eduScaleAnswer('${o}')">${o}</button>`).join('');
+  document.getElementById('scaleResultEdu').textContent = '';
+}
+
+function eduScaleAnswer(ans) {
+  if (!currentScale) return;
+  const correct = ans === currentScale.correctAnswer;
+  const btns = document.querySelectorAll('#scaleOptions button');
+  btns.forEach(b => {
+    if (b.textContent === currentScale.correctAnswer) b.classList.add('correct');
+    else if (b.textContent === ans) b.classList.add('wrong');
+  });
+  document.getElementById('scaleResultEdu').textContent = correct ? '✅ 正确！' : `❌ 错误，正确答案是 ${currentScale.correctAnswer}`;
+}
+
+async function eduChordNext() {
+  const res = await fetch(`${API}/api/edu/chord`);
+  const data = await res.json();
+  currentChord = data;
+  eduPlayChordNotes(data.notes, 1.2);
+  const wrap = document.getElementById('chordOptions');
+  wrap.innerHTML = data.options.map(o => `<button onclick="eduChordAnswer('${o}')">${o}</button>`).join('');
+  document.getElementById('chordResultEdu').textContent = '';
+}
+
+function eduChordAnswer(ans) {
+  if (!currentChord) return;
+  const correct = ans === currentChord.correctAnswer;
+  const btns = document.querySelectorAll('#chordOptions button');
+  btns.forEach(b => {
+    if (b.textContent === currentChord.correctAnswer) b.classList.add('correct');
+    else if (b.textContent === ans) b.classList.add('wrong');
+  });
+  document.getElementById('chordResultEdu').textContent = correct ? `✅ 正确！构成音: ${currentChord.notes.join(' ')}` : `❌ 错误，正确答案是 ${currentChord.correctAnswer} (${currentChord.notes.join(' ')})`;
+}
+
+/* ---- 视唱练耳 ---- */
+let singTarget = null;
+let micStream = null;
+let micAnalyser = null;
+let micRaf = null;
+
+function eduSingNext() {
+  const notes = ['C4','C#4','D4','D#4','E4','F4','F#4','G4','G#4','A4','A#4','B4'];
+  singTarget = notes[Math.floor(Math.random() * notes.length)];
+  document.getElementById('singTarget').textContent = singTarget + ' (' + Math.round(noteToFreq(singTarget)) + 'Hz)';
+  eduPlayNote(singTarget, 1);
+}
+
+async function eduSingStartMic() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('浏览器不支持麦克风'); return;
+  }
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const src = eduAudioCtx.createMediaStreamSource(micStream);
+    micAnalyser = eduAudioCtx.createAnalyser();
+    micAnalyser.fftSize = 2048;
+    src.connect(micAnalyser);
+    eduSingLoop();
+    showToast('已开始收音');
+  } catch (e) { showToast('麦克风启动失败'); }
+}
+
+function eduSingStopMic() {
+  if (micRaf) cancelAnimationFrame(micRaf);
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  micAnalyser = null;
+  showToast('已停止收音');
+}
+
+function eduSingLoop() {
+  if (!micAnalyser) return;
+  const buf = new Float32Array(micAnalyser.fftSize);
+  micAnalyser.getFloatTimeDomainData(buf);
+  const freq = eduDetectPitch(buf, eduAudioCtx.sampleRate);
+  if (freq > 0 && singTarget) {
+    const targetFreq = noteToFreq(singTarget);
+    const cents = 1200 * Math.log2(freq / targetFreq);
+    const absCents = Math.abs(cents);
+    document.getElementById('singDetected').textContent = Math.round(freq) + 'Hz';
+    document.getElementById('singCents').textContent = (cents > 0 ? '+' : '') + Math.round(cents) + '音分';
+    const pct = Math.max(0, Math.min(100, 100 - absCents));
+    document.getElementById('singBar').style.width = pct + '%';
+    if (absCents < 50) {
+      document.getElementById('singResult').textContent = '✅ 音准正确！偏差 ' + Math.round(absCents) + ' 音分';
+    } else {
+      document.getElementById('singResult').textContent = '继续调整... 偏差 ' + Math.round(absCents) + ' 音分';
+    }
+  }
+  micRaf = requestAnimationFrame(eduSingLoop);
+}
+
+function eduDetectPitch(buf, sampleRate) {
+  // 自相关法检测基频
+  const SIZE = buf.length;
+  let rms = 0;
+  for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.01) return -1;
+  let r1 = 0, r2 = SIZE - 1, thres = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) { if (Math.abs(buf[i]) < thres) { r1 = i; break; } }
+  for (let i = 1; i < SIZE / 2; i++) { if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; } }
+  const c = new Float32Array(SIZE);
+  for (let i = 0; i < SIZE; i++) {
+    let sum = 0;
+    for (let j = 0; j < SIZE - i; j++) sum += buf[j] * buf[j + i];
+    c[i] = sum;
+  }
+  let d = 0; while (c[d] > c[d + 1]) d++;
+  let maxval = -1, maxpos = -1;
+  for (let i = d; i < SIZE; i++) {
+    if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+  }
+  let T0 = maxpos;
+  // 抛物线插值
+  if (T0 > 0 && T0 < SIZE - 1) {
+    const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+    const a = (x1 + x3 - 2 * x2) / 2;
+    const b = (x3 - x1) / 2;
+    if (a) T0 = T0 - b / (2 * a);
+  }
+  return sampleRate / T0;
+}
+
+/* ---- 旋律听写 ---- */
+let melodyTarget = [];
+let melodyUser = [];
+
+function eduBuildPiano() {
+  const wrap = document.getElementById('pianoWrap');
+  if (!wrap || wrap.children.length > 0) return;
+  const white = ['C4','D4','E4','F4','G4','A4','B4','C5'];
+  const blackMap = { 'C#4':0, 'D#4':1, 'F#4':3, 'G#4':4, 'A#4':5 };
+  white.forEach((n, i) => {
+    const key = document.createElement('div');
+    key.className = 'piano-key';
+    key.textContent = n;
+    key.dataset.note = n;
+    key.onclick = () => { eduPlayNote(n, 0.3); melodyUser.push(n); eduMelodyRender(); };
+    wrap.appendChild(key);
+  });
+  Object.keys(blackMap).forEach(n => {
+    const idx = blackMap[n];
+    const key = document.createElement('div');
+    key.className = 'piano-key black';
+    key.textContent = n;
+    key.dataset.note = n;
+    const leftPct = ((idx + 0.7) / white.length) * 100;
+    key.style.left = leftPct + '%';
+    key.style.width = (80 / white.length) + '%';
+    key.onclick = () => { eduPlayNote(n, 0.3); melodyUser.push(n); eduMelodyRender(); };
+    wrap.appendChild(key);
+  });
+}
+
+function eduMelodyRender() {
+  const wrap = document.getElementById('melodySeq');
+  wrap.innerHTML = melodyUser.map(n => `<span class="melody-note">${n}</span>`).join('');
+}
+
+function eduMelodyPlay() {
+  const notes = ['C4','D4','E4','F4','G4','A4','B4','C5'];
+  const len = 3 + Math.floor(Math.random() * 3);
+  melodyTarget = [];
+  for (let i = 0; i < len; i++) melodyTarget.push(notes[Math.floor(Math.random() * notes.length)]);
+  melodyUser = [];
+  eduMelodyRender();
+  eduPlayNotes(melodyTarget, 0.4, 0.5);
+  document.getElementById('melodyResult').textContent = '';
+}
+
+function eduMelodyClear() {
+  melodyUser = [];
+  eduMelodyRender();
+  document.getElementById('melodyResult').textContent = '';
+}
+
+function eduMelodyCheck() {
+  const correct = melodyUser.length === melodyTarget.length && melodyUser.every((n, i) => n === melodyTarget[i]);
+  document.getElementById('melodyResult').textContent = correct ? '✅ 完全正确！' : `❌ 不匹配。正确旋律: ${melodyTarget.join(' ')}`;
+}
+
+/* ---- 和弦挑战游戏 ---- */
+let gameTimer = null, gameTimeLeft = 60, gameScore = 0, gameActive = false;
+let currentGameChord = null;
+const RANKS = ['青铜','白银','黄金','铂金','钻石','王者'];
+const RANK_THRESHOLDS = [0, 50, 100, 150, 200, 250];
+
+function getRank(score) {
+  for (let i = RANK_THRESHOLDS.length - 1; i >= 0; i--) if (score >= RANK_THRESHOLDS[i]) return RANKS[i];
+  return RANKS[0];
+}
+
+function getRankProgress(score) {
+  for (let i = 0; i < RANK_THRESHOLDS.length; i++) {
+    if (score < RANK_THRESHOLDS[i]) {
+      const prev = RANK_THRESHOLDS[i - 1] || 0;
+      const next = RANK_THRESHOLDS[i];
+      return ((score - prev) / (next - prev)) * 100;
+    }
+  }
+  return 100;
+}
+
+async function eduGameStart() {
+  gameScore = 0; gameTimeLeft = 60; gameActive = true;
+  document.getElementById('gameScore').textContent = '0';
+  document.getElementById('gameTime').textContent = '60';
+  document.getElementById('gameRank').textContent = '青铜';
+  document.getElementById('rankFill').style.width = '0%';
+  document.getElementById('gameStartBtn').style.display = 'none';
+  document.getElementById('gamePlayArea').style.display = 'block';
+  document.getElementById('gameResult').textContent = '';
+  eduGameNext();
+  gameTimer = setInterval(() => {
+    gameTimeLeft--;
+    document.getElementById('gameTime').textContent = gameTimeLeft;
+    if (gameTimeLeft <= 0) eduGameEnd();
+  }, 1000);
+  eduGameDrawSpectrum();
+}
+
+async function eduGameNext() {
+  if (!gameActive) return;
+  const res = await fetch(`${API}/api/edu/chord`);
+  const data = await res.json();
+  currentGameChord = data;
+  eduPlayChordNotes(data.notes, 1);
+  const wrap = document.getElementById('gameOptions');
+  wrap.innerHTML = data.options.map(o => `<button onclick="eduGameAnswer('${o}')">${o}</button>`).join('');
+}
+
+function eduGamePlayChord() {
+  if (currentGameChord) eduPlayChordNotes(currentGameChord.notes, 1);
+}
+
+function eduGameAnswer(ans) {
+  if (!gameActive || !currentGameChord) return;
+  const correct = ans === currentGameChord.correctAnswer;
+  const btns = document.querySelectorAll('#gameOptions button');
+  btns.forEach(b => {
+    if (b.textContent === currentGameChord.correctAnswer) b.classList.add('correct');
+    else if (b.textContent === ans) b.classList.add('wrong');
+  });
+  if (correct) {
+    gameScore += 10;
+    document.getElementById('gameScore').textContent = gameScore;
+    const rank = getRank(gameScore);
+    document.getElementById('gameRank').textContent = rank;
+    document.getElementById('rankFill').style.width = getRankProgress(gameScore) + '%';
+  }
+  setTimeout(() => eduGameNext(), 600);
+}
+
+function eduGameEnd() {
+  gameActive = false;
+  clearInterval(gameTimer);
+  document.getElementById('gameStartBtn').style.display = 'inline-block';
+  document.getElementById('gamePlayArea').style.display = 'none';
+  const rank = getRank(gameScore);
+  document.getElementById('gameResult').textContent = `时间到！得分: ${gameScore} | 段位: ${rank}`;
+  // 本地最高分
+  const key = 'edu_highscore_chord';
+  const prev = parseInt(localStorage.getItem(key) || '0', 10);
+  if (gameScore > prev) localStorage.setItem(key, String(gameScore));
+  // 提交到后端
+  eduSaveScore('chord', gameScore, rank);
+}
+
+async function eduSaveScore(game, score, level) {
+  try {
+    await fetch(`${API}/api/edu/score`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game, score, level })
+    });
+  } catch (e) {}
+}
+
+async function eduLoadLeaderboard() {
+  try {
+    const res = await fetch(`${API}/api/edu/leaderboard?game=chord`);
+    const data = await res.json();
+    const wrap = document.getElementById('eduLeaderboard');
+    if (!data.leaderboard || data.leaderboard.length === 0) {
+      wrap.innerHTML = '<div style="color:var(--text2)">暂无数据</div>'; return;
+    }
+    wrap.innerHTML = data.leaderboard.map((e, i) =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 8px;background:rgba(0,0,0,0.03);border-radius:8px;margin-bottom:4px;">
+        <span>#${i+1} ${e.level}</span><span style="font-weight:700;color:var(--accent)">${e.score}分</span>
+      </div>`
+    ).join('');
+  } catch (e) { showToast('加载排行榜失败'); }
+}
+
+function eduGameDrawSpectrum() {
+  const canvas = document.getElementById('gameSpectrum');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  if (!gameActive) { ctx.clearRect(0,0,w,h); return; }
+  requestAnimationFrame(eduGameDrawSpectrum);
+  ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0,0,w,h);
+  // 模拟频谱条
+  const bars = 32;
+  const bw = w / bars;
+  for (let i = 0; i < bars; i++) {
+    const height = Math.random() * h * 0.8;
+    const hue = 200 + (i / bars) * 160;
+    ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.8)`;
+    ctx.fillRect(i * bw, h - height, bw - 1, height);
+  }
+}
+
+/* 初始化虚拟钢琴 */
+eduBuildPiano();
 </script>
 
 </body>
