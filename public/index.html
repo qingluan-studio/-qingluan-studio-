@@ -626,6 +626,31 @@
     font-size: 12px; z-index: 200; opacity: 0; pointer-events: none; transition: all 0.3s;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* 协作面板 */
+  .collab-room-info { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 8px 10px; background: rgba(91,77,255,0.05); border-radius: 10px; }
+  .collab-room-info span { font-size: 12px; font-weight: 600; }
+  .collab-room-info .room-id { color: var(--accent); font-family: monospace; }
+  .collab-user-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .collab-user-chip { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #f0f0f5; }
+  .collab-user-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .collab-user-chip.me { background: rgba(91,77,255,0.1); color: var(--accent); }
+  .collab-chat { border: 1px solid var(--border); border-radius: 12px; background: #fafafa; display: flex; flex-direction: column; height: 220px; margin-bottom: 10px; }
+  .collab-chat-messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .collab-chat-msg { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; }
+  .collab-chat-msg .msg-name { font-weight: 700; font-size: 11px; white-space: nowrap; }
+  .collab-chat-msg .msg-text { color: var(--text); word-break: break-word; }
+  .collab-chat-msg.system { opacity: 0.7; font-size: 11px; justify-content: center; }
+  .collab-chat-input { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
+  .collab-chat-input input { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; outline: none; }
+  .collab-chat-input button { padding: 8px 12px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .collab-log { border: 1px solid var(--border); border-radius: 10px; background: #fafafa; padding: 10px; height: 120px; overflow-y: auto; font-size: 11px; }
+  .collab-log-item { display: flex; gap: 6px; margin-bottom: 4px; color: var(--text2); }
+  .collab-log-item .log-time { color: var(--text3); white-space: nowrap; }
+  .collab-status { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .collab-status.online { color: #00c9a7; }
+  .collab-status.offline { color: var(--text3); }
+  .collab-locked-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; background: #ffebee; color: #c62828; font-size: 10px; font-weight: 700; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -647,6 +672,7 @@
     <div class="nav-pills">
       <span class="active" onclick="switchNav(this,'chat')">创作</span>
       <span onclick="switchNav(this,'studio')">工作室</span>
+      <span onclick="switchNav(this,'collab')">协作</span>
       <span onclick="switchNav(this,'project')">项目</span>
     </div>
     <button onclick="toggleStudio()">⚙</button>
@@ -703,6 +729,10 @@
         <div class="icon">🔊</div>
         <span>效果器</span>
       </div>
+      <div class="quick-btn" onclick="addFuncCard('video')">
+        <div class="icon">🎬</div>
+        <span>视频配乐</span>
+      </div>
       <div class="quick-btn" onclick="addFuncCard('visual')">
         <div class="icon">🌊</div>
         <span>可视化</span>
@@ -753,6 +783,9 @@
       <div class="studio-tab" data-sp="s-flawless">无瑕疵</div>
       <div class="studio-tab" data-sp="s-emergence">涌现</div>
       <div class="studio-tab" data-sp="s-produce">产音乐</div>
+      <div class="studio-tab" data-sp="s-video">视频配乐</div>
+      <div class="studio-tab" data-sp="s-cover">封面</div>
+      <div class="studio-tab" data-sp="s-collab">协作</div>
       <div class="studio-tab" data-sp="s-project">项目</div>
     </div>
     <div class="studio-body">
@@ -1023,6 +1056,57 @@
         </div>
       </div>
 
+      <!-- 封面 -->
+      <div class="studio-panel" id="s-cover">
+        <div class="s-card">
+          <h3>🎨 AI 专辑封面生成</h3>
+          <div class="s-form"><label>风格</label><select id="coverStyle"><option value="pop">流行 Pop</option><option value="rock">摇滚 Rock</option><option value="jazz">爵士 Jazz</option><option value="electronic">电子 Electronic</option><option value="classical">古典 Classical</option><option value="chinese">中国风 Chinese</option><option value="kpop">K-Pop</option><option value="folk">民谣 Folk</option><option value="rnb">R&B</option><option value="metal">金属 Metal</option></select></div>
+          <div class="s-form"><label>情绪</label><select id="coverEmotion"><option value="happy">欢快</option><option value="sad">忧伤</option><option value="tense">紧张</option><option value="relaxed">放松</option><option value="epic">史诗</option><option value="romantic">浪漫</option><option value="angry">愤怒</option><option value="hopeful">希望</option><option value="lonely">孤独</option><option value="nostalgic">怀旧</option></select></div>
+          <div class="s-form"><label>主题（可选）</label><input type="text" id="coverTheme" placeholder="如：星空、城市夜景、雨后森林"></div>
+          <div class="s-form"><label>歌词片段（可选）</label><input type="text" id="coverLyric" placeholder="输入一句歌词作为灵感..."></div>
+          <button class="s-btn" onclick="generateCover()">🎨 生成封面</button>
+          <div class="s-loading" id="coverLoading"><span>AI 绘画引擎渲染中...</span></div>
+          <div id="coverResult" style="margin-top:12px;"></div>
+          <div id="coverActions" style="display:none;margin-top:10px;">
+            <button class="s-btn-small" onclick="downloadCover()">⬇ 下载封面</button>
+            <button class="s-btn-small" onclick="regenerateCover()">🔄 重新生成</button>
+          </div>
+        </div>
+        <div class="s-card" id="coverRecommendCard" style="display:none;">
+          <h3>💡 音乐封面推荐</h3>
+          <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">根据当前产音乐的情绪与风格自动推荐</p>
+          <div id="coverRecommendResult"></div>
+        </div>
+      </div>
+
+      <!-- 视频配乐 -->
+      <div class="studio-panel" id="s-video">
+        <div class="s-card">
+          <h3>🎬 视频配乐</h3>
+          <div class="s-form"><label>上传视频</label><input type="file" id="videoFileInput" accept="video/*" onchange="loadVideoFile(this)"></div>
+          <div id="videoPreviewWrap" style="display:none;margin-bottom:10px;">
+            <video id="videoPreview" controls style="width:100%;border-radius:10px;background:#000;" crossorigin="anonymous"></video>
+          </div>
+          <div class="s-form" id="videoControls" style="display:none;">
+            <button class="s-btn" onclick="analyzeVideoEmotion()">🔍 分析画面情绪</button>
+            <div class="s-loading" id="videoAnalyzeLoading"><span>逐帧分析中...</span></div>
+            <div id="videoEmotionChart" style="margin-top:10px;height:100px;background:rgba(91,77,255,0.05);border-radius:10px;position:relative;overflow:hidden;"></div>
+            <pre class="s-result" id="videoEmotionResult" style="white-space:pre-wrap;font-family:inherit;margin-top:8px;"></pre>
+            <button class="s-btn" id="videoGenerateBtn" style="display:none;margin-top:8px;" onclick="generateVideoScore()">🎼 生成配乐</button>
+            <div class="s-loading" id="videoGenLoading"><span>配乐生成中...</span></div>
+            <div id="videoAudioPlayer" style="margin-top:8px;"></div>
+            <div id="videoSyncWrap" style="display:none;margin-top:10px;">
+              <button class="s-btn-small" onclick="syncPlayVideoAudio()">▶ 同步播放</button>
+              <button class="s-btn-small" onclick="stopSyncPlay()">⏹ 停止</button>
+            </div>
+            <div id="videoExportWrap" style="display:none;margin-top:10px;">
+              <button class="s-btn-small" onclick="exportVideoAudioZip()">📦 导出视频+音频 ZIP</button>
+            </div>
+          </div>
+          <canvas id="videoAnalyzeCanvas" style="display:none;"></canvas>
+        </div>
+      </div>
+
       <!-- 项目 -->
       <div class="studio-panel" id="s-project">
         <div class="s-card">
@@ -1039,6 +1123,61 @@
           <div id="projList" style="margin-top:10px;"></div>
           <div class="s-form" style="margin-top:10px;"><label>或导入本地 .qingluan 文件</label><input type="file" id="projFileInput" accept=".qingluan" onchange="importProject(this)"></div>
           <div class="s-result" id="projLoadResult"></div>
+        </div>
+        <div class="s-card">
+          <h3>☁️ 云端同步</h3>
+          <div class="s-form"><label>设备标识</label><input type="text" id="cloudDeviceId" readonly style="background:rgba(0,0,0,0.03);"></div>
+          <button class="s-btn" onclick="uploadToCloud()">☁️ 上传到云端</button>
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+            <select id="cloudProjectSelect" style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:13px;">
+              <option value="">选择云端项目...</option>
+            </select>
+            <button class="s-btn-small" onclick="downloadFromCloud()">⬇ 下载</button>
+          </div>
+          <button class="s-btn" onclick="syncProject()" style="margin-top:8px;background:rgba(91,77,255,0.1);color:var(--accent);">🔄 同步</button>
+          <button class="s-btn-small" onclick="deleteCloudProject()" style="margin-top:8px;background:rgba(255,0,0,0.06);color:#d44;">🗑 删除云端</button>
+          <div class="s-loading" id="cloudSyncLoading"><span>同步中...</span></div>
+          <div class="s-result" id="cloudSyncResult"></div>
+          <div id="cloudProjectList" style="margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <!-- 协作 -->
+      <div class="studio-panel" id="s-collab">
+        <div class="s-card">
+          <h3>🤝 实时协作</h3>
+          <div id="collabNotJoined">
+            <div class="s-form"><label>你的昵称</label><input type="text" id="collabNickname" value="用户"></div>
+            <div class="s-form"><label>房间号（留空创建新房）</label><input type="text" id="collabRoomId" placeholder="如: room_abc123"></div>
+            <button class="s-btn" onclick="joinCollabRoom()">🚀 创建/加入房间</button>
+          </div>
+          <div id="collabJoined" style="display:none;">
+            <div class="collab-room-info">
+              <span>房间: <span class="room-id" id="collabDisplayRoomId">-</span><span id="collabLockedBadge"></span></span>
+              <button class="s-btn-small" onclick="leaveCollabRoom()" style="background:rgba(255,0,0,0.06);color:#d44;">退出</button>
+            </div>
+            <div class="collab-status offline" id="collabStatus">未连接</div>
+            <div class="s-form" style="margin-bottom:6px;"><label>在线用户</label></div>
+            <div class="collab-user-list" id="collabUserList"></div>
+            <div id="collabOwnerActions" style="display:none;margin-bottom:10px;">
+              <button class="s-btn-small" onclick="lockCollabRoom()" id="collabLockBtn">🔒 锁定房间</button>
+              <button class="s-btn-small" onclick="unlockCollabRoom()" id="collabUnlockBtn" style="display:none;">🔓 解锁房间</button>
+            </div>
+            <div class="s-form" style="margin-bottom:6px;"><label>房间聊天</label></div>
+            <div class="collab-chat">
+              <div class="collab-chat-messages" id="collabChatMessages"></div>
+              <div class="collab-chat-input">
+                <input type="text" id="collabChatInput" placeholder="输入消息..." onkeydown="if(event.key==='Enter')sendCollabChat()">
+                <button onclick="sendCollabChat()">发送</button>
+              </div>
+            </div>
+            <div class="s-form" style="margin-bottom:6px;"><label>操作日志</label></div>
+            <div class="collab-log" id="collabLog"></div>
+            <div style="margin-top:10px;">
+              <button class="s-btn-small" onclick="requestCollabSync()">🔄 请求同步</button>
+              <button class="s-btn-small" onclick="clearCollabLog()">清空日志</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1081,6 +1220,7 @@ function initCurrentProject() {
   };
 }
 initCurrentProject();
+initCloudSync();
 
 function collectCompositionParams() {
   return {
@@ -1238,6 +1378,211 @@ function restoreProject(project) {
   }
 }
 
+/* ================= 云端同步系统 ================= */
+function getDeviceId() {
+  let did = localStorage.getItem('qingluan_deviceId');
+  if (!did) {
+    did = 'dev_' + Math.random().toString(36).slice(2) + '_' + Date.now().toString(36);
+    localStorage.setItem('qingluan_deviceId', did);
+  }
+  return did;
+}
+
+function initCloudSync() {
+  const did = getDeviceId();
+  const el = document.getElementById('cloudDeviceId');
+  if (el) el.value = did;
+  listCloudProjects();
+}
+
+async function uploadToCloud() {
+  const loading = document.getElementById('cloudSyncLoading');
+  const result = document.getElementById('cloudSyncResult');
+  loading.classList.add('show'); result.textContent = '';
+  try {
+    currentProject.name = document.getElementById('projName')?.value || '未命名项目';
+    currentProject.compositionParams = collectCompositionParams();
+    const lyricText = document.getElementById('lyricResult')?.textContent || '';
+    currentProject.lyrics = lyricText ? lyricText.split('\n').filter(Boolean) : [];
+    currentProject.projectId = currentProject.projectId || ('cloud_' + Date.now().toString(36));
+    const deviceId = getDeviceId();
+
+    const res = await fetch(`${API}/api/cloud/upload`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: currentProject, deviceId })
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+
+    localStorage.setItem('qingluan_cloud_projectId', d.projectId);
+    localStorage.setItem('qingluan_cloud_syncToken', d.syncToken);
+    result.textContent = `✓ 已上传到云端！\n项目ID: ${d.projectId}\n同步令牌: ${d.syncToken}`;
+    showToast('上传成功');
+    listCloudProjects();
+  } catch (e) { result.textContent = '上传错误: ' + e.message; }
+  loading.classList.remove('show');
+}
+
+async function listCloudProjects() {
+  const listEl = document.getElementById('cloudProjectList');
+  const selectEl = document.getElementById('cloudProjectSelect');
+  try {
+    const deviceId = getDeviceId();
+    const res = await fetch(`${API}/api/cloud/list?deviceId=${encodeURIComponent(deviceId)}`);
+    const d = await res.json();
+    if (!d.projects || d.projects.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--text2);font-size:12px;">暂无云端项目</div>';
+      selectEl.innerHTML = '<option value="">选择云端项目...</option>';
+      return;
+    }
+
+    selectEl.innerHTML = '<option value="">选择云端项目...</option>' +
+      d.projects.map(p => `<option value="${p.projectId}" data-device="${p.deviceId}">${escapeHtml(p.name)} (${p.style}|${p.key}) ${p.isOwner ? '[本机]' : '[其他设备]'}</option>`).join('');
+
+    listEl.innerHTML = d.projects.map(p => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(91,77,255,0.05);border-radius:10px;margin-bottom:6px;">
+        <div>
+          <div style="font-weight:600;font-size:13px;">${escapeHtml(p.name)} ${p.isOwner ? '<span style="color:var(--accent);font-size:11px;">[本机]</span>' : '<span style="color:var(--accent2);font-size:11px;">[' + escapeHtml(p.deviceId.slice(0,8)) + '...]</span>'}</div>
+          <div style="font-size:11px;color:var(--text2);">${p.style} | ${p.key} | 同步: ${new Date(p.lastSyncTime).toLocaleString()}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = '<div style="color:#d44;font-size:12px;">加载云端列表失败: ' + e.message + '</div>';
+  }
+}
+
+async function downloadFromCloud() {
+  const selectEl = document.getElementById('cloudProjectSelect');
+  const result = document.getElementById('cloudSyncResult');
+  const projectId = selectEl.value;
+  if (!projectId) { result.textContent = '请先选择一个云端项目'; return; }
+
+  // 查找该项目的 syncToken（如果之前上传过）
+  let syncToken = localStorage.getItem('qingluan_cloud_syncToken_' + projectId);
+  if (!syncToken) {
+    // 尝试从当前存储的通用 token 匹配（仅对本地上传的项目有效）
+    const storedProjectId = localStorage.getItem('qingluan_cloud_projectId');
+    if (storedProjectId === projectId) {
+      syncToken = localStorage.getItem('qingluan_cloud_syncToken');
+    }
+  }
+  if (!syncToken) {
+    result.textContent = '错误: 缺少该项目的同步令牌，无法下载。请先由上传设备执行同步或重新上传。';
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/api/cloud/download?projectId=${encodeURIComponent(projectId)}&syncToken=${encodeURIComponent(syncToken)}`);
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    restoreProject(d.project);
+    localStorage.setItem('qingluan_cloud_projectId', projectId);
+    localStorage.setItem('qingluan_cloud_syncToken', syncToken);
+    result.textContent = `✓ 项目「${d.project.name}」下载成功！\n最后修改: ${new Date(d.lastModified).toLocaleString()}\n来源设备: ${d.deviceId}`;
+    showToast('下载成功');
+  } catch (e) { result.textContent = '下载错误: ' + e.message; }
+}
+
+async function syncProject() {
+  const loading = document.getElementById('cloudSyncLoading');
+  const result = document.getElementById('cloudSyncResult');
+  loading.classList.add('show'); result.textContent = '';
+
+  const projectId = localStorage.getItem('qingluan_cloud_projectId');
+  const syncToken = localStorage.getItem('qingluan_cloud_syncToken');
+  if (!projectId || !syncToken) {
+    result.textContent = '提示: 当前没有关联的云端项目，请先上传或下载一个项目。';
+    loading.classList.remove('show');
+    return;
+  }
+
+  try {
+    currentProject.name = document.getElementById('projName')?.value || '未命名项目';
+    currentProject.compositionParams = collectCompositionParams();
+    const lyricText = document.getElementById('lyricResult')?.textContent || '';
+    currentProject.lyrics = lyricText ? lyricText.split('\n').filter(Boolean) : [];
+
+    // 使用项目 createdAt 的毫秒时间作为本地时间戳，如果没有则使用当前时间
+    const localTimestamp = currentProject.lastModified ? new Date(currentProject.lastModified).getTime() : Date.now();
+
+    const res = await fetch(`${API}/api/cloud/sync`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        syncToken,
+        deviceId: getDeviceId(),
+        timestamp: localTimestamp,
+        project: currentProject
+      })
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+
+    if (d.status === 'conflict') {
+      result.innerHTML = `<div style="color:#c60;font-weight:600;">⚠️ 版本冲突</div>
+<div style="font-size:12px;margin-top:4px;">${d.message}</div>
+<div style="display:flex;gap:8px;margin-top:8px;">
+  <button class="s-btn-small" onclick="resolveConflict('local')">保留本地</button>
+  <button class="s-btn-small" onclick="resolveConflict('cloud')">使用云端</button>
+</div>`;
+      window._conflictData = d;
+    } else if (d.status === 'updated' || d.status === 'local_newer') {
+      result.textContent = `✓ ${d.message}\n时间戳: ${new Date(d.lastModified || localTimestamp).toLocaleString()}`;
+      showToast('同步成功');
+      listCloudProjects();
+    } else if (d.status === 'cloud_newer') {
+      restoreProject(d.cloudVersion);
+      result.textContent = `✓ 已更新为云端版本\n云端时间: ${new Date(d.cloudTimestamp).toLocaleString()}`;
+      showToast('已同步云端版本');
+    } else {
+      result.textContent = '同步状态: ' + d.status + '\n' + (d.message || '');
+    }
+  } catch (e) { result.textContent = '同步错误: ' + e.message; }
+  loading.classList.remove('show');
+}
+
+function resolveConflict(choice) {
+  const result = document.getElementById('cloudSyncResult');
+  const data = window._conflictData;
+  if (!data) { result.textContent = '冲突数据已过期'; return; }
+  if (choice === 'cloud') {
+    restoreProject(data.cloudVersion);
+    result.textContent = '✓ 已采用云端版本';
+    showToast('已采用云端版本');
+  } else {
+    result.textContent = '✓ 保留本地版本，请重新点击上传以覆盖云端';
+    showToast('保留本地版本');
+  }
+  window._conflictData = null;
+}
+
+async function deleteCloudProject() {
+  const result = document.getElementById('cloudSyncResult');
+  const projectId = localStorage.getItem('qingluan_cloud_projectId');
+  const syncToken = localStorage.getItem('qingluan_cloud_syncToken');
+  if (!projectId || !syncToken) {
+    result.textContent = '没有关联的云端项目可删除';
+    return;
+  }
+  if (!confirm('确定要删除云端项目吗？此操作不可恢复。')) return;
+
+  try {
+    const res = await fetch(`${API}/api/cloud/delete`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, syncToken })
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    localStorage.removeItem('qingluan_cloud_projectId');
+    localStorage.removeItem('qingluan_cloud_syncToken');
+    localStorage.removeItem('qingluan_cloud_syncToken_' + projectId);
+    result.textContent = '✓ 云端项目已删除';
+    showToast('删除成功');
+    listCloudProjects();
+  } catch (e) { result.textContent = '删除错误: ' + e.message; }
+}
+
 /* ================= 多开会话系统 ================= */
 let sessions = JSON.parse(localStorage.getItem('qingluan_sessions') || '[]');
 let currentSessionId = localStorage.getItem('qingluan_current_session') || '';
@@ -1359,9 +1704,10 @@ function closeAll() {
 function switchNav(el, mode) {
   document.querySelectorAll('.nav-pills span').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
-  if (mode==='studio' || mode==='project') { document.getElementById('studio').classList.add('open'); }
+  if (mode==='studio' || mode==='project' || mode==='collab') { document.getElementById('studio').classList.add('open'); }
   else { document.getElementById('studio').classList.remove('open'); }
   if (mode==='project') { switchStudioTab('s-project'); }
+  if (mode==='collab') { switchStudioTab('s-collab'); }
 }
 function switchStudioTab(tabId) {
   document.querySelectorAll('.studio-tab').forEach(x => x.classList.remove('active'));
@@ -1494,6 +1840,20 @@ function addFuncCard(type) {
       <button class="secondary" id="${cid}_exportMidi" style="display:none;margin-top:4px;padding:8px 12px;border-radius:8px;border:none;background:rgba(91,77,255,0.1);color:var(--accent);font-weight:600;cursor:pointer;" onclick="exportCardMidi('${cid}')">🎼 导出 MIDI</button>
       <div id="${cid}_mastering"></div>
       <div class="result-mini" id="${cid}_res"></div>
+    </div>`;
+  } else if (type === 'video') {
+    html = `<div class="func-card" id="${cid}">
+      <h4>🎬 视频配乐</h4>
+      <div class="form-row"><label>上传视频</label><input type="file" id="${cid}_file" accept="video/*" onchange="runCardVideoLoad('${cid}',this)"></div>
+      <div id="${cid}_previewWrap" style="display:none;margin-bottom:8px;">
+        <video id="${cid}_video" controls style="width:100%;border-radius:10px;background:#000;" crossorigin="anonymous"></video>
+      </div>
+      <div id="${cid}_controls" style="display:none;">
+        <div class="card-btns"><button class="secondary" onclick="closeCard('${cid}')">取消</button><button onclick="runCardVideoAnalyze('${cid}')">分析情绪</button></div>
+        <div class="result-mini" id="${cid}_res"></div>
+        <div id="${cid}_player"></div>
+      </div>
+      <canvas id="${cid}_canvas" style="display:none;"></canvas>
     </div>`;
   }
   addMessage('ai', '', 'func-card', html);
@@ -2521,6 +2881,8 @@ async function generateProduce() {
       if (d.composition?.scores) {
         currentProject.cognitiveState.t6History.push({ timestamp: new Date().toISOString(), scores: d.composition.scores });
       }
+      // 自动推荐封面
+      autoRecommendCover(style, emotion, d.lyrics || []);
     }
   } catch(e){ result.textContent = '错误: '+e.message; }
   loading.classList.remove('show');
@@ -2627,6 +2989,73 @@ async function getProduceStatus() {
     result.textContent = JSON.stringify(d, null, 2).slice(0, 1200);
   } catch(e){ result.textContent = '错误: '+e.message; }
 }
+
+/* ================= AI 专辑封面生成 ================= */
+let _lastCoverUrl = '';
+let _lastCoverParams = null;
+
+async function generateCover(seedVariant) {
+  const loading = document.getElementById('coverLoading');
+  const result = document.getElementById('coverResult');
+  const actions = document.getElementById('coverActions');
+  loading.classList.add('show'); result.innerHTML = ''; actions.style.display = 'none';
+  const style = document.getElementById('coverStyle').value;
+  const emotion = document.getElementById('coverEmotion').value;
+  const theme = document.getElementById('coverTheme').value;
+  const lyricSnippet = document.getElementById('coverLyric').value;
+  _lastCoverParams = { style, emotion, theme, lyricSnippet };
+  try {
+    const res = await fetch(`${API}/api/cover/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ style, emotion, theme, lyricSnippet, seedVariant })
+    });
+    const d = await res.json();
+    if (d.error) { result.innerHTML = '<div style="color:#d44;font-size:12px;">错误: ' + escapeHtml(d.error) + '</div>'; }
+    else {
+      _lastCoverUrl = d.coverUrl;
+      result.innerHTML = `<img src="${escapeHtml(d.coverUrl)}" style="width:100%;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);display:block;">`;
+      actions.style.display = 'block';
+    }
+  } catch (e) { result.innerHTML = '<div style="color:#d44;font-size:12px;">错误: ' + escapeHtml(e.message) + '</div>'; }
+  loading.classList.remove('show');
+}
+
+function downloadCover() {
+  if (!_lastCoverUrl) { showToast('请先生成封面'); return; }
+  window.open(_lastCoverUrl, '_blank');
+}
+
+function regenerateCover() {
+  if (!_lastCoverParams) { showToast('请先生成封面'); return; }
+  const variants = ['slightly different angle', 'alternate lighting', 'different composition', 'unique color grading', 'fresh perspective'];
+  const variant = variants[Math.floor(Math.random() * variants.length)];
+  generateCover(variant);
+}
+
+async function autoRecommendCover(style, emotion, lyrics) {
+  const card = document.getElementById('coverRecommendCard');
+  const result = document.getElementById('coverRecommendResult');
+  if (!card || !result) return;
+  card.style.display = 'block';
+  result.innerHTML = '<div style="font-size:12px;color:var(--text2);">正在生成推荐封面...</div>';
+  const lyricSnippet = Array.isArray(lyrics) && lyrics.length ? lyrics.slice(0, 2).join(' ') : '';
+  try {
+    const res = await fetch(`${API}/api/cover/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ style, emotion, lyricSnippet })
+    });
+    const d = await res.json();
+    if (d.error) { result.innerHTML = '<div style="color:#d44;font-size:12px;">推荐失败: ' + escapeHtml(d.error) + '</div>'; }
+    else {
+      result.innerHTML = `<img src="${escapeHtml(d.coverUrl)}" style="width:100%;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);display:block;">`;
+      // 同步到封面面板
+      document.getElementById('coverStyle').value = style;
+      document.getElementById('coverEmotion').value = emotion;
+      document.getElementById('coverLyric').value = lyricSnippet;
+    }
+  } catch (e) { result.innerHTML = '<div style="color:#d44;font-size:12px;">推荐错误: ' + escapeHtml(e.message) + '</div>'; }
+}
+
 function renderMasteringUI(m) {
   if (!m) return '';
   const lufs = m.finalLUFS ?? -70;
@@ -2783,6 +3212,363 @@ const vizObserver = new MutationObserver((mutations) => {
 });
 vizObserver.observe(document.body, { childList: true, subtree: true });
 
+/* ================= 视频配乐系统 ================= */
+let _videoFileUrl = null;
+let _videoEmotionSequence = [];
+let _videoAudioUrl = null;
+let _videoAudioBlob = null;
+let _videoWavBase64 = null;
+
+function loadVideoFile(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (_videoFileUrl) URL.revokeObjectURL(_videoFileUrl);
+  _videoFileUrl = URL.createObjectURL(file);
+  const video = document.getElementById('videoPreview');
+  video.src = _videoFileUrl;
+  document.getElementById('videoPreviewWrap').style.display = 'block';
+  document.getElementById('videoControls').style.display = 'block';
+  document.getElementById('videoEmotionResult').textContent = '';
+  document.getElementById('videoEmotionChart').innerHTML = '';
+  document.getElementById('videoGenerateBtn').style.display = 'none';
+  document.getElementById('videoAudioPlayer').innerHTML = '';
+  document.getElementById('videoSyncWrap').style.display = 'none';
+  document.getElementById('videoExportWrap').style.display = 'none';
+  _videoEmotionSequence = [];
+  _videoAudioUrl = null;
+  _videoAudioBlob = null;
+  _videoWavBase64 = null;
+}
+
+function runCardVideoLoad(cid, input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const video = document.getElementById(cid + '_video');
+  video.src = url;
+  document.getElementById(cid + '_previewWrap').style.display = 'block';
+  document.getElementById(cid + '_controls').style.display = 'block';
+  video.dataset.fileUrl = url;
+}
+
+function computeFrameEmotion(data, width, height, prevData) {
+  let totalR = 0, totalG = 0, totalB = 0, totalBright = 0;
+  let totalSat = 0;
+  const count = width * height;
+  for (let i = 0; i < count; i++) {
+    const r = data[i * 4];
+    const g = data[i * 4 + 1];
+    const b = data[i * 4 + 2];
+    totalR += r; totalG += g; totalB += b;
+    const bright = (r + g + b) / 3;
+    totalBright += bright;
+    const maxc = Math.max(r, g, b);
+    const minc = Math.min(r, g, b);
+    totalSat += (maxc - minc) / 255;
+  }
+  const avgBright = totalBright / count / 255;
+  const avgSat = totalSat / count;
+  const avgR = totalR / count / 255;
+  const avgG = totalG / count / 255;
+  const avgB = totalB / count / 255;
+
+  let warmScore = (avgR * 0.6 + avgG * 0.4) - avgB;
+  let coolScore = avgB - (avgR * 0.5 + avgG * 0.3);
+  if (warmScore < 0) warmScore = 0;
+  if (coolScore < 0) coolScore = 0;
+
+  let motion = 0;
+  if (prevData) {
+    let diffSum = 0;
+    for (let i = 0; i < count; i++) {
+      const dr = data[i * 4] - prevData[i * 4];
+      const dg = data[i * 4 + 1] - prevData[i * 4 + 1];
+      const db = data[i * 4 + 2] - prevData[i * 4 + 2];
+      diffSum += (Math.abs(dr) + Math.abs(dg) + Math.abs(db)) / 3;
+    }
+    motion = (diffSum / count) / 255;
+  }
+
+  const happy = Math.min(1, avgBright * 0.5 + avgSat * 0.5 + warmScore * 0.3);
+  const sad = Math.min(1, (1 - avgBright) * 0.5 + coolScore * 0.4 + (1 - avgSat) * 0.2);
+  const tense = Math.min(1, motion * 0.6 + (1 - avgBright) * 0.2 + avgSat * 0.2);
+  const calm = Math.min(1, (1 - motion) * 0.5 + coolScore * 0.3 + (1 - avgSat) * 0.2);
+  const excited = Math.min(1, motion * 0.5 + avgSat * 0.4 + warmScore * 0.3);
+
+  return { happy, sad, tense, calm, excited, avgBright, avgSat, motion };
+}
+
+async function analyzeVideoEmotion() {
+  const video = document.getElementById('videoPreview');
+  const canvas = document.getElementById('videoAnalyzeCanvas');
+  const ctx = canvas.getContext('2d');
+  const loading = document.getElementById('videoAnalyzeLoading');
+  const result = document.getElementById('videoEmotionResult');
+  const chart = document.getElementById('videoEmotionChart');
+
+  if (!video.src || video.readyState < 2) { showToast('请先等待视频加载'); return; }
+
+  loading.classList.add('show');
+  result.textContent = '';
+  chart.innerHTML = '';
+  _videoEmotionSequence = [];
+
+  const duration = video.duration || 0;
+  const interval = 2;
+  const captureWidth = 160;
+  const captureHeight = 90;
+  canvas.width = captureWidth;
+  canvas.height = captureHeight;
+
+  let prevData = null;
+  const times = [];
+  for (let t = 0; t < duration; t += interval) times.push(t);
+  if (duration - times[times.length - 1] > 0.5) times.push(duration);
+
+  for (let idx = 0; idx < times.length; idx++) {
+    const t = times[idx];
+    video.currentTime = t;
+    await new Promise(r => {
+      const onSeek = () => { video.removeEventListener('seeked', onSeek); r(); };
+      video.addEventListener('seeked', onSeek);
+    });
+    await new Promise(r => setTimeout(r, 50));
+    ctx.drawImage(video, 0, 0, captureWidth, captureHeight);
+    const imageData = ctx.getImageData(0, 0, captureWidth, captureHeight);
+    const emotion = computeFrameEmotion(imageData.data, captureWidth, captureHeight, prevData);
+    prevData = new Uint8ClampedArray(imageData.data);
+    _videoEmotionSequence.push({ time: Math.round(t * 10) / 10, emotion, intensity: (emotion.tense + emotion.excited) / 2 });
+  }
+
+  drawEmotionChart(_videoEmotionSequence);
+
+  const dominant = _videoEmotionSequence.reduce((acc, cur) => {
+    const e = cur.emotion;
+    acc.happy += e.happy; acc.sad += e.sad; acc.tense += e.tense; acc.calm += e.calm; acc.excited += e.excited;
+    return acc;
+  }, { happy: 0, sad: 0, tense: 0, calm: 0, excited: 0 });
+  const total = _videoEmotionSequence.length || 1;
+  result.textContent = `分析完成！共 ${times.length} 个采样点\n主导情绪: happy=${(dominant.happy/total).toFixed(2)} sad=${(dominant.sad/total).toFixed(2)} tense=${(dominant.tense/total).toFixed(2)} calm=${(dominant.calm/total).toFixed(2)} excited=${(dominant.excited/total).toFixed(2)}`;
+  document.getElementById('videoGenerateBtn').style.display = 'block';
+  loading.classList.remove('show');
+}
+
+function drawEmotionChart(sequence) {
+  const chart = document.getElementById('videoEmotionChart');
+  if (!sequence.length) { chart.innerHTML = ''; return; }
+  const w = chart.clientWidth || 340;
+  const h = chart.clientHeight || 100;
+  const colors = { happy: '#ff9800', sad: '#3f51b5', tense: '#f44336', calm: '#4caf50', excited: '#e91e63' };
+  const labels = { happy: '欢', sad: '忧', tense: '紧', calm: '静', excited: '激' };
+  let html = `<div style="position:relative;width:${w}px;height:${h}px;">`;
+  const n = sequence.length;
+  Object.keys(colors).forEach(key => {
+    let path = '';
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1 || 1)) * w;
+      const y = h - (sequence[i].emotion[key] * h * 0.85) - 2;
+      path += (i === 0 ? `M${x},${y}` : ` L${x},${y}`);
+    }
+    html += `<svg style="position:absolute;inset:0;pointer-events:none;" width="${w}" height="${h}"><path d="${path}" fill="none" stroke="${colors[key]}" stroke-width="2" opacity="0.85"/></svg>`;
+  });
+  const legend = Object.keys(colors).map(k => `<span style="font-size:10px;color:${colors[k]};margin-right:6px;">●${labels[k]}</span>`).join('');
+  html += `<div style="position:absolute;bottom:2px;left:4px;background:rgba(255,255,255,0.7);border-radius:4px;padding:0 4px;">${legend}</div></div>`;
+  chart.innerHTML = html;
+}
+
+async function generateVideoScore() {
+  const loading = document.getElementById('videoGenLoading');
+  const player = document.getElementById('videoAudioPlayer');
+  const result = document.getElementById('videoEmotionResult');
+  loading.classList.add('show'); player.innerHTML = '';
+
+  try {
+    const res = await fetch(`${API}/api/video/score`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emotionSequence: _videoEmotionSequence })
+    });
+    const params = await res.json();
+    if (params.error) throw new Error(params.error);
+
+    const prodRes = await fetch(`${API}/api/produce`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ style: params.style, key: params.key, emotion: params.emotion, bpm: params.bpm, barCount: params.barCount, maxAttempts: 2 })
+    });
+    const d = await prodRes.json();
+    if (d.error) throw new Error(d.error);
+
+    const wav = Uint8Array.from(atob(d.wavBase64), c => c.charCodeAt(0));
+    _videoWavBase64 = d.wavBase64;
+    _videoAudioBlob = new Blob([wav], { type: 'audio/wav' });
+    _videoAudioUrl = URL.createObjectURL(_videoAudioBlob);
+    player.innerHTML = `<audio id="videoGeneratedAudio" controls src="${_videoAudioUrl}" style="width:100%;margin-top:8px;"></audio>`;
+    result.textContent += `\n\n🎼 配乐生成完成！\n风格: ${params.style} | 调性: ${params.key} | BPM: ${params.bpm}\n小节: ${params.barCount} | 情绪: ${params.emotion}\n段落: ${params.sections?.map(s=>s.type).join(' → ')}`;
+    document.getElementById('videoSyncWrap').style.display = 'block';
+    document.getElementById('videoExportWrap').style.display = 'block';
+  } catch (e) {
+    result.textContent += '\n\n配乐生成错误: ' + e.message;
+  }
+  loading.classList.remove('show');
+}
+
+function syncPlayVideoAudio() {
+  const video = document.getElementById('videoPreview');
+  const audio = document.getElementById('videoGeneratedAudio');
+  if (!video || !audio) return;
+  video.currentTime = 0;
+  audio.currentTime = 0;
+  const p1 = video.play();
+  const p2 = audio.play();
+  if (p1 && p1.catch) p1.catch(()=>{});
+  if (p2 && p2.catch) p2.catch(()=>{});
+}
+function stopSyncPlay() {
+  const video = document.getElementById('videoPreview');
+  const audio = document.getElementById('videoGeneratedAudio');
+  if (video) video.pause();
+  if (audio) audio.pause();
+}
+
+async function exportVideoAudioZip() {
+  if (!_videoFileUrl || !_videoAudioBlob) { showToast('无可导出内容'); return; }
+  try {
+    const videoResp = await fetch(_videoFileUrl);
+    const videoBlob = await videoResp.blob();
+    const videoName = 'video' + (videoBlob.type.includes('mp4') ? '.mp4' : '.video');
+    const audioName = 'soundtrack.wav';
+
+    // 简化 ZIP 实现（无外部库）：构造一个最简有效的 ZIP
+    const encoder = new TextEncoder();
+    function crc32(bytes) {
+      const table = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        table[i] = c >>> 0;
+      }
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < bytes.length; i++) crc = table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+    function uint16(v) { return [v & 0xFF, (v >>> 8) & 0xFF]; }
+    function uint32(v) { return [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF]; }
+    function dateToDos(d) {
+      return ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    }
+    function timeToDos(d) {
+      return (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    }
+    async function makeLocalFile(name, blob) {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const nameBytes = encoder.encode(name);
+      const crc = crc32(bytes);
+      const now = new Date();
+      const header = new Uint8Array([
+        0x50, 0x4B, 0x03, 0x04, 20, 0, 0, 0, 0,
+        ...uint16(timeToDos(now)), ...uint16(dateToDos(now)),
+        ...uint32(crc), ...uint32(bytes.length), ...uint32(bytes.length),
+        ...uint16(nameBytes.length), 0, 0, ...nameBytes
+      ]);
+      return { header, bytes, nameBytes, crc, size: bytes.length };
+    }
+    const f1 = await makeLocalFile(videoName, videoBlob);
+    const f2 = await makeLocalFile(audioName, _videoAudioBlob);
+    let offset = 0;
+    const central = [];
+    const parts = [];
+    [f1, f2].forEach(f => {
+      parts.push(f.header, f.bytes);
+      const cd = new Uint8Array([
+        0x50, 0x4B, 0x01, 0x02, 20, 0, 20, 0, 0, 0, 0,
+        ...uint16(timeToDos(new Date())), ...uint16(dateToDos(new Date())),
+        ...uint32(f.crc), ...uint32(f.size), ...uint32(f.size),
+        ...uint16(f.nameBytes.length), 0, 0, 0, 0, 0, 0, 0,
+        ...uint32(0), ...f.nameBytes
+      ]);
+      central.push({ cd, offset });
+      offset += f.header.length + f.bytes.length;
+    });
+    const cdStart = offset;
+    const cdArrays = central.map(c => { c.cd.set(uint32(c.offset), 42); return c.cd; });
+    const cdTotal = cdArrays.reduce((s, a) => s + a.length, 0);
+    const eocd = new Uint8Array([
+      0x50, 0x4B, 0x05, 0x06, 0, 0, 0, 0,
+      ...uint16(2), ...uint16(2), ...uint32(cdTotal), ...uint32(cdStart), 0, 0
+    ]);
+    const zip = new Blob([...parts, ...cdArrays, eocd], { type: 'application/zip' });
+    const url = URL.createObjectURL(zip);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'video_soundtrack.zip';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('ZIP 导出成功');
+  } catch (e) { showToast('导出失败: ' + e.message); }
+}
+
+async function runCardVideoAnalyze(cid) {
+  const video = document.getElementById(cid + '_video');
+  const canvas = document.getElementById(cid + '_canvas');
+  const ctx = canvas.getContext('2d');
+  const resEl = document.getElementById(cid + '_res');
+  const player = document.getElementById(cid + '_player');
+
+  if (!video.src || video.readyState < 2) { resEl.textContent = '请先等待视频加载'; return; }
+  resEl.textContent = '分析中...';
+  player.innerHTML = '';
+
+  const duration = video.duration || 0;
+  const interval = 2;
+  const captureWidth = 160;
+  const captureHeight = 90;
+  canvas.width = captureWidth;
+  canvas.height = captureHeight;
+
+  let prevData = null;
+  const times = [];
+  for (let t = 0; t < duration; t += interval) times.push(t);
+  if (duration - times[times.length - 1] > 0.5) times.push(duration);
+
+  const sequence = [];
+  for (let idx = 0; idx < times.length; idx++) {
+    const t = times[idx];
+    video.currentTime = t;
+    await new Promise(r => {
+      const onSeek = () => { video.removeEventListener('seeked', onSeek); r(); };
+      video.addEventListener('seeked', onSeek);
+    });
+    await new Promise(r => setTimeout(r, 50));
+    ctx.drawImage(video, 0, 0, captureWidth, captureHeight);
+    const imageData = ctx.getImageData(0, 0, captureWidth, captureHeight);
+    const emotion = computeFrameEmotion(imageData.data, captureWidth, captureHeight, prevData);
+    prevData = new Uint8ClampedArray(imageData.data);
+    sequence.push({ time: Math.round(t * 10) / 10, emotion, intensity: (emotion.tense + emotion.excited) / 2 });
+  }
+
+  try {
+    const scoreRes = await fetch(`${API}/api/video/score`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emotionSequence: sequence })
+    });
+    const params = await scoreRes.json();
+    if (params.error) throw new Error(params.error);
+
+    const prodRes = await fetch(`${API}/api/produce`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ style: params.style, key: params.key, emotion: params.emotion, bpm: params.bpm, barCount: params.barCount, maxAttempts: 2 })
+    });
+    const d = await prodRes.json();
+    if (d.error) throw new Error(d.error);
+
+    const wav = Uint8Array.from(atob(d.wavBase64), c => c.charCodeAt(0));
+    const blob = new Blob([wav], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    player.innerHTML = `<audio controls src="${url}" style="width:100%;margin-top:8px;"></audio>`;
+    resEl.textContent = `配乐生成完成！\n风格: ${params.style} | 调性: ${params.key} | BPM: ${params.bpm}\n小节: ${params.barCount}`;
+  } catch (e) {
+    resEl.textContent = '错误: ' + e.message;
+  }
+}
+
 /* ================= 工作室标签切换 ================= */
 document.querySelectorAll('.studio-tab').forEach(t => {
   t.addEventListener('click', () => {
@@ -2798,6 +3584,317 @@ setInterval(() => {
   const now = new Date();
   document.getElementById('clock').textContent = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
 }, 1000);
+
+/* ================= 实时协作系统 ================= */
+let collabState = {
+  connected: false,
+  roomId: '',
+  userId: '',
+  nickname: '',
+  ownerId: '',
+  locked: false,
+  users: [],
+  eventSource: null,
+};
+
+function generateCollabUserId() {
+  return 'u_' + Math.random().toString(36).slice(2, 8) + '_' + Date.now().toString(36).slice(-4);
+}
+
+function generateRoomId() {
+  return 'room_' + Math.random().toString(36).slice(2, 8);
+}
+
+function joinCollabRoom() {
+  const nickname = document.getElementById('collabNickname').value.trim() || '匿名';
+  let roomId = document.getElementById('collabRoomId').value.trim();
+  if (!roomId) {
+    roomId = generateRoomId();
+    document.getElementById('collabRoomId').value = roomId;
+  }
+  const userId = generateCollabUserId();
+  collabState.nickname = nickname;
+  collabState.userId = userId;
+  collabState.roomId = roomId;
+
+  document.getElementById('collabNotJoined').style.display = 'none';
+  document.getElementById('collabJoined').style.display = 'block';
+  document.getElementById('collabDisplayRoomId').textContent = roomId;
+
+  setupCollabEventSource();
+  addCollabLog('正在加入房间...');
+}
+
+function leaveCollabRoom() {
+  if (collabState.eventSource) {
+    collabState.eventSource.close();
+    collabState.eventSource = null;
+  }
+  collabState.connected = false;
+  collabState.roomId = '';
+  collabState.ownerId = '';
+  collabState.locked = false;
+  collabState.users = [];
+
+  document.getElementById('collabNotJoined').style.display = 'block';
+  document.getElementById('collabJoined').style.display = 'none';
+  document.getElementById('collabStatus').textContent = '未连接';
+  document.getElementById('collabStatus').className = 'collab-status offline';
+  document.getElementById('collabUserList').innerHTML = '';
+  document.getElementById('collabChatMessages').innerHTML = '';
+  document.getElementById('collabLog').innerHTML = '';
+  document.getElementById('collabLockedBadge').innerHTML = '';
+  document.getElementById('collabOwnerActions').style.display = 'none';
+  showToast('已离开房间');
+}
+
+function setupCollabEventSource() {
+  if (collabState.eventSource) {
+    collabState.eventSource.close();
+  }
+  const url = `${API}/api/collab/stream?roomId=${encodeURIComponent(collabState.roomId)}&userId=${encodeURIComponent(collabState.userId)}&nickname=${encodeURIComponent(collabState.nickname)}`;
+  const es = new EventSource(url);
+  collabState.eventSource = es;
+
+  es.onopen = () => {
+    collabState.connected = true;
+    document.getElementById('collabStatus').textContent = '已连接';
+    document.getElementById('collabStatus').className = 'collab-status online';
+    addCollabLog('SSE 连接已建立');
+  };
+
+  es.onmessage = (e) => {
+    try {
+      const event = JSON.parse(e.data);
+      handleCollabEvent(event);
+    } catch (err) {
+      console.error('协作事件解析错误:', err);
+    }
+  };
+
+  es.onerror = () => {
+    collabState.connected = false;
+    document.getElementById('collabStatus').textContent = '连接中断';
+    document.getElementById('collabStatus').className = 'collab-status offline';
+    addCollabLog('SSE 连接中断，尝试重连...');
+  };
+}
+
+function handleCollabEvent(event) {
+  switch (event.type) {
+    case 'connected':
+      collabState.ownerId = event.data.ownerId;
+      collabState.locked = event.data.locked;
+      updateCollabOwnerUI();
+      addCollabLog(`已连接到房间，房主: ${event.data.ownerId === collabState.userId ? '你' : event.data.ownerId}`);
+      if (event.data.locked) addCollabLog('房间当前处于锁定状态');
+      break;
+    case 'userList':
+      collabState.users = event.data || [];
+      renderCollabUsers();
+      break;
+    case 'userJoined':
+      collabState.users = event.data.users || [];
+      if (event.data.ownerChanged) {
+        collabState.ownerId = event.data.userId;
+        updateCollabOwnerUI();
+      }
+      renderCollabUsers();
+      addCollabChat('system', `${event.data.nickname} 加入了房间`);
+      addCollabLog(`用户加入: ${event.data.nickname}`);
+      break;
+    case 'userLeft':
+      collabState.users = event.data.users || [];
+      renderCollabUsers();
+      addCollabChat('system', `用户 ${event.data.userId.slice(0,8)} 离开了房间`);
+      addCollabLog(`用户离开: ${event.data.userId.slice(0,8)}`);
+      break;
+    case 'chatMessage':
+      if (event.from !== collabState.userId) {
+        const user = collabState.users.find(u => u.userId === event.from);
+        addCollabChat(event.from, event.data.text, user?.color);
+      }
+      break;
+    case 'noteAdded':
+      addCollabLog(`[${fmtTime(event.time)}] ${event.from.slice(0,8)} 添加了音符`);
+      break;
+    case 'noteDeleted':
+      addCollabLog(`[${fmtTime(event.time)}] ${event.from.slice(0,8)} 删除了音符`);
+      break;
+    case 'paramChanged':
+      addCollabLog(`[${fmtTime(event.time)}] ${event.from.slice(0,8)} 修改了参数: ${event.data.key}=${event.data.value}`);
+      break;
+    case 'cursorMoved':
+      addCollabLog(`[${fmtTime(event.time)}] ${event.from.slice(0,8)} 光标移动: ${event.data.panel}`);
+      break;
+    case 'roomLocked':
+      collabState.locked = true;
+      document.getElementById('collabLockedBadge').innerHTML = '<span class="collab-locked-badge">🔒 锁定</span>';
+      addCollabLog('房间已被锁定');
+      updateCollabOwnerUI();
+      break;
+    case 'roomUnlocked':
+      collabState.locked = false;
+      document.getElementById('collabLockedBadge').innerHTML = '';
+      addCollabLog('房间已解锁');
+      updateCollabOwnerUI();
+      break;
+    case 'syncResponse':
+      if (event.data.project) {
+        restoreProject(event.data.project);
+        addCollabLog('收到项目同步数据');
+        showToast('项目已同步');
+      }
+      break;
+  }
+}
+
+function updateCollabOwnerUI() {
+  const isOwner = collabState.ownerId === collabState.userId;
+  document.getElementById('collabOwnerActions').style.display = isOwner ? 'block' : 'none';
+  document.getElementById('collabLockBtn').style.display = (!collabState.locked && isOwner) ? 'inline-block' : 'none';
+  document.getElementById('collabUnlockBtn').style.display = (collabState.locked && isOwner) ? 'inline-block' : 'none';
+}
+
+function renderCollabUsers() {
+  const container = document.getElementById('collabUserList');
+  container.innerHTML = collabState.users.map(u => {
+    const isMe = u.userId === collabState.userId;
+    const isOwner = u.userId === collabState.ownerId;
+    return `<div class="collab-user-chip ${isMe ? 'me' : ''}"><span class="dot" style="background:${u.color || '#999'}"></span>${escapeHtml(u.nickname)}${isOwner ? ' (房主)' : ''}${isMe ? ' (你)' : ''}</div>`;
+  }).join('');
+}
+
+function addCollabChat(from, text, color) {
+  const container = document.getElementById('collabChatMessages');
+  const div = document.createElement('div');
+  if (from === 'system') {
+    div.className = 'collab-chat-msg system';
+    div.textContent = text;
+  } else {
+    const isMe = from === collabState.userId;
+    const user = collabState.users.find(u => u.userId === from);
+    const name = isMe ? '你' : (user?.nickname || from.slice(0,8));
+    div.className = 'collab-chat-msg';
+    div.innerHTML = `<span class="msg-name" style="color:${color || (isMe ? 'var(--accent)' : 'var(--text2)')}">${escapeHtml(name)}:</span><span class="msg-text">${escapeHtml(text)}</span>`;
+  }
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addCollabLog(text) {
+  const container = document.getElementById('collabLog');
+  const div = document.createElement('div');
+  div.className = 'collab-log-item';
+  const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  div.innerHTML = `<span class="log-time">${time}</span><span>${escapeHtml(text)}</span>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearCollabLog() {
+  document.getElementById('collabLog').innerHTML = '';
+}
+
+async function broadcastCollabEvent(type, data) {
+  if (!collabState.connected || !collabState.roomId) return;
+  try {
+    await fetch(`${API}/api/collab/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId: collabState.roomId, userId: collabState.userId, type, data })
+    });
+  } catch (e) {
+    console.error('广播失败:', e);
+  }
+}
+
+function sendCollabChat() {
+  const input = document.getElementById('collabChatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!collabState.connected) { showToast('未连接'); return; }
+  addCollabChat(collabState.userId, text);
+  broadcastCollabEvent('chatMessage', { text });
+  input.value = '';
+}
+
+async function lockCollabRoom() {
+  if (!collabState.connected) return;
+  try {
+    const r = await fetch(`${API}/api/collab/lock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId: collabState.roomId, userId: collabState.userId })
+    });
+    const d = await r.json();
+    if (d.ok) showToast('房间已锁定');
+    else showToast(d.error || '锁定失败');
+  } catch (e) { showToast('锁定失败'); }
+}
+
+async function unlockCollabRoom() {
+  if (!collabState.connected) return;
+  try {
+    const r = await fetch(`${API}/api/collab/unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId: collabState.roomId, userId: collabState.userId })
+    });
+    const d = await r.json();
+    if (d.ok) showToast('房间已解锁');
+    else showToast(d.error || '解锁失败');
+  } catch (e) { showToast('解锁失败'); }
+}
+
+function requestCollabSync() {
+  if (!collabState.connected) { showToast('未连接'); return; }
+  broadcastCollabEvent('syncRequest', { requester: collabState.userId });
+  addCollabLog('已请求项目同步');
+}
+
+/* ================= 在现有操作函数中集成协作广播 ================= */
+const _origCompose = compose;
+compose = async function() {
+  await _origCompose();
+  broadcastCollabEvent('paramChanged', { key: 'compose', value: document.getElementById('algo')?.value });
+};
+
+const _origFullSong = fullSong;
+fullSong = async function() {
+  await _origFullSong();
+  broadcastCollabEvent('noteAdded', { count: currentProject.melody?.length || 0 });
+};
+
+const _origGenerateLyrics = generateLyrics;
+generateLyrics = async function() {
+  await _origGenerateLyrics();
+  broadcastCollabEvent('paramChanged', { key: 'lyrics', value: 'generated' });
+};
+
+const _origGenerateArranger = generateArranger;
+generateArranger = async function() {
+  await _origGenerateArranger();
+  broadcastCollabEvent('paramChanged', { key: 'arranger', value: document.getElementById('arrStyle')?.value });
+};
+
+const _origGenerateFlawless = generateFlawless;
+generateFlawless = async function() {
+  await _origGenerateFlawless();
+  broadcastCollabEvent('paramChanged', { key: 'flawless', value: document.getElementById('flawMode')?.value });
+};
+
+const _origGenerateEmergence = generateEmergence;
+generateEmergence = async function() {
+  await _origGenerateEmergence();
+  broadcastCollabEvent('paramChanged', { key: 'emergence', value: 'composed' });
+};
+
+const _origGenerateProduce = generateProduce;
+generateProduce = async function() {
+  await _origGenerateProduce();
+  broadcastCollabEvent('noteAdded', { count: currentProject.melody?.length || 0 });
+};
 
 /* ================= 初始化 ================= */
 ensureSession();

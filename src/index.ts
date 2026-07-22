@@ -1077,6 +1077,113 @@ app.get('/api/produce/status', (c) => {
   return c.json(producer.getEvolutionReport());
 });
 
+// ======== 视频配乐 API ========
+app.post('/api/video/score', async (c) => {
+  const body = await c.req.json<{
+    emotionSequence: Array<{ time: number; emotion: { happy: number; sad: number; tense: number; calm: number; excited: number }; intensity?: number }>;
+  }>();
+  try {
+    const seq = body.emotionSequence || [];
+    if (seq.length === 0) return c.json({ error: '情绪序列为空' }, 400);
+
+    const totals = seq.reduce(
+      (acc, cur) => {
+        const e = cur.emotion;
+        acc.happy += e.happy || 0;
+        acc.sad += e.sad || 0;
+        acc.tense += e.tense || 0;
+        acc.calm += e.calm || 0;
+        acc.excited += e.excited || 0;
+        return acc;
+      },
+      { happy: 0, sad: 0, tense: 0, calm: 0, excited: 0 }
+    );
+    const n = seq.length;
+    const avg = {
+      happy: totals.happy / n,
+      sad: totals.sad / n,
+      tense: totals.tense / n,
+      calm: totals.calm / n,
+      excited: totals.excited / n,
+    };
+
+    const dominant = (Object.keys(avg) as Array<keyof typeof avg>).reduce((a, b) =>
+      avg[a] > avg[b] ? a : b
+    );
+
+    const emotionToStyle: Record<string, string> = {
+      happy: 'pop',
+      sad: 'chinese',
+      tense: 'rock',
+      calm: 'classical',
+      excited: 'funk',
+    };
+    const emotionToEmotion: Record<string, string> = {
+      happy: 'happy',
+      sad: 'sad',
+      tense: 'tense',
+      calm: 'relaxed',
+      excited: 'epic',
+    };
+
+    // 计算情绪变化剧烈程度
+    let changeScore = 0;
+    for (let i = 1; i < seq.length; i++) {
+      const prev = seq[i - 1].emotion;
+      const cur = seq[i].emotion;
+      changeScore +=
+        Math.abs((cur.happy || 0) - (prev.happy || 0)) +
+        Math.abs((cur.sad || 0) - (prev.sad || 0)) +
+        Math.abs((cur.tense || 0) - (prev.tense || 0)) +
+        Math.abs((cur.calm || 0) - (prev.calm || 0)) +
+        Math.abs((cur.excited || 0) - (prev.excited || 0));
+    }
+    const avgChange = changeScore / (seq.length - 1 || 1);
+
+    // 根据情绪变化决定 bpm
+    const baseBpm = { happy: 128, sad: 80, tense: 140, calm: 72, excited: 135 };
+    let bpm = baseBpm[dominant] || 120;
+    if (avgChange > 0.3) bpm = Math.min(180, Math.round(bpm * 1.15));
+    else if (avgChange < 0.1) bpm = Math.round(bpm * 0.95);
+
+    // 根据视频时长决定小节数
+    const lastTime = seq[seq.length - 1]?.time || 0;
+    const barCount = Math.max(4, Math.min(32, Math.round((lastTime / 60) * (bpm / 4))));
+
+    // 构建段落结构
+    const sections: Array<{ type: string; bars: number; intensity: number }> = [];
+    const sectionTypes = ['intro', 'verse', 'chorus', 'outro'];
+    const sectionBars = [4, 8, 8, 4];
+    let sectionCount = Math.min(4, Math.max(2, Math.round(barCount / 6)));
+    for (let i = 0; i < sectionCount; i++) {
+      sections.push({
+        type: sectionTypes[i] || 'verse',
+        bars: Math.min(sectionBars[i] || 4, barCount),
+        intensity: avgChange > 0.2 ? 0.8 : 0.5,
+      });
+    }
+
+    const style = emotionToStyle[dominant] || 'pop';
+    const emotion = emotionToEmotion[dominant] || 'happy';
+    const keys = ['C', 'G', 'Am', 'F', 'D', 'Em'];
+    const key = keys[Math.floor(seq.length % keys.length)];
+
+    return c.json({
+      style,
+      key,
+      emotion,
+      bpm,
+      barCount,
+      sections,
+      dominantEmotion: dominant,
+      emotionAverages: avg,
+      changeIntensity: Math.round(avgChange * 100) / 100,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // ======== MIDI 导出 API ========
 app.post('/api/export/midi', async (c) => {
   const body = await c.req.json<{
@@ -1196,6 +1303,81 @@ app.post('/api/export/audio', async (c) => {
   }
 });
 
+// ======== 模块8: AI 专辑封面生成 API ========
+
+const STYLE_KEYWORDS: Record<string, string> = {
+  pop: 'vibrant, modern, neon lights, bold typography, glossy finish, trendy aesthetic',
+  rock: 'gritty, dark, electric guitar silhouette, smoke, leather texture, stage lights',
+  chinese: 'ink wash, traditional, watercolor, mountain mist, calligraphy brush strokes, serene landscape',
+  jazz: 'warm tones, vinyl record, smoky club, golden hour, vintage microphone, soft spotlight',
+  electronic: 'cyberpunk, holographic, circuit patterns, futuristic, neon grids, digital glitch',
+  classical: 'baroque, oil painting, orchestra hall, gold frame, velvet curtain, candlelight',
+  kpop: 'pastel gradients, kawaii aesthetic, holographic sparkles, dreamy bubbles, starry eyes',
+  folk: 'acoustic guitar, rustic wood, wildflowers, sunset field, warm earth tones, hand-drawn',
+  rnb: 'silk fabric, midnight blue, city skyline, smooth curves, soft focus, romantic glow',
+  metal: 'flames, iron chains, dark cathedral, thunderstorm, blood moon, aggressive texture',
+};
+
+const EMOTION_KEYWORDS: Record<string, string> = {
+  happy: 'joyful atmosphere, bright colors, sunburst, floating confetti, uplifting energy, warm sunshine',
+  sad: 'melancholic mood, muted blue-gray tones, rain drops, dim twilight, solitary shadow, fading light',
+  tense: 'dramatic contrast, sharp angles, storm clouds, crackling energy, dark reds, impending danger',
+  relaxed: 'soft pastel, gentle waves, fluffy clouds, calm horizon, meditative, breezy meadow',
+  epic: 'grand scale, soaring cathedral, golden rays, mountain peaks, heroic stance, cinematic lighting',
+  romantic: 'rose petals, soft pink glow, moonlight reflection, intimate candlelight, dreamy haze',
+  angry: 'fiery explosion, shattered glass, dark crimson, lightning strike, raw power, chaotic motion',
+  hopeful: 'dawn breaking, fresh green sprouts, clear sky, warm sunrise, open road, new beginnings',
+  lonely: 'empty street lamp, foggy window, single chair, long shadows, cold moonlight, distant city',
+  nostalgic: 'vintage polaroid, sepia tones, old vinyl, soft vignette, childhood memory, warm amber',
+};
+
+function buildCoverPrompt(params: { emotion: string; style: string; theme?: string; lyricSnippet?: string; seedVariant?: string }): string {
+  const styleKw = STYLE_KEYWORDS[params.style] || STYLE_KEYWORDS.pop;
+  const emotionKw = EMOTION_KEYWORDS[params.emotion] || EMOTION_KEYWORDS.happy;
+  const parts: string[] = [
+    'Album cover art, high quality digital art, square format, centered composition',
+    styleKw,
+    emotionKw,
+  ];
+  if (params.theme && params.theme.trim()) {
+    parts.push(`thematic elements: ${params.theme.trim()}`);
+  }
+  if (params.lyricSnippet && params.lyricSnippet.trim()) {
+    parts.push(`inspired by lyrics: "${params.lyricSnippet.trim().slice(0, 80)}"`);
+  }
+  if (params.seedVariant && params.seedVariant.trim()) {
+    parts.push(params.seedVariant.trim());
+  }
+  parts.push('professional graphic design, 4k, detailed, realistic visual, cinematic lighting, no text, no watermark');
+  return parts.join(', ');
+}
+
+app.post('/api/cover/generate', async (c) => {
+  const body = await c.req.json<{
+    emotion: string;
+    style: string;
+    theme?: string;
+    lyricSnippet?: string;
+    seedVariant?: string;
+  }>();
+  try {
+    const emotion = body.emotion || 'happy';
+    const style = body.style || 'pop';
+    const prompt = buildCoverPrompt({
+      emotion,
+      style,
+      theme: body.theme,
+      lyricSnippet: body.lyricSnippet,
+      seedVariant: body.seedVariant,
+    });
+    const encodedPrompt = encodeURIComponent(prompt);
+    const coverUrl = `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=${encodedPrompt}&image_size=square`;
+    return c.json({ coverUrl, prompt });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Cover generation failed' }, 500);
+  }
+});
+
 // ======== 项目管理 API ========
 app.post('/api/project/save', async (c) => {
   try {
@@ -1264,6 +1446,421 @@ app.post('/api/project/import', async (c) => {
   } catch (e: any) {
     return c.json({ error: e.message || 'Import failed' }, 400);
   }
+});
+
+// ======== 云端同步 API ========
+interface CloudProjectEntry {
+  projectId: string;
+  project: QingluanProject;
+  syncToken: string;
+  deviceId: string;
+  lastModified: number;
+  lastSyncTime: number;
+}
+
+const cloudStore = new Map<string, CloudProjectEntry>();
+
+function generateSyncToken(): string {
+  return 'sync_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+app.post('/api/cloud/upload', async (c) => {
+  try {
+    const body = await c.req.json<{ project: QingluanProject; deviceId: string }>();
+    const project = body.project;
+    const deviceId = body.deviceId || 'unknown';
+
+    if (!project) {
+      return c.json({ error: 'Missing project data' }, 400);
+    }
+
+    const projectId =
+      (project as any).projectId ||
+      'cloud_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+    const syncToken = generateSyncToken();
+    const now = Date.now();
+
+    const entry: CloudProjectEntry = {
+      projectId,
+      project,
+      syncToken,
+      deviceId,
+      lastModified: now,
+      lastSyncTime: now,
+    };
+
+    cloudStore.set(projectId, entry);
+
+    const baseUrl = new URL(c.req.url).origin;
+    const url = `${baseUrl}/api/cloud/download?projectId=${projectId}&syncToken=${syncToken}`;
+
+    return c.json({ projectId, syncToken, url });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Upload failed' }, 500);
+  }
+});
+
+app.get('/api/cloud/download', (c) => {
+  const projectId = c.req.query('projectId');
+  const syncToken = c.req.query('syncToken');
+
+  if (!projectId || !syncToken) {
+    return c.json({ error: 'Missing projectId or syncToken' }, 400);
+  }
+
+  const entry = cloudStore.get(projectId);
+  if (!entry || entry.syncToken !== syncToken) {
+    return c.json({ error: 'Project not found or invalid syncToken' }, 404);
+  }
+
+  return c.json({ project: entry.project, lastModified: entry.lastModified, deviceId: entry.deviceId });
+});
+
+app.get('/api/cloud/list', (c) => {
+  const deviceId = c.req.query('deviceId') || '';
+  const allProjects = Array.from(cloudStore.values()).map((entry) => ({
+    projectId: entry.projectId,
+    name: entry.project.name,
+    style: entry.project.compositionParams.style,
+    key: entry.project.compositionParams.key,
+    lastSyncTime: entry.lastSyncTime,
+    deviceId: entry.deviceId,
+    isOwner: entry.deviceId === deviceId,
+  }));
+
+  // 优先返回当前设备的项目，但也返回其他设备的项目以支持多设备同步
+  const ownerProjects = allProjects.filter((p) => p.isOwner);
+  const otherProjects = allProjects.filter((p) => !p.isOwner);
+
+  return c.json({ projects: allProjects, ownerProjects, otherProjects, deviceId });
+});
+
+app.post('/api/cloud/sync', async (c) => {
+  try {
+    const body = await c.req.json<{
+      projectId: string;
+      syncToken: string;
+      deviceId: string;
+      timestamp: number;
+      project?: QingluanProject;
+    }>();
+
+    const { projectId, syncToken, deviceId, timestamp } = body;
+
+    if (!projectId || !syncToken || !deviceId || typeof timestamp !== 'number') {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    const entry = cloudStore.get(projectId);
+    if (!entry || entry.syncToken !== syncToken) {
+      return c.json({ error: 'Project not found or invalid syncToken' }, 404);
+    }
+
+    const cloudTime = entry.lastModified;
+    const localTime = timestamp;
+    const timeDiff = Math.abs(cloudTime - localTime);
+
+    // 冲突检测：时间差 < 60秒视为并发更新
+    if (timeDiff < 60000) {
+      return c.json({
+        status: 'conflict',
+        message: '本地与云端同时有更新，请选择一个版本保留',
+        cloudVersion: entry.project,
+        cloudTimestamp: cloudTime,
+        localTimestamp: localTime,
+      });
+    }
+
+    if (localTime > cloudTime) {
+      // 本地更新，覆盖云端
+      if (body.project) {
+        const now = Date.now();
+        entry.project = body.project;
+        entry.lastModified = now;
+        entry.lastSyncTime = now;
+        entry.deviceId = deviceId;
+        cloudStore.set(projectId, entry);
+        return c.json({ status: 'updated', message: '云端已更新为本地版本', lastModified: now });
+      }
+      return c.json({ status: 'local_newer', message: '本地版本较新，请调用 upload 上传', cloudTimestamp: cloudTime, localTimestamp: localTime });
+    }
+
+    // 云端更新
+    return c.json({
+      status: 'cloud_newer',
+      message: '云端版本较新',
+      cloudVersion: entry.project,
+      cloudTimestamp: cloudTime,
+      localTimestamp: localTime,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Sync failed' }, 500);
+  }
+});
+
+app.post('/api/cloud/delete', async (c) => {
+  try {
+    const body = await c.req.json<{ projectId: string; syncToken: string }>();
+    const { projectId, syncToken } = body;
+
+    if (!projectId || !syncToken) {
+      return c.json({ error: 'Missing projectId or syncToken' }, 400);
+    }
+
+    const entry = cloudStore.get(projectId);
+    if (!entry || entry.syncToken !== syncToken) {
+      return c.json({ error: 'Project not found or invalid syncToken' }, 404);
+    }
+
+    cloudStore.delete(projectId);
+    return c.json({ status: 'deleted', projectId });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Delete failed' }, 500);
+  }
+});
+
+// ======== 协作 SSE API ========
+
+interface CollabUser {
+  userId: string;
+  nickname: string;
+  color: string;
+  controller: ReadableStreamDefaultController<string>;
+}
+
+interface CollabRoom {
+  roomId: string;
+  ownerId: string;
+  locked: boolean;
+  users: Map<string, CollabUser>;
+  createdAt: number;
+}
+
+interface CollabEvent {
+  type: 'noteAdded' | 'noteDeleted' | 'paramChanged' | 'cursorMoved' | 'chatMessage' | 'userJoined' | 'userLeft' | 'roomLocked' | 'roomUnlocked' | 'syncRequest' | 'syncResponse';
+  data: any;
+  from: string;
+  time: number;
+}
+
+const collabRooms = new Map<string, CollabRoom>();
+const COLLAB_COLORS = ['#5b4dff', '#ff6b9d', '#00c9a7', '#ff9f43', '#ee5a52', '#2bcbba', '#a55eea', '#fd9644'];
+
+function getCollabColor(index: number): string {
+  return COLLAB_COLORS[index % COLLAB_COLORS.length];
+}
+
+function getRoom(roomId: string): CollabRoom | undefined {
+  return collabRooms.get(roomId);
+}
+
+function ensureRoom(roomId: string, ownerId: string): CollabRoom {
+  let room = collabRooms.get(roomId);
+  if (!room) {
+    room = {
+      roomId,
+      ownerId,
+      locked: false,
+      users: new Map(),
+      createdAt: Date.now(),
+    };
+    collabRooms.set(roomId, room);
+  }
+  return room;
+}
+
+function broadcastToRoom(room: CollabRoom, event: CollabEvent, excludeUserId?: string) {
+  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  room.users.forEach((user, uid) => {
+    if (uid === excludeUserId) return;
+    try {
+      user.controller.enqueue(payload);
+    } catch {
+      // connection closed
+    }
+  });
+}
+
+function makeUserList(room: CollabRoom): { userId: string; nickname: string; color: string }[] {
+  return Array.from(room.users.values()).map(u => ({
+    userId: u.userId,
+    nickname: u.nickname,
+    color: u.color,
+  }));
+}
+
+// SSE 流连接
+app.get('/api/collab/stream', (c) => {
+  const roomId = c.req.query('roomId');
+  const userId = c.req.query('userId');
+  const nickname = c.req.query('nickname') || userId || '匿名';
+
+  if (!roomId || !userId) {
+    return c.json({ error: '缺少 roomId 或 userId' }, 400);
+  }
+
+  const stream = new ReadableStream<string>({
+    start(controller) {
+      const room = ensureRoom(roomId, userId);
+      // 如果房间为空，当前用户成为房主
+      if (room.users.size === 0) {
+        room.ownerId = userId;
+      }
+
+      const color = getCollabColor(room.users.size);
+      const user: CollabUser = { userId, nickname, color, controller };
+      room.users.set(userId, user);
+
+      // 发送连接确认
+      controller.enqueue(`data: ${JSON.stringify({ type: 'connected', data: { roomId, userId, ownerId: room.ownerId, locked: room.locked }, from: 'system', time: Date.now() })}\n\n`);
+
+      // 广播用户加入
+      broadcastToRoom(room, {
+        type: 'userJoined',
+        data: { userId, nickname, color, users: makeUserList(room) },
+        from: 'system',
+        time: Date.now(),
+      }, userId);
+
+      // 发送当前用户列表给新用户
+      controller.enqueue(`data: ${JSON.stringify({ type: 'userList', data: makeUserList(room), from: 'system', time: Date.now() })}\n\n`);
+    },
+    cancel() {
+      const room = getRoom(roomId);
+      if (!room) return;
+      const existed = room.users.has(userId);
+      room.users.delete(userId);
+      if (existed) {
+        broadcastToRoom(room, {
+          type: 'userLeft',
+          data: { userId, users: makeUserList(room) },
+          from: 'system',
+          time: Date.now(),
+        });
+      }
+      if (room.users.size === 0) {
+        collabRooms.delete(roomId);
+      } else if (room.ownerId === userId) {
+        // 房主离开，转让房主给第一个在线用户
+        const nextOwner = room.users.values().next().value as CollabUser | undefined;
+        if (nextOwner) {
+          room.ownerId = nextOwner.userId;
+          broadcastToRoom(room, {
+            type: 'userJoined',
+            data: { userId: nextOwner.userId, nickname: nextOwner.nickname, color: nextOwner.color, users: makeUserList(room), ownerChanged: true },
+            from: 'system',
+            time: Date.now(),
+          });
+        }
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+});
+
+// 广播事件
+app.post('/api/collab/broadcast', async (c) => {
+  const body = await c.req.json<{ roomId: string; userId: string; type: string; data: any }>();
+  const { roomId, userId, type, data } = body;
+
+  if (!roomId || !userId || !type) {
+    return c.json({ error: '缺少参数' }, 400);
+  }
+
+  const room = getRoom(roomId);
+  if (!room) {
+    return c.json({ error: '房间不存在' }, 404);
+  }
+
+  // 权限检查
+  if (room.locked && room.ownerId !== userId) {
+    // 锁定状态下只允许 chatMessage 和 cursorMoved
+    if (type !== 'chatMessage' && type !== 'cursorMoved' && type !== 'syncRequest') {
+      return c.json({ error: '房间已锁定，只有房主可以编辑' }, 403);
+    }
+  }
+
+  const event: CollabEvent = {
+    type: type as CollabEvent['type'],
+    data,
+    from: userId,
+    time: Date.now(),
+  };
+
+  broadcastToRoom(room, event, userId);
+  return c.json({ ok: true });
+});
+
+// 获取房间信息
+app.get('/api/collab/room', (c) => {
+  const roomId = c.req.query('roomId');
+  if (!roomId) return c.json({ error: '缺少 roomId' }, 400);
+  const room = getRoom(roomId);
+  if (!room) return c.json({ error: '房间不存在' }, 404);
+  return c.json({
+    roomId: room.roomId,
+    ownerId: room.ownerId,
+    locked: room.locked,
+    userCount: room.users.size,
+    users: makeUserList(room),
+  });
+});
+
+// 房主锁定房间
+app.post('/api/collab/lock', async (c) => {
+  const body = await c.req.json<{ roomId: string; userId: string }>();
+  const { roomId, userId } = body;
+  const room = getRoom(roomId);
+  if (!room) return c.json({ error: '房间不存在' }, 404);
+  if (room.ownerId !== userId) return c.json({ error: '只有房主可以锁定房间' }, 403);
+  room.locked = true;
+  broadcastToRoom(room, { type: 'roomLocked', data: { lockedBy: userId }, from: 'system', time: Date.now() });
+  return c.json({ ok: true, locked: true });
+});
+
+// 房主解锁房间
+app.post('/api/collab/unlock', async (c) => {
+  const body = await c.req.json<{ roomId: string; userId: string }>();
+  const { roomId, userId } = body;
+  const room = getRoom(roomId);
+  if (!room) return c.json({ error: '房间不存在' }, 404);
+  if (room.ownerId !== userId) return c.json({ error: '只有房主可以解锁房间' }, 403);
+  room.locked = false;
+  broadcastToRoom(room, { type: 'roomUnlocked', data: { unlockedBy: userId }, from: 'system', time: Date.now() });
+  return c.json({ ok: true, locked: false });
+});
+
+// 房主踢人
+app.post('/api/collab/kick', async (c) => {
+  const body = await c.req.json<{ roomId: string; userId: string; targetUserId: string }>();
+  const { roomId, userId, targetUserId } = body;
+  const room = getRoom(roomId);
+  if (!room) return c.json({ error: '房间不存在' }, 404);
+  if (room.ownerId !== userId) return c.json({ error: '只有房主可以踢人' }, 403);
+  const target = room.users.get(targetUserId);
+  if (target) {
+    try {
+      target.controller.enqueue(`data: ${JSON.stringify({ type: 'kicked', data: {}, from: 'system', time: Date.now() })}\n\n`);
+    } catch {
+      // ignore
+    }
+    room.users.delete(targetUserId);
+    broadcastToRoom(room, {
+      type: 'userLeft',
+      data: { userId: targetUserId, users: makeUserList(room) },
+      from: 'system',
+      time: Date.now(),
+    });
+  }
+  return c.json({ ok: true });
 });
 
 // ======== 启动服务 ========

@@ -40,6 +40,10 @@ export type VoiceTechnique =
   | 'coloratura'   // 花腔 — 快速音阶跑动，在音符之间插入快速经过音
   | 'overtoneSinging' // 泛音唱法 — 强调第二/第三泛音，削弱基频
   | 'mordent'      // 波音
+  | 'pekingOpera'  // 京剧 — 高亢明亮，强调共鸣在鼻腔和面罩
+  | 'kunqu'        // 昆曲 — 婉转细腻，水磨调，滑音极多
+  | 'mongolianThroat' // 呼麦 — 基频+泛音分离，同时发出两个音高
+  | 'tibetanChant' // 诵经 — 极低频、长持续、大量低频泛音
   | 'pp' | 'p' | 'mp' | 'mf' | 'f' | 'ff'; // 力度
 
 /** 共振峰精细参数 */
@@ -1228,6 +1232,109 @@ export function applyOvertoneSingingEffect(buffer: Float32Array, intensity: numb
 }
 
 /**
+ * 应用京剧唱法效果
+ * 高亢明亮，强调共鸣在鼻腔和面罩
+ * 高 f1/f2，窄带宽，强调 3000Hz 以上泛音
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyPekingOperaEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 高通增强明亮度
+  result = onePoleHighPass(result, 400, sampleRate);
+  // 面罩共鸣：提升 3000Hz 附近
+  result = peakingEQ(result, 3000, 6, 2.5, sampleRate);
+  result = peakingEQ(result, 4500, 4, 3.0, sampleRate);
+  // 鼻腔共鸣：提升 1000-1500Hz
+  result = peakingEQ(result, 1200, 3, 2.0, sampleRate);
+  // 窄带宽感：轻微压缩动态以模拟戏曲声带的紧绷感
+  for (let i = 0; i < result.length; i++) {
+    result[i] = Math.tanh(result[i] * 1.4);
+  }
+  return result;
+}
+
+/**
+ * 应用昆曲唱法效果
+ * 婉转细腻，水磨调，滑音极多
+ * 柔和 f1/f2，大量滑音 sigmoid 曲线
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyKunquEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 柔和共振峰：提升低频泛音，削弱高频刺耳感
+  result = onePoleLowPass(result, 3500, sampleRate);
+  result = peakingEQ(result, 800, 2, 1.5, sampleRate);
+  result = peakingEQ(result, 1600, 2, 2.0, sampleRate);
+  // 水磨调细腻感：增加轻微颤音调制
+  for (let i = 0; i < result.length; i++) {
+    const t = i / sampleRate;
+    const fineVibrato = 1 + 0.03 * Math.sin(2 * Math.PI * 5.5 * t);
+    result[i] *= fineVibrato;
+  }
+  return result;
+}
+
+/**
+ * 应用呼麦唱法效果
+ * 基频+泛音分离，同时发出两个音高
+ * 极低基频（60-100Hz）+ 强调 2x/3x 泛音
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyMongolianThroatEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  const result = new Float32Array(buffer.length);
+  // 极低频基频增强
+  const lowFundamental = onePoleLowPass(buffer, 150, sampleRate);
+  // 强调第二泛音
+  const secondHarmonic = biquadBandPass(buffer, 200, 120, sampleRate);
+  // 强调第三泛音
+  const thirdHarmonic = biquadBandPass(buffer, 300, 150, sampleRate);
+  for (let i = 0; i < buffer.length; i++) {
+    result[i] = lowFundamental[i] * 0.5 + secondHarmonic[i] * 1.0 + thirdHarmonic[i] * 0.8;
+  }
+  // 添加 throat 噪声
+  const noise = generateWhiteNoise(buffer.length, 0.15);
+  const throatNoise = onePoleLowPass(noise, 200, sampleRate);
+  for (let i = 0; i < buffer.length; i++) {
+    result[i] += throatNoise[i] * 0.25;
+  }
+  return result;
+}
+
+/**
+ * 应用诵经唱法效果
+ * 极低频、长持续、大量低频泛音
+ * 基频 80-120Hz，长音符，大量低频噪声
+ * @param buffer 输入音频
+ * @param sampleRate 采样率
+ * @returns 处理后的信号
+ */
+export function applyTibetanChantEffect(buffer: Float32Array, sampleRate: number): Float32Array {
+  let result: Float32Array = new Float32Array(buffer);
+  // 极低频低通
+  result = onePoleLowPass(result, 300, sampleRate);
+  // 增强低频泛音（100-200Hz）
+  result = peakingEQ(result, 120, 5, 1.5, sampleRate);
+  result = peakingEQ(result, 200, 4, 2.0, sampleRate);
+  // 大量低频噪声
+  const noise = generateWhiteNoise(buffer.length, 0.2);
+  const lowNoise = onePoleLowPass(noise, 180, sampleRate);
+  for (let i = 0; i < buffer.length; i++) {
+    result[i] = result[i] * 0.7 + lowNoise[i] * 0.4;
+  }
+  // 长持续感：轻微压缩并饱和
+  for (let i = 0; i < result.length; i++) {
+    result[i] = Math.tanh(result[i] * 1.2) * 0.95;
+  }
+  return result;
+}
+
+/**
  * 应用断奏效果 (Staccato)
  * 缩短音符时长，产生跳跃感
  * @param buffer 输入音频
@@ -1547,6 +1654,18 @@ export function applyVoiceDescriptor(
         break;
       case 'overtoneSinging':
         result = applyOvertoneSingingEffect(result, 0.7, sampleRate);
+        break;
+      case 'pekingOpera':
+        result = applyPekingOperaEffect(result, sampleRate);
+        break;
+      case 'kunqu':
+        result = applyKunquEffect(result, sampleRate);
+        break;
+      case 'mongolianThroat':
+        result = applyMongolianThroatEffect(result, sampleRate);
+        break;
+      case 'tibetanChant':
+        result = applyTibetanChantEffect(result, sampleRate);
         break;
       case 'staccato':
         result = applyStaccatoEffect(result, sampleRate);

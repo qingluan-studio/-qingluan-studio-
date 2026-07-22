@@ -71,7 +71,16 @@ export type InstrumentType =
   | "xiao"
   | "luoGu"
   | "yangQin"
-  | "suoNa";
+  | "suoNa"
+  | "jinghu"
+  | "erhuang"
+  | "pipaJing"
+  | "guQin"
+  | "xiaoQu"
+  | "morinKhuur"
+  | "dombra"
+  | "dramyin"
+  | "dungKar";
 
 /** 风格类型 */
 export type StyleType =
@@ -89,7 +98,11 @@ export type StyleType =
   | "reggae"
   | "funk"
   | "soul"
-  | "latin";
+  | "latin"
+  | "pekingOpera"
+  | "kunqu"
+  | "mongolian"
+  | "tibetan";
 
 /** 情绪类型 */
 export type EmotionType = "happy" | "sad" | "tense" | "relaxed" | "epic" | "romantic";
@@ -1429,6 +1442,456 @@ export class SuoNaSynthesizer extends InstrumentSynthesizer {
   }
 }
 
+/**
+ * 京胡合成器
+ * 高频率擦弦，尖锐明亮，频率范围 500-4000Hz
+ * 基于锯齿波 + 高频共振峰 + 快速深颤音
+ */
+export class JinghuSynthesizer extends InstrumentSynthesizer {
+  readonly type = "jinghu" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 1.2;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    // 锯齿波基础（擦弦感）
+    const saw = AudioUtils.sawWave(freq, duration, note.velocity);
+
+    // 快速深颤音（京胡标志性技法）
+    const vibratoRate = 7.0;
+    const vibratoDepth = 0.06;
+    for (let i = 0; i < len; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = AudioUtils.adsr(len, 0.08, 0.25, 0.7, 0.4)[i];
+      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth * Math.min(1, t * 2);
+      const modFreq = freq * Math.pow(2, vibrato / 12);
+      const phaseIdx = Math.floor(i * modFreq / freq);
+      const sample = saw[Math.min(phaseIdx, saw.length - 1)] || 0;
+      buf[i] = sample * env;
+    }
+
+    // 高频共振峰：尖锐明亮（1000Hz 和 2800Hz）
+    let filtered = AudioUtils.formantFilter(buf, 1000, 5);
+    filtered = AudioUtils.formantFilter(filtered, 2800, 4);
+    filtered = AudioUtils.formantFilter(filtered, 3800, 3);
+
+    // 低切确保 500Hz 以下衰减
+    filtered = AudioUtils.highpass(filtered, 400);
+
+    // 滑音
+    if (note.slideTo !== undefined) {
+      const targetFreq = AudioUtils.midiToFreq(note.slideTo);
+      const slideStart = Math.floor(note.duration * 0.2 * SAMPLE_RATE);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.7 * SAMPLE_RATE));
+      for (let i = slideStart; i < slideEnd; i++) {
+        const t = (i - slideStart) / (slideEnd - slideStart);
+        const f = AudioUtils.lerp(freq, targetFreq, t);
+        filtered[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+      }
+    }
+
+    return filtered;
+  }
+}
+
+/**
+ * 二黄合成器
+ * 京剧唱腔伴奏专用，比京胡略低沉、柔和
+ */
+export class ErhuangSynthesizer extends InstrumentSynthesizer {
+  readonly type = "erhuang" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 1.5;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    const saw = AudioUtils.sawWave(freq, duration, note.velocity);
+    const vibratoRate = 6.0;
+    const vibratoDepth = 0.045;
+
+    for (let i = 0; i < len; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = AudioUtils.adsr(len, 0.1, 0.3, 0.75, 0.5)[i];
+      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth * Math.min(1, t * 1.5);
+      const modFreq = freq * Math.pow(2, vibrato / 12);
+      const phaseIdx = Math.floor(i * modFreq / freq);
+      const sample = saw[Math.min(phaseIdx, saw.length - 1)] || 0;
+      buf[i] = sample * env;
+    }
+
+    let filtered = AudioUtils.formantFilter(buf, 800, 5);
+    filtered = AudioUtils.formantFilter(filtered, 2200, 4);
+    filtered = AudioUtils.highpass(filtered, 300);
+
+    if (note.slideTo !== undefined) {
+      const targetFreq = AudioUtils.midiToFreq(note.slideTo);
+      const slideStart = Math.floor(note.duration * 0.2 * SAMPLE_RATE);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.7 * SAMPLE_RATE));
+      for (let i = slideStart; i < slideEnd; i++) {
+        const t = (i - slideStart) / (slideEnd - slideStart);
+        const f = AudioUtils.lerp(freq, targetFreq, t);
+        filtered[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+      }
+    }
+
+    return filtered;
+  }
+}
+
+/**
+ * 京剧琵琶合成器
+ * 京剧弹拨，音色较硬，衰减快
+ */
+export class PipaJingSynthesizer extends InstrumentSynthesizer {
+  readonly type = "pipaJing" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 0.8;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    // Karplus-Strong 拨弦，衰减更快
+    const delaySamples = SAMPLE_RATE / freq;
+    const delayLineSize = Math.ceil(delaySamples);
+    const delayLine = new Float32Array(delayLineSize);
+    for (let i = 0; i < delayLineSize; i++) {
+      delayLine[i] = (Math.random() * 2 - 1) * note.velocity;
+    }
+
+    let readIndex = 0;
+    let prevSample = 0;
+    for (let i = 0; i < len; i++) {
+      const current = delayLine[readIndex];
+      const filtered = 0.5 * (current + prevSample);
+      prevSample = current;
+      delayLine[readIndex] = filtered * 0.985;
+      buf[i] = filtered;
+      readIndex = (readIndex + 1) % delayLineSize;
+    }
+
+    // 高频强调（硬音色）
+    let out = AudioUtils.formantFilter(buf, 1200, 4);
+    out = AudioUtils.formantFilter(out, 2500, 3);
+
+    // 装饰音轮指
+    if (note.ornaments && note.ornaments.length > 0) {
+      for (let o = 0; o < note.ornaments.length; o++) {
+        const oFreq = AudioUtils.midiToFreq(note.ornaments[o]);
+        const oOffset = Math.floor((o * 0.07) * SAMPLE_RATE);
+        const oLen = Math.floor(0.25 * SAMPLE_RATE);
+        const oBuf = new Float32Array(oLen);
+        const oDelaySize = Math.ceil(SAMPLE_RATE / oFreq);
+        const oDelay = new Float32Array(oDelaySize);
+        for (let j = 0; j < oDelaySize; j++) oDelay[j] = (Math.random() * 2 - 1) * note.velocity * 0.5;
+        let oR = 0, oP = 0;
+        for (let j = 0; j < oLen; j++) {
+          const cur = oDelay[oR];
+          const filt = 0.5 * (cur + oP);
+          oP = cur;
+          oDelay[oR] = filt * 0.98;
+          oBuf[j] = filt;
+          oR = (oR + 1) % oDelaySize;
+        }
+        AudioUtils.mixInto(out, oBuf, oOffset, 0.6);
+      }
+    }
+
+    return out;
+  }
+}
+
+/**
+ * 古琴合成器
+ * 散音+按音+泛音三种音色，低频深沉
+ */
+export class GuQinSynthesizer extends InstrumentSynthesizer {
+  readonly type = "guQin" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 3.5;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    // 1. 散音：基础正弦 + 低频谐波（深沉）
+    for (let i = 0; i < len; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = AudioUtils.adsr(len, 0.2, 0.8, 0.6, 2.5)[i];
+      let sample = Math.sin(TWO_PI * freq * t) * 0.6;
+      sample += Math.sin(TWO_PI * freq * 2 * t) * 0.25;
+      sample += Math.sin(TWO_PI * freq * 3 * t) * 0.12;
+      sample += Math.sin(TWO_PI * freq * 4 * t) * 0.06;
+      buf[i] += sample * env * note.velocity;
+    }
+
+    // 2. 按音：略带摩擦感（添加高频谐波）
+    for (let i = 0; i < len; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = AudioUtils.adsr(len, 0.15, 0.5, 0.5, 2.0)[i];
+      let sample = Math.sin(TWO_PI * freq * t) * 0.4;
+      sample += Math.sin(TWO_PI * freq * 1.5 * t) * 0.15; // 非整数倍模拟按弦张力
+      sample += Math.sin(TWO_PI * freq * 2.5 * t) * 0.08;
+      buf[i] += sample * env * note.velocity * 0.5;
+    }
+
+    // 3. 泛音：极高次谐波，短暂明亮
+    const harmonicLen = Math.floor(Math.min(len, 1.5 * SAMPLE_RATE));
+    for (let i = 0; i < harmonicLen; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = AudioUtils.adsr(harmonicLen, 0.05, 0.3, 0.3, 0.8)[i];
+      let sample = Math.sin(TWO_PI * freq * 2 * t) * 0.3;
+      sample += Math.sin(TWO_PI * freq * 3 * t) * 0.2;
+      sample += Math.sin(TWO_PI * freq * 4 * t) * 0.1;
+      sample += Math.sin(TWO_PI * freq * 5 * t) * 0.05;
+      buf[i] += sample * env * note.velocity * 0.4;
+    }
+
+    // 低频共振峰（木质琴体共鸣）
+    let filtered = AudioUtils.formantFilter(buf, 200, 4);
+    filtered = AudioUtils.formantFilter(filtered, 600, 3);
+    filtered = AudioUtils.formantFilter(filtered, 1400, 3);
+    // 低频增强
+    filtered = AudioUtils.lowpass(filtered, 2500);
+
+    return filtered;
+  }
+}
+
+/**
+ * 曲笛合成器
+ * 昆曲笛子，音色比笛子更圆润、气息感更强
+ */
+export class XiaoQuSynthesizer extends InstrumentSynthesizer {
+  readonly type = "xiaoQu" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 0.6;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    const noise = AudioUtils.pinkNoise(len);
+
+    for (let i = 0; i < len; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = AudioUtils.adsr(len, 0.06, 0.2, 0.85, 0.4)[i];
+
+      let sample = Math.sin(TWO_PI * freq * t);
+      sample += 0.2 * Math.sin(TWO_PI * freq * 2 * t);
+      sample += 0.08 * Math.sin(TWO_PI * freq * 3 * t);
+      sample += 0.04 * Math.sin(TWO_PI * freq * 4 * t);
+
+      // 更多气息噪声（昆曲水磨调气息细腻）
+      const breath = noise[i] * 0.08;
+
+      // 慢速深颤音（昆曲韵味）
+      const vibrato = 1 + 0.05 * Math.sin(TWO_PI * 4.5 * t) * Math.min(1, t * 2);
+
+      buf[i] = (sample + breath) * env * note.velocity * vibrato * 0.35;
+    }
+
+    if (note.slideTo !== undefined) {
+      const targetFreq = AudioUtils.midiToFreq(note.slideTo);
+      const slideStart = Math.floor(note.duration * 0.4 * SAMPLE_RATE);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.85 * SAMPLE_RATE));
+      for (let i = slideStart; i < slideEnd; i++) {
+        const t = (i - slideStart) / (slideEnd - slideStart);
+        const f = AudioUtils.lerp(freq, targetFreq, t);
+        buf[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.4;
+      }
+    }
+
+    return buf;
+  }
+}
+
+/**
+ * 马头琴合成器
+ * 带颤音的擦弦，模拟马嘶声泛音
+ */
+export class MorinKhuurSynthesizer extends InstrumentSynthesizer {
+  readonly type = "morinKhuur" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 2.0;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    const saw = AudioUtils.sawWave(freq, duration, note.velocity);
+
+    // 深而慢的颤音（蒙古长调特色）
+    const vibratoRate = 4.0;
+    const vibratoDepth = 0.05;
+
+    for (let i = 0; i < len; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = AudioUtils.adsr(len, 0.18, 0.4, 0.8, 1.2)[i];
+      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth * Math.min(1, t);
+      const modFreq = freq * Math.pow(2, vibrato / 12);
+      const phaseIdx = Math.floor(i * modFreq / freq);
+      const sample = saw[Math.min(phaseIdx, saw.length - 1)] || 0;
+      buf[i] = sample * env;
+    }
+
+    // 马嘶声泛音：添加高频噪声谐波
+    const noise = AudioUtils.pinkNoise(len);
+    for (let i = 0; i < len; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = AudioUtils.adsr(len, 0.3, 0.5, 0.6, 1.0)[i];
+      // 模拟马嘶声的高频泛音结构
+      const neigh = Math.sin(TWO_PI * freq * 2.7 * t) * 0.08 + noise[i] * 0.04;
+      buf[i] += neigh * env * note.velocity;
+    }
+
+    // 共振峰：草原的辽阔感（中低频为主）
+    let filtered = AudioUtils.formantFilter(buf, 450, 5);
+    filtered = AudioUtils.formantFilter(filtered, 1100, 4);
+    filtered = AudioUtils.formantFilter(filtered, 2200, 3);
+
+    if (note.slideTo !== undefined) {
+      const targetFreq = AudioUtils.midiToFreq(note.slideTo);
+      const slideStart = Math.floor(note.duration * 0.25 * SAMPLE_RATE);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.75 * SAMPLE_RATE));
+      for (let i = slideStart; i < slideEnd; i++) {
+        const t = (i - slideStart) / (slideEnd - slideStart);
+        const f = AudioUtils.lerp(freq, targetFreq, t);
+        filtered[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+      }
+    }
+
+    return filtered;
+  }
+}
+
+/**
+ * 冬不拉合成器
+ * 蒙古/哈萨克拨弦，明亮短促
+ */
+export class DombraSynthesizer extends InstrumentSynthesizer {
+  readonly type = "dombra" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 0.8;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    const delaySamples = SAMPLE_RATE / freq;
+    const delayLineSize = Math.ceil(delaySamples);
+    const delayLine = new Float32Array(delayLineSize);
+    for (let i = 0; i < delayLineSize; i++) {
+      delayLine[i] = (Math.random() * 2 - 1) * note.velocity;
+    }
+
+    let readIndex = 0;
+    let prevSample = 0;
+    for (let i = 0; i < len; i++) {
+      const current = delayLine[readIndex];
+      const filtered = 0.5 * (current + prevSample);
+      prevSample = current;
+      delayLine[readIndex] = filtered * 0.99;
+      buf[i] = filtered;
+      readIndex = (readIndex + 1) % delayLineSize;
+    }
+
+    // 明亮音色
+    let out = AudioUtils.formantFilter(buf, 1500, 4);
+    out = AudioUtils.formantFilter(out, 3000, 3);
+    return out;
+  }
+}
+
+/**
+ * 扎念琴合成器
+ * 藏族弹拨，音色厚实，低频丰富
+ */
+export class DramyinSynthesizer extends InstrumentSynthesizer {
+  readonly type = "dramyin" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 1.0;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    const delaySamples = SAMPLE_RATE / freq;
+    const delayLineSize = Math.ceil(delaySamples);
+    const delayLine = new Float32Array(delayLineSize);
+    for (let i = 0; i < delayLineSize; i++) {
+      delayLine[i] = (Math.random() * 2 - 1) * note.velocity;
+    }
+
+    let readIndex = 0;
+    let prevSample = 0;
+    for (let i = 0; i < len; i++) {
+      const current = delayLine[readIndex];
+      const filtered = 0.5 * (current + prevSample);
+      prevSample = current;
+      delayLine[readIndex] = filtered * 0.992;
+      buf[i] = filtered;
+      readIndex = (readIndex + 1) % delayLineSize;
+    }
+
+    // 厚实低频共鸣
+    let out = AudioUtils.formantFilter(buf, 300, 4);
+    out = AudioUtils.formantFilter(out, 900, 3);
+    out = AudioUtils.lowpass(out, 3000);
+    return out;
+  }
+}
+
+/**
+ * 铜钦合成器
+ * 藏族长号，长管低频铜管，庄严深远，100-600Hz
+ */
+export class DungKarSynthesizer extends InstrumentSynthesizer {
+  readonly type = "dungKar" as const;
+
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
+    const freq = AudioUtils.midiToFreq(note.midi);
+    const duration = note.duration + 2.5;
+    const len = Math.floor(duration * SAMPLE_RATE);
+    const buf = new Float32Array(len);
+
+    const noise = AudioUtils.pinkNoise(len);
+
+    for (let i = 0; i < len; i++) {
+      const t = i / SAMPLE_RATE;
+      // 长起音，庄严深远
+      const env = AudioUtils.adsr(len, 0.4, 0.6, 0.9, 2.0)[i];
+
+      // 方波基础 + 低频谐波（铜管感）
+      let sample = 0;
+      for (let h = 1; h <= 5; h++) {
+        sample += Math.sin(TWO_PI * freq * h * t) / h * 0.5;
+      }
+
+      // 长管共振噪声
+      const breath = noise[i] * 0.05;
+
+      // 极低频微颤（庄严感）
+      const vibrato = 1 + 0.02 * Math.sin(TWO_PI * 2.5 * t) * Math.min(1, t * 0.5);
+
+      buf[i] = (sample + breath) * env * note.velocity * vibrato * 0.5;
+    }
+
+    // 低频共振峰（100-600Hz 范围增强）
+    let filtered = AudioUtils.formantFilter(buf, 200, 4);
+    filtered = AudioUtils.formantFilter(filtered, 450, 4);
+    filtered = AudioUtils.formantFilter(filtered, 600, 3);
+    // 低通限制高频
+    filtered = AudioUtils.lowpass(filtered, 1200);
+
+    return filtered;
+  }
+}
+
 // ==================== 人性化演奏算法 ====================
 
 /**
@@ -1997,6 +2460,46 @@ export class StyleTemplates {
         scale: "major",
         swingAmount: 0.1,
       },
+      pekingOpera: {
+        instruments: ["jinghu", "pipaJing", "luoGu", "erhuang"],
+        densityBySection: { intro: 0.4, verse: 0.6, preChorus: 0.8, chorus: 1.0, bridge: 0.7, outro: 0.4 },
+        drumPatterns: {
+          basic: [36, 0, 38, 0, 36, 0, 38, 0],
+          fill: [36, 38, 36, 38, 46, 38, 36, 38],
+        },
+        scale: "pentatonic",
+        swingAmount: 0.0,
+      },
+      kunqu: {
+        instruments: ["guQin", "xiaoQu", "pipa", "dizi"],
+        densityBySection: { intro: 0.2, verse: 0.35, preChorus: 0.5, chorus: 0.7, bridge: 0.5, outro: 0.2 },
+        drumPatterns: {
+          basic: [36, 0, 0, 0, 38, 0, 0, 0],
+          fill: [36, 0, 38, 0, 36, 0, 38, 0],
+        },
+        scale: "pentatonic",
+        swingAmount: 0.0,
+      },
+      mongolian: {
+        instruments: ["morinKhuur", "dombra", "dizi", "luoGu"],
+        densityBySection: { intro: 0.25, verse: 0.4, preChorus: 0.6, chorus: 0.85, bridge: 0.6, outro: 0.25 },
+        drumPatterns: {
+          basic: [36, 0, 42, 0, 36, 0, 42, 0],
+          fill: [36, 38, 42, 38, 36, 38, 46, 38],
+        },
+        scale: "pentatonic",
+        swingAmount: 0.0,
+      },
+      tibetan: {
+        instruments: ["dramyin", "dungKar", "dizi", "luoGu"],
+        densityBySection: { intro: 0.3, verse: 0.45, preChorus: 0.6, chorus: 0.8, bridge: 0.6, outro: 0.3 },
+        drumPatterns: {
+          basic: [36, 0, 0, 0, 36, 0, 0, 0],
+          fill: [36, 0, 38, 0, 36, 0, 38, 0],
+        },
+        scale: "pentatonic",
+        swingAmount: 0.0,
+      },
     };
     return templates[style] ?? templates.pop;
   }
@@ -2471,6 +2974,15 @@ export default class RealisticArrangerEngine {
       case "luoGu": return new LuoGuSynthesizer();
       case "yangQin": return new YangQinSynthesizer();
       case "suoNa": return new SuoNaSynthesizer();
+      case "jinghu": return new JinghuSynthesizer();
+      case "erhuang": return new ErhuangSynthesizer();
+      case "pipaJing": return new PipaJingSynthesizer();
+      case "guQin": return new GuQinSynthesizer();
+      case "xiaoQu": return new XiaoQuSynthesizer();
+      case "morinKhuur": return new MorinKhuurSynthesizer();
+      case "dombra": return new DombraSynthesizer();
+      case "dramyin": return new DramyinSynthesizer();
+      case "dungKar": return new DungKarSynthesizer();
       default: return new PianoSynthesizer();
     }
   }
@@ -2687,6 +3199,10 @@ export function generateStandardSections(
     funk:   ["minor", "min7", "major", "min7", "minor", "min7", "dom7", "minor"],
     soul:   ["major", "min7", "maj7", "major", "dom7", "minor", "min7", "major"],
     latin:  ["major", "minor", "major", "dom7", "major", "minor", "dom7", "major"],
+    pekingOpera: ["major", "major", "minor", "major", "major", "minor", "major", "major"],
+    kunqu: ["major", "minor", "major", "sus4", "minor", "major", "sus2", "major"],
+    mongolian: ["major", "sus2", "major", "minor", "major", "sus2", "minor", "major"],
+    tibetan: ["major", "major", "major", "minor", "major", "major", "minor", "major"],
   };
   const qualities = richQualitiesMap[style] || richQualitiesMap.pop;
   const progression = qualities.map((q, i) => ({
@@ -2823,6 +3339,10 @@ export class ChordProgressionGenerator {
       funk: [[0, "minor"], [3, "min7"], [4, "dom7"], [0, "minor"]],
       soul: [[0, "maj7"], [2, "min7"], [5, "dom7"], [0, "maj7"]],
       latin: [[0, "major"], [5, "major"], [3, "minor"], [4, "dom7"]],
+      pekingOpera: [[0, "major"], [2, "major"], [4, "minor"], [5, "major"]],
+      kunqu: [[0, "major"], [2, "minor"], [4, "major"], [0, "sus4"]],
+      mongolian: [[0, "major"], [3, "major"], [4, "minor"], [0, "sus2"]],
+      tibetan: [[0, "major"], [4, "major"], [0, "major"], [3, "minor"]],
     };
 
     const prog = progressions[style] ?? progressions.pop;
@@ -3171,6 +3691,26 @@ export class RhythmPatternLibrary {
         medium: [36, 0, 42, 36, 42, 0, 38, 42, 36, 0, 42, 36, 42, 0, 38, 42],
         high: [36, 42, 42, 36, 42, 42, 38, 42, 36, 42, 42, 36, 42, 42, 46, 42],
       },
+      pekingOpera: {
+        low: [36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0],
+        medium: [36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0],
+        high: [36, 38, 36, 38, 46, 38, 36, 38, 36, 38, 36, 38, 46, 46, 36, 38],
+      },
+      kunqu: {
+        low: [36, 0, 0, 0, 38, 0, 0, 0, 36, 0, 0, 0, 38, 0, 0, 0],
+        medium: [36, 0, 0, 0, 38, 0, 0, 0, 36, 0, 0, 0, 38, 0, 0, 0],
+        high: [36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0],
+      },
+      mongolian: {
+        low: [36, 0, 0, 0, 36, 0, 0, 0, 36, 0, 0, 0, 36, 0, 0, 0],
+        medium: [36, 0, 42, 0, 36, 0, 42, 0, 36, 0, 42, 0, 36, 0, 42, 0],
+        high: [36, 42, 42, 0, 36, 42, 42, 0, 36, 42, 46, 0, 36, 42, 46, 0],
+      },
+      tibetan: {
+        low: [36, 0, 0, 0, 0, 0, 0, 0, 36, 0, 0, 0, 0, 0, 0, 0],
+        medium: [36, 0, 0, 0, 36, 0, 0, 0, 36, 0, 0, 0, 36, 0, 0, 0],
+        high: [36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0],
+      },
     };
     return (patterns[style] ?? patterns.pop)[intensity] ?? [];
   }
@@ -3192,6 +3732,10 @@ export class RhythmPatternLibrary {
       funk: [36, 38, 42, 38, 36, 42, 46, 42, 36, 38, 42, 38, 36, 42, 46, 42],
       soul: [36, 38, 42, 38, 36, 42, 46, 42, 36, 38, 42, 38, 36, 42, 46, 42],
       latin: [36, 38, 42, 38, 36, 42, 46, 42, 36, 38, 42, 38, 36, 42, 46, 42],
+      pekingOpera: [36, 38, 36, 38, 46, 38, 36, 38, 36, 38, 36, 38, 46, 46, 36, 38],
+      kunqu: [36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0, 36, 0, 38, 0],
+      mongolian: [36, 0, 42, 0, 36, 0, 42, 0, 36, 38, 42, 0, 36, 0, 46, 0],
+      tibetan: [36, 0, 0, 0, 36, 0, 0, 0, 36, 0, 38, 0, 36, 0, 0, 0],
     };
     return fills[style] ?? fills.pop;
   }
@@ -3757,6 +4301,10 @@ export class InstrumentationAdvisor {
       funk: ["electricGuitar", "saxophone", "synth"],
       soul: ["saxophone", "piano", "violin"],
       latin: ["flute", "piano", "acousticGuitar"],
+      pekingOpera: ["erhu", "pipa", "suoNa"],
+      kunqu: ["dizi", "xiao", "erhu"],
+      mongolian: ["morinKhuur", "dombra"],
+      tibetan: ["dramyin", "dungKar"],
     };
 
     const harmonyOptions: Record<StyleType, InstrumentType[]> = {
@@ -3775,8 +4323,13 @@ export class InstrumentationAdvisor {
       funk: ["synth", "electricGuitar"],
       soul: ["piano", "synth"],
       latin: ["piano", "acousticGuitar", "synth"],
+      pekingOpera: ["yangQin", "pipa"],
+      kunqu: ["dizi", "xiao"],
+      mongolian: ["morinKhuur"],
+      tibetan: ["dramyin"],
     };
 
+    /* harmony-options-end */
     const rhythmOptions: Record<StyleType, InstrumentType[]> = {
       pop: ["bass", "acousticGuitar"],
       rock: ["bass", "electricGuitar"],
@@ -3793,6 +4346,10 @@ export class InstrumentationAdvisor {
       funk: ["bass", "electricGuitar"],
       soul: ["bass", "piano"],
       latin: ["bass", "acousticGuitar"],
+      pekingOpera: ["luoGu"],
+      kunqu: ["xiao"],
+      mongolian: ["dombra"],
+      tibetan: ["dungKar"],
     };
 
     const percussionOptions: Record<StyleType, InstrumentType[]> = {
@@ -3811,6 +4368,10 @@ export class InstrumentationAdvisor {
       funk: ["drumKit"],
       soul: ["drumKit"],
       latin: ["drumKit"],
+      pekingOpera: ["luoGu"],
+      kunqu: ["luoGu"],
+      mongolian: ["drumKit"],
+      tibetan: ["dungKar"],
     };
 
     const pick = (arr: InstrumentType[], count: number) => arr.slice(0, Math.max(1, Math.floor(count * density)));
