@@ -913,6 +913,7 @@
       <div class="studio-tab" data-sp="s-project">项目</div>
       <div class="studio-tab" data-sp="s-edu">教育</div>
       <div class="studio-tab" data-sp="s-nontraditional">🌀 非传统</div>
+      <div class="studio-tab" data-sp="s-vocalfold">🗣️ 声带</div>
     </div>
     <div class="studio-body">
 
@@ -1617,6 +1618,59 @@
           <button class="s-btn" onclick="runSpatialOriginality()">🚀 应用空间与原创性</button>
           <div class="s-loading" id="ntSpatialLoading"><span>处理中...</span></div>
           <pre class="s-result" id="ntSpatialResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+      </div>
+
+      <!-- 声带实验室 -->
+      <div class="studio-panel" id="s-vocalfold">
+        <div class="s-card">
+          <h3>🗣️ 声带实验室</h3>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">模拟真实人类声带物理振动：双质量模型、黏膜波、伯努利效应</p>
+          
+          <div class="s-form"><label>预设声型</label><select id="vfPreset" onchange="updateVfParams()">
+            <option value="male">男声</option>
+            <option value="female">女声</option>
+            <option value="child">童声</option>
+            <option value="falsetto">假声</option>
+            <option value="fry">气泡音</option>
+            <option value="whistle">哨音</option>
+            <option value="growl">怒音</option>
+            <option value="breathy">气声</option>
+          </select></div>
+          
+          <div class="s-form"><label>音高 (Hz)</label><input type="number" id="vfPitch" value="440" min="50" max="2000"></div>
+          <div class="s-form"><label>时长 (秒)</label><input type="number" id="vfDuration" value="2" min="0.5" max="5" step="0.5"></div>
+          
+          <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.03); border-radius:8px;">
+            <p style="font-size:11px; color:var(--text2); margin-bottom:6px;">物理参数（高级）</p>
+            <div class="s-form"><label>声带长度 mm</label><input type="range" id="vfLength" min="8" max="20" value="15" oninput="document.getElementById('vfLengthVal').textContent=this.value"><span id="vfLengthVal">15</span></div>
+            <div class="s-form"><label>声带厚度 mm</label><input type="range" id="vfThickness" min="1" max="5" value="3" oninput="document.getElementById('vfThicknessVal').textContent=this.value"><span id="vfThicknessVal">3</span></div>
+            <div class="s-form"><label>张力</label><input type="range" id="vfTension" min="0" max="100" value="50" oninput="document.getElementById('vfTensionVal').textContent=this.value"><span id="vfTensionVal">50</span></div>
+            <div class="s-form"><label>声门下压力 kPa</label><input type="range" id="vfPressure" min="10" max="200" value="80" oninput="document.getElementById('vfPressureVal').textContent=this.value"><span id="vfPressureVal">80</span></div>
+            <div class="s-form"><label>黏膜质量比</label><input type="range" id="vfMucosal" min="0" max="100" value="30" oninput="document.getElementById('vfMucosalVal').textContent=this.value"><span id="vfMucosalVal">30</span></div>
+          </div>
+          
+          <button class="s-btn" onclick="generateVocalFold()">🗣️ 声带发声</button>
+          <div class="s-loading" id="vfLoading"><span>声带模拟中...</span></div>
+          <div id="vfPlayer"></div>
+          <pre class="s-result" id="vfResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+        
+        <div class="s-card">
+          <h3>🎵 声带唱歌</h3>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">让模拟声带唱一段旋律</p>
+          <div class="s-form"><label>预设声型</label><select id="vfSingPreset">
+            <option value="male">男声</option>
+            <option value="female">女声</option>
+            <option value="falsetto">假声</option>
+            <option value="growl">怒音</option>
+          </select></div>
+          <div class="s-form"><label>音符序列（MIDI，逗号分隔）</label><input type="text" id="vfSingNotes" value="60,62,64,65,64,62,60" placeholder="如: 60,62,64,65,64,62,60"></div>
+          <div class="s-form"><label>每音符时长（秒）</label><input type="number" id="vfSingDuration" value="0.5" min="0.2" max="2" step="0.1"></div>
+          <button class="s-btn" onclick="singWithVocalFold()">🎵 声带唱歌</button>
+          <div class="s-loading" id="vfSingLoading"><span>声带唱歌中...</span></div>
+          <div id="vfSingPlayer"></div>
+          <pre class="s-result" id="vfSingResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
         </div>
       </div>
 
@@ -5649,6 +5703,106 @@ async function runSpatialOriginality() {
     const res = await fetch('/api/spatial/presets');
     const data = await res.json();
     resultEl.textContent = '可用空间预设: ' + (data.presets || []).join(', ');
+  } catch (e) {
+    resultEl.textContent = '错误: ' + e.message;
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+// 声带实验室
+function updateVfParams() {
+  const preset = document.getElementById('vfPreset').value;
+  const defaults = {
+    male: { length: 15, thickness: 3, tension: 50, pressure: 80, mucosal: 30 },
+    female: { length: 12, thickness: 2.5, tension: 60, pressure: 70, mucosal: 25 },
+    child: { length: 10, thickness: 2, tension: 40, pressure: 60, mucosal: 35 },
+    falsetto: { length: 14, thickness: 2, tension: 85, pressure: 50, mucosal: 20 },
+    fry: { length: 16, thickness: 3.5, tension: 20, pressure: 30, mucosal: 40 },
+    whistle: { length: 11, thickness: 1.5, tension: 95, pressure: 90, mucosal: 15 },
+    growl: { length: 15, thickness: 3, tension: 75, pressure: 100, mucosal: 35 },
+    breathy: { length: 13, thickness: 2.5, tension: 35, pressure: 90, mucosal: 20 },
+  };
+  const d = defaults[preset] || defaults.male;
+  document.getElementById('vfLength').value = d.length;
+  document.getElementById('vfLengthVal').textContent = d.length;
+  document.getElementById('vfThickness').value = d.thickness;
+  document.getElementById('vfThicknessVal').textContent = d.thickness;
+  document.getElementById('vfTension').value = d.tension;
+  document.getElementById('vfTensionVal').textContent = d.tension;
+  document.getElementById('vfPressure').value = d.pressure;
+  document.getElementById('vfPressureVal').textContent = d.pressure;
+  document.getElementById('vfMucosal').value = d.mucosal;
+  document.getElementById('vfMucosalVal').textContent = d.mucosal;
+}
+
+async function generateVocalFold() {
+  const loading = document.getElementById('vfLoading');
+  const resultEl = document.getElementById('vfResult');
+  const playerEl = document.getElementById('vfPlayer');
+  loading.style.display = 'flex';
+  resultEl.textContent = '';
+  playerEl.innerHTML = '';
+  
+  try {
+    const res = await fetch('/api/vocalfold/generate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        preset: document.getElementById('vfPreset').value,
+        pitch: +document.getElementById('vfPitch').value,
+        duration: +document.getElementById('vfDuration').value,
+        params: {
+          length: +document.getElementById('vfLength').value,
+          thickness: +document.getElementById('vfThickness').value,
+          tension: +document.getElementById('vfTension').value / 100,
+          subglottalPressure: +document.getElementById('vfPressure').value / 100,
+          mucosalMassRatio: +document.getElementById('vfMucosal').value / 100,
+        }
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    if (data.wavBase64) {
+      playerEl.innerHTML = '<audio controls style="width:100%;margin-top:8px;" src="data:audio/wav;base64,' + data.wavBase64 + '"></audio>';
+    }
+    resultEl.textContent = '预设: ' + data.preset + '\n时长: ' + data.duration.toFixed(2) + '秒';
+  } catch (e) {
+    resultEl.textContent = '错误: ' + e.message;
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+async function singWithVocalFold() {
+  const loading = document.getElementById('vfSingLoading');
+  const resultEl = document.getElementById('vfSingResult');
+  const playerEl = document.getElementById('vfSingPlayer');
+  loading.style.display = 'flex';
+  resultEl.textContent = '';
+  playerEl.innerHTML = '';
+  
+  try {
+    const notesStr = document.getElementById('vfSingNotes').value;
+    const noteValues = notesStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+    const duration = +document.getElementById('vfSingDuration').value;
+    
+    const res = await fetch('/api/vocalfold/singing', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        preset: document.getElementById('vfSingPreset').value,
+        notes: noteValues.map(midi => ({midi, duration}))
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    if (data.wavBase64) {
+      playerEl.innerHTML = '<audio controls style="width:100%;margin-top:8px;" src="data:audio/wav;base64,' + data.wavBase64 + '"></audio>';
+    }
+    resultEl.textContent = '时长: ' + data.duration.toFixed(2) + '秒';
   } catch (e) {
     resultEl.textContent = '错误: ' + e.message;
   } finally {

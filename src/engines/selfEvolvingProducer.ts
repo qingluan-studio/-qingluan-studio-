@@ -54,6 +54,7 @@ import { PhraseComposer, composeWithPhrases } from '../composition/phraseCompose
 import { AnalogArtifactEngine, addStudioFeel } from '../effects/analogArtifacts.js';
 import { SpatialReverbEngine, applyCathedralReverb, applyStudioReverb } from '../effects/spatialReverb.js';
 import { OriginalityEngine, HumanFeelEnhancer } from './originalityEngine.js';
+import { VocalFoldLab, glottalToAcoustic } from '../synthesis/vocalFoldLab.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
@@ -500,6 +501,8 @@ export interface ProductionParams {
   creatorId?: string;              // 创作者ID，用于水印
   useHumanFeelEnhance?: boolean;   // 使用真人感强化器
   humanFeelIntensity?: number;     // 真人感强度 0-1
+  useVocalFoldModel?: boolean;      // 使用精细声带模型代替简化LF模型
+  vocalFoldPreset?: string;         // 声带预设 male/female/child/falsetto/fry/whistle/growl/breathy
 }
 
 export interface ProductionResult {
@@ -738,6 +741,45 @@ export class SelfEvolvingMusicProducer {
           );
         }
         this.log(`主旋律渲染完成: ${melodyPCM.length} 采样`);
+
+        // Step 3.3: 精细声带模型（如果启用）
+        if (currentParams.useVocalFoldModel && melodyPCM) {
+          this.log('Step 3.3: 使用精细声带模型 (VocalFoldLab) 重新渲染人声');
+          try {
+            const presetMap: Record<string, any> = {
+              male: VocalFoldLab.MaleVoice(),
+              female: VocalFoldLab.FemaleVoice(),
+              child: VocalFoldLab.ChildVoice(),
+              falsetto: VocalFoldLab.FalsettoVoice(),
+              fry: VocalFoldLab.FryVoice(),
+              whistle: VocalFoldLab.WhistleVoice(),
+              growl: VocalFoldLab.GrowlVoice(),
+              breathy: VocalFoldLab.BreathyVoice(),
+            };
+            const preset = presetMap[currentParams.vocalFoldPreset || 'male'] || VocalFoldLab.MaleVoice();
+
+            // 从旋律音符生成音高轮廓
+            const pitchContour = composition.melody.map((midi, i) => ({
+              time: composition.durations.slice(0, i).reduce((a, b) => a + b, 0),
+              freq: 440 * Math.pow(2, (midi - 69) / 12),
+            }));
+
+            const vflab = new VocalFoldLab(this.sampleRate);
+            const glottalWave = vflab.generateSingingGlottalWave(preset, pitchContour);
+
+            // 通过声道耦合转换为声学信号
+            const formants = [500, 1500, 2500, 3500, 5000]; // 简化共振峰
+            const acousticWave = glottalToAcoustic(glottalWave, formants, this.sampleRate);
+
+            // 如果 acousticWave 比 melodyPCM 短，循环或延长；如果长，截断
+            if (acousticWave.length > 0) {
+              melodyPCM = acousticWave;
+              this.log(`精细声带模型渲染完成: ${melodyPCM.length} 采样点`);
+            }
+          } catch (e: any) {
+            this.log(`精细声带模型失败: ${e.message}，继续使用原人声`);
+          }
+        }
 
         // Step 3.5: 自动填词（旋律音符匹配歌词音节）
         this.log('Step 3.5: 自动填词（旋律匹配歌词音节）');

@@ -80,6 +80,7 @@ import { PhraseComposer, composeWithPhrases } from './composition/phraseComposer
 import { AnalogArtifactEngine, addStudioFeel } from './effects/analogArtifacts.js';
 import { SpatialReverbEngine } from './effects/spatialReverb.js';
 import { OriginalityEngine, HumanFeelEnhancer, checkSelfSimilarity } from './engines/originalityEngine.js';
+import { VocalFoldLab, synthesizeWithVocalFold, glottalToAcoustic } from './synthesis/vocalFoldLab.js';
 
 const app = new Hono();
 const projectStore = new Map<string, QingluanProject>();
@@ -107,7 +108,7 @@ app.get('/api/health', (c) => {
     status: 'ok',
     name: '青鸾数字音频工作站',
     version: '2.0.0',
-    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint', 'selfModifyingSynth', 'chemicalComposition', 'topologicalMelody', 'caMusicGrowth', 'streamOfConsciousness', 'humanizationEngine', 'phraseComposer', 'analogArtifacts', 'spatialReverb', 'originalityEngine'],
+    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint', 'selfModifyingSynth', 'chemicalComposition', 'topologicalMelody', 'caMusicGrowth', 'streamOfConsciousness', 'humanizationEngine', 'phraseComposer', 'analogArtifacts', 'spatialReverb', 'originalityEngine', 'vocalFoldLab'],
   });
 });
 
@@ -1259,6 +1260,92 @@ app.post('/api/engine/consciousness', async (c) => {
     const pcm = generateConsciousnessStream({ theme: body.theme || '雨', bpm: body.bpm || 90, bars: body.bars || 8, baseKey: body.baseKey || 60, temperature: body.temperature ?? 1.0 });
     const wav = pcmToWav(pcm, 44100);
     return c.json({ wavBase64: Buffer.from(wav).toString('base64'), duration: pcm.length / 44100 });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ======== 声带实验室 API ========
+
+app.post('/api/vocalfold/generate', async (c) => {
+  const body = await c.req.json<{
+    preset?: string;
+    pitch?: number; // Hz
+    duration?: number;
+    params?: Record<string, number>;
+  }>();
+  try {
+    const presetMap: Record<string, any> = {
+      male: VocalFoldLab.MaleVoice(),
+      female: VocalFoldLab.FemaleVoice(),
+      child: VocalFoldLab.ChildVoice(),
+      falsetto: VocalFoldLab.FalsettoVoice(),
+      fry: VocalFoldLab.FryVoice(),
+      whistle: VocalFoldLab.WhistleVoice(),
+      growl: VocalFoldLab.GrowlVoice(),
+      breathy: VocalFoldLab.BreathyVoice(),
+    };
+    const params = body.params || presetMap[body.preset || 'male'] || VocalFoldLab.MaleVoice();
+    const pitch = body.pitch || 440;
+    const duration = body.duration || 2;
+
+    const vflab = new VocalFoldLab(44100);
+    const glottalWave = vflab.generateGlottalWave(params, duration);
+    const formants = [500, 1500, 2500, 3500, 5000];
+    const acousticWave = glottalToAcoustic(glottalWave, formants, 44100);
+
+    const wav = pcmToWav(acousticWave, 44100);
+    return c.json({
+      wavBase64: Buffer.from(wav).toString('base64'),
+      duration: acousticWave.length / 44100,
+      preset: body.preset || 'male',
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/vocalfold/presets', (c) => {
+  return c.json({
+    presets: ['male', 'female', 'child', 'falsetto', 'fry', 'whistle', 'growl', 'breathy'],
+  });
+});
+
+app.post('/api/vocalfold/singing', async (c) => {
+  const body = await c.req.json<{
+    preset?: string;
+    notes?: Array<{midi: number; duration: number}>;
+  }>();
+  try {
+    const presetMap: Record<string, any> = {
+      male: VocalFoldLab.MaleVoice(),
+      female: VocalFoldLab.FemaleVoice(),
+      child: VocalFoldLab.ChildVoice(),
+      falsetto: VocalFoldLab.FalsettoVoice(),
+      fry: VocalFoldLab.FryVoice(),
+      whistle: VocalFoldLab.WhistleVoice(),
+      growl: VocalFoldLab.GrowlVoice(),
+      breathy: VocalFoldLab.BreathyVoice(),
+    };
+    const params = presetMap[body.preset || 'male'] || VocalFoldLab.MaleVoice();
+    const notes = body.notes || [{midi: 60, duration: 1}];
+
+    const pitchContour = notes.map((n, i) => ({
+      time: notes.slice(0, i).reduce((a, b) => a + b.duration, 0),
+      freq: 440 * Math.pow(2, (n.midi - 69) / 12),
+    }));
+
+    const totalDuration = notes.reduce((a, b) => a + b.duration, 0);
+    const vflab = new VocalFoldLab(44100);
+    const glottalWave = vflab.generateSingingGlottalWave(params, pitchContour);
+    const formants = [500, 1500, 2500, 3500, 5000];
+    const acousticWave = glottalToAcoustic(glottalWave, formants, 44100);
+
+    const wav = pcmToWav(acousticWave, 44100);
+    return c.json({
+      wavBase64: Buffer.from(wav).toString('base64'),
+      duration: acousticWave.length / 44100,
+    });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }
