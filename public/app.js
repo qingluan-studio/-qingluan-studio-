@@ -4124,3 +4124,3959 @@ async function singWithVocalFold() {
     loading.style.display = 'none';
   }
 }
+
+/* ============================================================
+   青鸾 DAW — 前端 UI 扩展模块（约4000行）
+   包含：PianoRoll、Waveform、Analyzer、Metronome、Tuner、
+   Theme、KeyboardShortcuts、Undo/Redo、Toast、DragDrop、
+   ContextMenu、Loading、Modal、Tooltip、Scroll动画、Counter动画
+   ============================================================ */
+
+/* ================= PianoRoll 钢琴卷帘渲染 ================= */
+
+const PianoRollDefaults = {
+  gridColor: 'rgba(0,0,0,0.06)',
+  beatColor: 'rgba(0,0,0,0.12)',
+  barColor: 'rgba(0,0,0,0.2)',
+  noteColor: 'rgba(91,77,255,0.85)',
+  noteBorder: 'rgba(91,77,255,1)',
+  playheadColor: '#ff6b9d',
+  whiteKeyColor: '#fff',
+  blackKeyColor: '#1a1a1a',
+  blackKeyWidth: 0.65,
+  rowHeight: 16,
+  keyWidth: 48,
+  pixelsPerBeat: 40,
+  minNote: 36,
+  maxNote: 96
+};
+
+function renderPianoRoll(notes, options = {}) {
+  const opts = { ...PianoRollDefaults, ...options };
+  const canvasId = opts.canvasId || 'pianoRollCanvas';
+  let canvas = document.getElementById(canvasId);
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = canvasId;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.display = 'block';
+    const container = opts.container || document.getElementById('studio') || document.body;
+    if (container) container.appendChild(canvas);
+  }
+
+  const totalBeats = opts.totalBeats || Math.max(16, ...notes.map(n => (n.offset || 0) + (n.duration || 0.5)));
+  const noteRange = opts.maxNote - opts.minNote + 1;
+  const w = opts.width || canvas.clientWidth || 800;
+  const h = opts.height || canvas.clientHeight || noteRange * opts.rowHeight;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // 背景
+  ctx.fillStyle = opts.bgColor || 'transparent';
+  ctx.fillRect(0, 0, w, h);
+
+  const keyW = opts.keyWidth;
+  const drawW = w - keyW;
+  const beatW = opts.pixelsPerBeat;
+  const rowH = opts.rowHeight;
+
+  // 钢琴键区域背景
+  ctx.fillStyle = opts.whiteKeyColor;
+  ctx.fillRect(0, 0, keyW, h);
+  ctx.strokeStyle = opts.gridColor;
+  ctx.beginPath();
+  ctx.moveTo(keyW, 0);
+  ctx.lineTo(keyW, h);
+  ctx.stroke();
+
+  // 绘制钢琴键
+  const blackKeys = new Set([1,3,6,8,10]);
+  for (let n = opts.maxNote; n >= opts.minNote; n--) {
+    const row = opts.maxNote - n;
+    const y = row * rowH;
+    const semitone = n % 12;
+    const isBlack = blackKeys.has(semitone);
+    if (isBlack) {
+      ctx.fillStyle = opts.blackKeyColor;
+      ctx.fillRect(0, y, keyW * opts.blackKeyWidth, rowH);
+    } else {
+      ctx.fillStyle = opts.whiteKeyColor;
+      ctx.fillRect(0, y, keyW, rowH);
+    }
+    ctx.strokeStyle = opts.gridColor;
+    ctx.strokeRect(0, y, keyW, rowH);
+    // 音符标签
+    if (!isBlack && (n % 12 === 0 || n === opts.maxNote || n === opts.minNote)) {
+      ctx.fillStyle = isBlack ? '#fff' : '#333';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      const octave = Math.floor(n / 12) - 1;
+      ctx.fillText(names[semitone] + octave, 4, y + rowH / 2);
+    }
+  }
+
+  // 网格线（竖线）
+  ctx.strokeStyle = opts.gridColor;
+  ctx.lineWidth = 0.5;
+  const totalBars = Math.ceil(totalBeats / 4);
+  for (let b = 0; b <= totalBeats * 4; b++) {
+    const x = keyW + (b / 4) * beatW;
+    if (x > w) break;
+    const isBar = b % 16 === 0;
+    const isBeat = b % 4 === 0;
+    ctx.strokeStyle = isBar ? opts.barColor : (isBeat ? opts.beatColor : opts.gridColor);
+    ctx.lineWidth = isBar ? 1.5 : (isBeat ? 0.8 : 0.4);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+    ctx.stroke();
+  }
+
+  // 网格线（横线）
+  for (let row = 0; row <= noteRange; row++) {
+    const y = row * rowH;
+    ctx.strokeStyle = opts.gridColor;
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(keyW, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  // 绘制音符块
+  notes.forEach(note => {
+    const pitch = note.pitch || note.midi || 60;
+    if (pitch < opts.minNote || pitch > opts.maxNote) return;
+    const dur = note.duration || 0.5;
+    const offset = note.offset || 0;
+    const row = opts.maxNote - pitch;
+    const x = keyW + offset * beatW;
+    const y = row * rowH + 1;
+    const nw = Math.max(2, dur * beatW - 2);
+    const nh = rowH - 2;
+    ctx.fillStyle = note.color || opts.noteColor;
+    ctx.strokeStyle = note.border || opts.noteBorder;
+    ctx.lineWidth = 1;
+    roundRect(ctx, x, y, nw, nh, 3);
+    ctx.fill();
+    ctx.stroke();
+    // 音符文字
+    if (nw > 20 && opts.showNoteLabels !== false) {
+      ctx.fillStyle = '#fff';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText((note.name || pitch), x + nw / 2, y + nh / 2);
+    }
+  });
+
+  // 播放头
+  if (opts.playhead !== undefined && opts.playhead >= 0) {
+    const px = keyW + opts.playhead * beatW;
+    ctx.strokeStyle = opts.playheadColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, h);
+    ctx.stroke();
+    // 播放头三角
+    ctx.fillStyle = opts.playheadColor;
+    ctx.beginPath();
+    ctx.moveTo(px - 5, 0);
+    ctx.lineTo(px + 5, 0);
+    ctx.lineTo(px, 6);
+    ctx.fill();
+  }
+
+  return canvas;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+}
+
+/* ================= Waveform 波形渲染 ================= */
+
+function renderWaveform(buffer, canvasId) {
+  let canvas = document.getElementById(canvasId);
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = canvasId;
+    canvas.style.width = '100%';
+    canvas.style.height = '120px';
+    canvas.style.display = 'block';
+    document.body.appendChild(canvas);
+  }
+  const w = canvas.clientWidth || 800;
+  const h = canvas.clientHeight || 120;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = 'transparent';
+  ctx.fillRect(0, 0, w, h);
+
+  const ch = buffer.numberOfChannels || 1;
+  const data = buffer.getChannelData ? buffer.getChannelData(0) : (Array.isArray(buffer) ? buffer : []);
+  if (!data.length) return canvas;
+
+  const step = Math.ceil(data.length / w);
+  const amp = h / 2;
+  const centerY = h / 2;
+
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#5b4dff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let x = 0; x < w; x++) {
+    const start = x * step;
+    const end = Math.min(start + step, data.length);
+    let min = Infinity, max = -Infinity;
+    for (let i = start; i < end; i++) {
+      const v = data[i];
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    if (min === Infinity) { min = 0; max = 0; }
+    ctx.moveTo(x, centerY + min * amp);
+    ctx.lineTo(x, centerY + max * amp);
+  }
+  ctx.stroke();
+
+  // 中心线
+  ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, centerY);
+  ctx.lineTo(w, centerY);
+  ctx.stroke();
+
+  return canvas;
+}
+
+/* ================= Analyzer 频谱 & 语谱图 ================= */
+
+function renderSpectrum(spectrum, canvasId) {
+  let canvas = document.getElementById(canvasId);
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = canvasId;
+    canvas.style.width = '100%';
+    canvas.style.height = '120px';
+    document.body.appendChild(canvas);
+  }
+  const w = canvas.clientWidth || 800;
+  const h = canvas.clientHeight || 120;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const barCount = spectrum.length || 64;
+  const barW = w / barCount;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#5b4dff';
+
+  for (let i = 0; i < barCount; i++) {
+    const value = spectrum[i] || 0;
+    const height = Math.max(2, value * h);
+    const hue = 240 + (i / barCount) * 120;
+    ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.85)`;
+    ctx.fillRect(i * barW, h - height, barW - 1, height);
+  }
+  return canvas;
+}
+
+function renderSpectrogram(data, canvasId) {
+  let canvas = document.getElementById(canvasId);
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = canvasId;
+    canvas.style.width = '100%';
+    canvas.style.height = '160px';
+    document.body.appendChild(canvas);
+  }
+  const w = canvas.clientWidth || 800;
+  const h = canvas.clientHeight || 160;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // data: 二维数组 [time][freq]
+  const timeSteps = data.length || 1;
+  const freqs = (data[0] && data[0].length) || 64;
+  const cellW = w / timeSteps;
+  const cellH = h / freqs;
+
+  for (let t = 0; t < timeSteps; t++) {
+    const frame = data[t] || [];
+    for (let f = 0; f < freqs; f++) {
+      const val = frame[f] || 0;
+      const intensity = Math.min(1, val);
+      const hue = 240 - intensity * 240;
+      const lightness = intensity * 60;
+      ctx.fillStyle = `hsla(${hue}, 90%, ${lightness}%, 1)`;
+      ctx.fillRect(t * cellW, h - (f + 1) * cellH, cellW + 0.5, cellH + 0.5);
+    }
+  }
+  return canvas;
+}
+
+/* ================= Metronome 节拍器 ================= */
+
+class Metronome {
+  constructor() {
+    this.ctx = null;
+    this.bpm = 120;
+    this.nextNoteTime = 0;
+    this.beatCount = 0;
+    this.isRunning = false;
+    this.lookahead = 25.0;
+    this.scheduleAheadTime = 0.1;
+    this.timerID = null;
+    this.tickCallbacks = [];
+  }
+
+  initAudio() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+  }
+
+  scheduleNote(beatNumber, time) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    const isAccent = beatNumber % 4 === 0;
+    osc.frequency.value = isAccent ? 1000 : 800;
+    gain.gain.setValueAtTime(isAccent ? 0.5 : 0.3, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    osc.start(time);
+    osc.stop(time + 0.05);
+
+    this.tickCallbacks.forEach(cb => {
+      try { cb(beatNumber, time, isAccent); } catch (e) {}
+    });
+  }
+
+  scheduler() {
+    while (this.nextNoteTime < this.ctx.currentTime + this.scheduleAheadTime) {
+      this.scheduleNote(this.beatCount, this.nextNoteTime);
+      this.beatCount++;
+      this.nextNoteTime += 60.0 / this.bpm;
+    }
+  }
+
+  start(bpm = 120) {
+    this.initAudio();
+    this.bpm = bpm;
+    this.isRunning = true;
+    this.beatCount = 0;
+    this.nextNoteTime = this.ctx.currentTime + 0.05;
+    this.timerID = setInterval(() => this.scheduler(), this.lookahead);
+    showToast('节拍器已启动 ' + bpm + ' BPM', 'info');
+  }
+
+  stop() {
+    this.isRunning = false;
+    if (this.timerID) clearInterval(this.timerID);
+    this.timerID = null;
+    showToast('节拍器已停止', 'info');
+  }
+
+  onTick(cb) {
+    this.tickCallbacks.push(cb);
+  }
+}
+
+const _metronome = new Metronome();
+
+function startMetronome(bpm) {
+  const bpmVal = bpm || parseInt(document.getElementById('bpm')?.value) || 120;
+  _metronome.start(bpmVal);
+}
+function stopMetronome() { _metronome.stop(); }
+
+let _tapTimes = [];
+function tapTempo() {
+  const now = Date.now();
+  _tapTimes.push(now);
+  if (_tapTimes.length > 8) _tapTimes.shift();
+  if (_tapTimes.length >= 2) {
+    const intervals = [];
+    for (let i = 1; i < _tapTimes.length; i++) intervals.push(_tapTimes[i] - _tapTimes[i - 1]);
+    const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const bpm = Math.round(60000 / avg);
+    const bpmEl = document.getElementById('bpm');
+    if (bpmEl) bpmEl.value = Math.max(40, Math.min(240, bpm));
+    showToast('估算 BPM: ' + bpm, 'info');
+  } else {
+    showToast('再按几次以估算 BPM', 'info');
+  }
+}
+
+/* ================= Tuner 调音器 ================= */
+
+class Tuner {
+  constructor() {
+    this.ctx = null;
+    this.analyser = null;
+    this.source = null;
+    this.isRunning = false;
+    this.rafId = null;
+    this.centCallbacks = [];
+  }
+
+  async start() {
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.source = this.ctx.createMediaStreamSource(stream);
+      this.analyser = this.ctx.createAnalyser();
+      this.analyser.fftSize = 2048;
+      this.source.connect(this.analyser);
+      this.isRunning = true;
+      this._detectLoop();
+      showToast('调音器已启动', 'info');
+    } catch (e) {
+      showToast('无法启动麦克风: ' + e.message, 'error');
+    }
+  }
+
+  stop() {
+    this.isRunning = false;
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+    if (this.source) { try { this.source.disconnect(); } catch (e) {} }
+    if (this.ctx) { try { this.ctx.close(); } catch (e) {} }
+    this.ctx = null;
+    this.source = null;
+    this.analyser = null;
+    showToast('调音器已停止', 'info');
+  }
+
+  _detectLoop() {
+    if (!this.isRunning) return;
+    const buf = new Float32Array(this.analyser.fftSize);
+    this.analyser.getFloatTimeDomainData(buf);
+    const freq = this._autoCorrelate(buf, this.ctx.sampleRate);
+    if (freq > 0) {
+      const note = this._freqToNote(freq);
+      this.centCallbacks.forEach(cb => {
+        try { cb(note.name, note.cents, freq); } catch (e) {}
+      });
+    }
+    this.rafId = requestAnimationFrame(() => this._detectLoop());
+  }
+
+  _autoCorrelate(buf, sampleRate) {
+    let SIZE = buf.length;
+    let rms = 0;
+    for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / SIZE);
+    if (rms < 0.01) return -1;
+    let r1 = 0, r2 = SIZE - 1;
+    const thres = 0.2;
+    for (let i = 0; i < SIZE / 2; i++) if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+    for (let i = 1; i < SIZE / 2; i++) if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+    buf = buf.slice(r1, r2);
+    SIZE = buf.length;
+    const c = new Array(SIZE).fill(0);
+    for (let i = 0; i < SIZE; i++) {
+      for (let j = 0; j < SIZE - i; j++) c[i] += buf[j] * buf[j + i];
+    }
+    let d = 0;
+    while (c[d] > c[d + 1]) d++;
+    let maxval = -1, maxpos = -1;
+    for (let i = d; i < SIZE; i++) {
+      if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+    }
+    let T0 = maxpos;
+    const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+    const a = (x1 + x3 - 2 * x2) / 2;
+    const b = (x3 - x1) / 2;
+    if (a) T0 = T0 - b / (2 * a);
+    return sampleRate / T0;
+  }
+
+  _freqToNote(freq) {
+    const A4 = 440;
+    const noteNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const semitones = 12 * Math.log2(freq / A4);
+    const midi = Math.round(69 + semitones);
+    const cents = Math.round((semitones - Math.round(semitones)) * 100);
+    const name = noteNames[midi % 12] + (Math.floor(midi / 12) - 1);
+    return { name, cents, midi, freq };
+  }
+
+  onUpdate(cb) { this.centCallbacks.push(cb); }
+}
+
+const _tuner = new Tuner();
+
+function startTuner() { _tuner.start(); }
+function stopTuner() { _tuner.stop(); }
+
+/* ================= Theme 主题切换 ================= */
+
+const ThemePresets = {
+  light: {
+    '--phone-bg': '#f5f5f0',
+    '--text': '#1a1a1a',
+    '--text2': '#555',
+    '--text3': '#888',
+    '--accent': '#5b4dff',
+    '--accent2': '#ff6b9d',
+    '--bubble-user': '#5b4dff',
+    '--bubble-ai': '#f0f0f5',
+    '--card-bg': '#fff',
+    '--border': 'rgba(0,0,0,0.06)',
+    '--pink-bg': '#f5f5f0',
+    '--black-card': '#1a1a1a'
+  },
+  dark: {
+    '--phone-bg': '#0f0f13',
+    '--text': '#e8e8ec',
+    '--text2': '#a0a0a8',
+    '--text3': '#707078',
+    '--accent': '#8b7dff',
+    '--accent2': '#ff8bb5',
+    '--bubble-user': '#8b7dff',
+    '--bubble-ai': '#1e1e28',
+    '--card-bg': '#1a1a22',
+    '--border': 'rgba(255,255,255,0.08)',
+    '--pink-bg': '#12121a',
+    '--black-card': '#252530'
+  },
+  geek: {
+    '--phone-bg': '#0a0a0a',
+    '--text': '#00ff41',
+    '--text2': '#00cc33',
+    '--text3': '#009922',
+    '--accent': '#00ff41',
+    '--accent2': '#00ff88',
+    '--bubble-user': '#00ff41',
+    '--bubble-ai': '#0f1f0f',
+    '--card-bg': '#0f0f0f',
+    '--border': 'rgba(0,255,65,0.15)',
+    '--pink-bg': '#080808',
+    '--black-card': '#111111'
+  },
+  paper: {
+    '--phone-bg': '#f0e8d8',
+    '--text': '#3a3020',
+    '--text2': '#6a6050',
+    '--text3': '#9a9080',
+    '--accent': '#8b4513',
+    '--accent2': '#cd853f',
+    '--bubble-user': '#8b4513',
+    '--bubble-ai': '#e8e0d0',
+    '--card-bg': '#faf6f0',
+    '--border': 'rgba(60,40,20,0.08)',
+    '--pink-bg': '#f0e8d8',
+    '--black-card': '#3a3020'
+  }
+};
+
+function applyTheme(themeName) {
+  const preset = ThemePresets[themeName];
+  if (!preset) {
+    showToast('未知主题: ' + themeName, 'error');
+    return;
+  }
+  const root = document.documentElement;
+  Object.entries(preset).forEach(([k, v]) => root.style.setProperty(k, v));
+  localStorage.setItem('qingluan_theme', themeName);
+  animateThemeTransition();
+  showToast('主题已切换: ' + themeName, 'success');
+}
+
+function animateThemeTransition() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;background:var(--accent);opacity:0;transition:opacity 0.3s;';
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => { overlay.style.opacity = '0.15'; });
+  setTimeout(() => { overlay.style.opacity = '0'; }, 150);
+  setTimeout(() => { overlay.remove(); }, 500);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('qingluan_theme');
+  if (saved && ThemePresets[saved]) applyTheme(saved);
+}
+initTheme();
+
+/* ================= KeyboardShortcuts 快捷键 ================= */
+
+const _shortcutRegistry = new Map();
+let _shortcutsEnabled = true;
+let _shortcutContext = 'global';
+let _shortcutSequence = [];
+let _shortcutSequenceTimer = null;
+
+function registerShortcut(keyCombo, callback, options = {}) {
+  const ctx = options.context || 'global';
+  if (!_shortcutRegistry.has(ctx)) _shortcutRegistry.set(ctx, new Map());
+  _shortcutRegistry.get(ctx).set(keyCombo.toLowerCase().trim(), { callback, options });
+}
+
+function unregisterShortcut(keyCombo, context = 'global') {
+  const map = _shortcutRegistry.get(context);
+  if (map) map.delete(keyCombo.toLowerCase().trim());
+}
+
+function enableShortcuts() { _shortcutsEnabled = true; }
+function disableShortcuts() { _shortcutsEnabled = false; }
+function setShortcutContext(ctx) { _shortcutContext = ctx; }
+
+function _matchShortcut(e, combo) {
+  const parts = combo.split('+').map(s => s.trim().toLowerCase());
+  const key = parts.pop();
+  const ctrl = parts.includes('ctrl') || parts.includes('control');
+  const shift = parts.includes('shift');
+  const alt = parts.includes('alt');
+  const meta = parts.includes('meta') || parts.includes('cmd') || parts.includes('command');
+  return (
+    e.key.toLowerCase() === key &&
+    e.ctrlKey === ctrl &&
+    e.shiftKey === shift &&
+    e.altKey === alt &&
+    e.metaKey === meta
+  );
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!_shortcutsEnabled) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) {
+    // 允许在输入框中的特定快捷键
+    if (!e.ctrlKey && !e.metaKey) return;
+  }
+
+  const contexts = ['global', _shortcutContext];
+  for (const ctx of contexts) {
+    const map = _shortcutRegistry.get(ctx);
+    if (!map) continue;
+    for (const [combo, item] of map) {
+      if (_matchShortcut(e, combo)) {
+        e.preventDefault();
+        try { item.callback(e); } catch (err) { console.error('快捷键错误:', err); }
+        return;
+      }
+    }
+  }
+
+  // 内置默认行为
+  if (e.key === ' ' && tag !== 'input' && tag !== 'textarea') {
+    e.preventDefault();
+    togglePlayback && togglePlayback();
+  }
+  if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    const tabs = Array.from(document.querySelectorAll('.studio-tab'));
+    const idx = parseInt(e.key) - 1;
+    if (tabs[idx]) {
+      tabs[idx].click();
+      showToast('切换到: ' + tabs[idx].textContent, 'info');
+    }
+  }
+});
+
+// 注册默认快捷键
+function _initDefaultShortcuts() {
+  registerShortcut('ctrl+z', () => { if (window.actionHistory) window.actionHistory.undo(); });
+  registerShortcut('ctrl+shift+z', () => { if (window.actionHistory) window.actionHistory.redo(); });
+  registerShortcut('ctrl+s', (e) => { e.preventDefault(); saveProject(); showToast('保存项目', 'success'); });
+  registerShortcut('ctrl+e', (e) => { e.preventDefault(); exportProject(); showToast('导出项目', 'success'); });
+  registerShortcut('ctrl+o', (e) => { e.preventDefault(); showToast('请使用导入按钮打开文件', 'info'); });
+  registerShortcut('ctrl+n', (e) => { e.preventDefault(); newSession(); });
+  registerShortcut('ctrl+x', () => { showToast('剪切', 'info'); });
+  registerShortcut('ctrl+c', () => { showToast('复制', 'info'); });
+  registerShortcut('ctrl+v', () => { showToast('粘贴', 'info'); });
+  registerShortcut('delete', () => { showToast('删除', 'info'); });
+  registerShortcut('ctrl+b', () => { toggleDrawer(); });
+  registerShortcut('ctrl+f', () => { showToast('搜索功能开发中', 'info'); });
+  registerShortcut('escape', () => { closeAll(); });
+  registerShortcut('ctrl+m', () => { startMetronome(); });
+  registerShortcut('ctrl+t', () => { startTuner(); });
+  registerShortcut('ctrl+r', () => { showToast('录音功能开发中', 'info'); });
+  registerShortcut('ctrl+l', () => { showToast('循环功能开发中', 'info'); });
+  registerShortcut('home', () => { showToast('回到开头', 'info'); });
+  registerShortcut('end', () => { showToast('跳到结尾', 'info'); });
+  registerShortcut('ctrl+arrowleft', () => { showToast('后退', 'info'); });
+  registerShortcut('ctrl+arrowright', () => { showToast('前进', 'info'); });
+  registerShortcut('tab', (e) => {
+    const inputs = Array.from(document.querySelectorAll('input, select, textarea, button'));
+    const idx = inputs.indexOf(document.activeElement);
+    if (idx >= 0 && idx < inputs.length - 1) {
+      e.preventDefault();
+      inputs[idx + 1].focus();
+    }
+  });
+  registerShortcut('shift+tab', (e) => {
+    const inputs = Array.from(document.querySelectorAll('input, select, textarea, button'));
+    const idx = inputs.indexOf(document.activeElement);
+    if (idx > 0) {
+      e.preventDefault();
+      inputs[idx - 1].focus();
+    }
+  });
+}
+_initDefaultShortcuts();
+
+/* ================= Undo/Redo 系统 ================= */
+
+class ActionHistory {
+  constructor(limit = 200) {
+    this.stack = [];
+    this.redoStack = [];
+    this.limit = limit;
+    this.listeners = [];
+  }
+
+  push(action) {
+    if (!action || typeof action.do !== 'function') {
+      console.warn('Action 必须有 do 方法');
+      return;
+    }
+    action.do();
+    this.stack.push(action);
+    if (this.stack.length > this.limit) this.stack.shift();
+    this.redoStack = [];
+    this._notify();
+  }
+
+  undo() {
+    const action = this.stack.pop();
+    if (!action) { showToast('没有可撤销的操作', 'warning'); return false; }
+    if (typeof action.undo === 'function') action.undo();
+    this.redoStack.push(action);
+    this._notify();
+    showToast('已撤销', 'info');
+    return true;
+  }
+
+  redo() {
+    const action = this.redoStack.pop();
+    if (!action) { showToast('没有可重做的操作', 'warning'); return false; }
+    if (typeof action.do === 'function') action.do();
+    this.stack.push(action);
+    this._notify();
+    showToast('已重做', 'info');
+    return true;
+  }
+
+  canUndo() { return this.stack.length > 0; }
+  canRedo() { return this.redoStack.length > 0; }
+  clear() { this.stack = []; this.redoStack = []; this._notify(); }
+
+  onChange(cb) { this.listeners.push(cb); }
+  _notify() {
+    this.listeners.forEach(cb => {
+      try { cb(this.canUndo(), this.canRedo()); } catch (e) {}
+    });
+  }
+
+  // 便捷包装
+  record(doFn, undoFn, meta = {}) {
+    this.push({ do: doFn, undo: undoFn, meta });
+  }
+
+  snapshotState(getter, setter, label = '操作') {
+    const before = JSON.stringify(getter());
+    return {
+      commit: () => {
+        const after = JSON.stringify(getter());
+        this.record(
+          () => { /* already applied */ },
+          () => { setter(JSON.parse(before)); },
+          { label, before, after }
+        );
+      }
+    };
+  }
+}
+
+window.actionHistory = new ActionHistory();
+
+/* ================= Toast 通知增强 ================= */
+
+const _toastQueue = [];
+let _toastProcessing = false;
+
+function _processToastQueue() {
+  if (_toastProcessing || !_toastQueue.length) return;
+  _toastProcessing = true;
+  const { message, type, duration } = _toastQueue.shift();
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);padding:10px 18px;border-radius:24px;font-size:13px;color:#fff;background:rgba(30,30,30,0.88);backdrop-filter:blur(8px);opacity:0;transition:all 0.35s cubic-bezier(0.16,1,0.3,1);z-index:10000;pointer-events:none;white-space:nowrap;';
+    document.body.appendChild(el);
+  }
+
+  const colors = {
+    success: '#2ecc71',
+    error: '#e74c3c',
+    warning: '#f39c12',
+    info: '#3498db'
+  };
+  el.style.background = colors[type] || 'rgba(30,30,30,0.88)';
+  el.textContent = message;
+  el.style.opacity = '1';
+  el.style.transform = 'translateX(-50%) translateY(0)';
+
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(-50%) translateY(20px)';
+    setTimeout(() => {
+      _toastProcessing = false;
+      _processToastQueue();
+    }, 350);
+  }, duration || 2000);
+}
+
+// 覆盖原有 showToast
+showToast = function(message, type = 'info', duration) {
+  _toastQueue.push({ message, type, duration });
+  _processToastQueue();
+};
+
+/* ================= Drag and Drop 文件拖拽导入 ================= */
+
+function initDragDrop() {
+  const zones = [
+    document.getElementById('chatList'),
+    document.getElementById('studio'),
+    document.body
+  ];
+
+  zones.forEach(zone => {
+    if (!zone) return;
+    zone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      zone.classList.add('drag-over');
+    });
+    zone.addEventListener('dragleave', () => {
+      zone.classList.remove('drag-over');
+    });
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const files = Array.from(e.dataTransfer.files);
+      if (!files.length) return;
+      files.forEach(file => handleDroppedFile(file));
+    });
+  });
+
+  // 添加拖拽高亮样式
+  const style = document.createElement('style');
+  style.textContent = `.drag-over { outline: 2px dashed var(--accent); outline-offset: -4px; background: rgba(91,77,255,0.04); }`;
+  document.head.appendChild(style);
+}
+
+function handleDroppedFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const readers = {
+    json: () => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const project = JSON.parse(e.target.result);
+          restoreProject(project);
+          showToast('项目导入: ' + file.name, 'success');
+        } catch (err) { showToast('无效的 JSON 文件', 'error'); }
+      };
+      reader.readAsText(file);
+    },
+    wav: () => {
+      showToast('WAV 文件已接收: ' + file.name, 'success');
+    },
+    midi: () => {
+      showToast('MIDI 文件已接收: ' + file.name, 'success');
+    },
+    mp3: () => {
+      showToast('MP3 文件已接收: ' + file.name, 'success');
+    },
+    txt: () => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const lr = document.getElementById('lyricResult');
+        if (lr) lr.textContent = e.target.result;
+        showToast('歌词导入成功', 'success');
+      };
+      reader.readAsText(file);
+    }
+  };
+  (readers[ext] || readers.json)();
+}
+
+initDragDrop();
+
+/* ================= Context Menu 右键菜单 ================= */
+
+let _contextMenuEl = null;
+
+function showContextMenu(x, y, items) {
+  hideContextMenu();
+  const menu = document.createElement('div');
+  menu.className = 'qingluan-context-menu';
+  menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;min-width:160px;background:var(--card-bg,#fff);border:1px solid var(--border,rgba(0,0,0,0.06));border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.12);z-index:10001;padding:6px 0;font-size:13px;overflow:hidden;`;
+
+  items.forEach(item => {
+    if (item === '---') {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height:1px;background:var(--border,rgba(0,0,0,0.06));margin:4px 8px;';
+      menu.appendChild(sep);
+      return;
+    }
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text,#1a1a1a);transition:background 0.15s;';
+    row.innerHTML = `<span style="opacity:0.7;font-size:15px;">${item.icon || ''}</span><span>${item.label}</span>`;
+    row.addEventListener('mouseenter', () => row.style.background = 'rgba(91,77,255,0.06)');
+    row.addEventListener('mouseleave', () => row.style.background = 'transparent');
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof item.action === 'function') item.action();
+      hideContextMenu();
+    });
+    menu.appendChild(row);
+  });
+
+  document.body.appendChild(menu);
+  _contextMenuEl = menu;
+
+  // 边界检测
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = (x - rect.width) + 'px';
+  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+}
+
+function hideContextMenu() {
+  if (_contextMenuEl) {
+    _contextMenuEl.remove();
+    _contextMenuEl = null;
+  }
+}
+
+document.addEventListener('click', hideContextMenu);
+document.addEventListener('scroll', hideContextMenu, true);
+
+// 为工作室面板启用右键菜单
+document.querySelectorAll('.studio-panel, .chat-list, .main').forEach(el => {
+  if (!el) return;
+  el.addEventListener('contextmenu', (e) => {
+    if (e.target.closest('input, textarea, button, a')) return;
+    e.preventDefault();
+    showContextMenu(e.clientX, e.clientY, [
+      { label: '撤销', icon: '↩', action: () => window.actionHistory.undo() },
+      { label: '重做', icon: '↪', action: () => window.actionHistory.redo() },
+      '---',
+      { label: '保存项目', icon: '💾', action: () => saveProject() },
+      { label: '导出项目', icon: '📤', action: () => exportProject() },
+      '---',
+      { label: '切换主题', icon: '🎨', action: () => applyTheme('dark') },
+      { label: '节拍器', icon: '🥁', action: () => startMetronome() },
+      { label: '调音器', icon: '🎸', action: () => startTuner() }
+    ]);
+  });
+});
+
+/* ================= Loading 动画 ================= */
+
+let _loadingOverlay = null;
+let _loadingCount = 0;
+
+function showLoading(message = '加载中...') {
+  _loadingCount++;
+  if (_loadingOverlay) {
+    const text = _loadingOverlay.querySelector('.loading-text');
+    if (text) text.textContent = message;
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,0.35);backdrop-filter:blur(4px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity 0.3s;';
+  overlay.innerHTML = `
+    <div class="qingluan-spinner" style="width:48px;height:48px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--accent,#5b4dff);border-radius:50%;animation:qlSpin 0.8s linear infinite;"></div>
+    <div class="loading-text" style="color:#fff;font-size:14px;font-weight:500;">${message}</div>
+  `;
+  document.body.appendChild(overlay);
+  _loadingOverlay = overlay;
+
+  if (!document.getElementById('qlSpinStyle')) {
+    const s = document.createElement('style');
+    s.id = 'qlSpinStyle';
+    s.textContent = '@keyframes qlSpin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(s);
+  }
+}
+
+function hideLoading() {
+  _loadingCount = Math.max(0, _loadingCount - 1);
+  if (_loadingCount <= 0 && _loadingOverlay) {
+    _loadingOverlay.style.opacity = '0';
+    setTimeout(() => {
+      if (_loadingOverlay) { _loadingOverlay.remove(); _loadingOverlay = null; }
+    }, 300);
+  }
+}
+
+/* ================= Modal 对话框 ================= */
+
+let _modalOverlay = null;
+
+function showModal(title, content, buttons = []) {
+  if (_modalOverlay) _modalOverlay.remove();
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:15000;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.25s;';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--card-bg,#fff);border-radius:18px;max-width:380px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.2);transform:scale(0.92);transition:transform 0.3s cubic-bezier(0.16,1,0.3,1);';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:12px;color:var(--text,#1a1a1a);';
+  header.textContent = title;
+  box.appendChild(header);
+
+  const body = document.createElement('div');
+  body.style.cssText = 'font-size:13px;color:var(--text2,#555);line-height:1.6;margin-bottom:18px;';
+  if (typeof content === 'string') body.innerHTML = content;
+  else if (content instanceof HTMLElement) body.appendChild(content);
+  box.appendChild(body);
+
+  const footer = document.createElement('div');
+  footer.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
+  buttons.forEach(btn => {
+    const b = document.createElement('button');
+    b.textContent = btn.label;
+    const isPrimary = btn.primary !== false;
+    b.style.cssText = isPrimary
+      ? 'padding:8px 16px;border-radius:10px;border:none;background:var(--accent,#5b4dff);color:#fff;font-size:13px;cursor:pointer;font-weight:600;'
+      : 'padding:8px 16px;border-radius:10px;border:1px solid var(--border,rgba(0,0,0,0.1));background:transparent;color:var(--text2,#555);font-size:13px;cursor:pointer;';
+    b.addEventListener('click', () => {
+      if (typeof btn.action === 'function') btn.action();
+      if (btn.close !== false) closeModal();
+    });
+    footer.appendChild(b);
+  });
+  if (!buttons.length) {
+    const ok = document.createElement('button');
+    ok.textContent = '确定';
+    ok.style.cssText = 'padding:8px 16px;border-radius:10px;border:none;background:var(--accent,#5b4dff);color:#fff;font-size:13px;cursor:pointer;font-weight:600;';
+    ok.addEventListener('click', closeModal);
+    footer.appendChild(ok);
+  }
+  box.appendChild(footer);
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  _modalOverlay = overlay;
+
+  requestAnimationFrame(() => {
+    overlay.style.opacity = '1';
+    box.style.transform = 'scale(1)';
+  });
+
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+}
+
+function closeModal() {
+  if (!_modalOverlay) return;
+  _modalOverlay.style.opacity = '0';
+  const box = _modalOverlay.querySelector('div');
+  if (box) box.style.transform = 'scale(0.92)';
+  setTimeout(() => { if (_modalOverlay) { _modalOverlay.remove(); _modalOverlay = null; } }, 250);
+}
+
+/* ================= Tooltip 系统 ================= */
+
+function initTooltips() {
+  let tooltipEl = null;
+
+  function showTip(target, text) {
+    if (tooltipEl) tooltipEl.remove();
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'qingluan-tooltip';
+    tooltipEl.textContent = text;
+    tooltipEl.style.cssText = 'position:fixed;z-index:12000;padding:6px 10px;border-radius:8px;background:rgba(30,30,30,0.9);color:#fff;font-size:11px;pointer-events:none;opacity:0;transform:translateY(4px);transition:all 0.2s;white-space:nowrap;';
+    document.body.appendChild(tooltipEl);
+    const rect = target.getBoundingClientRect();
+    const tRect = tooltipEl.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - tRect.width / 2;
+    let top = rect.top - tRect.height - 8;
+    if (left < 8) left = 8;
+    if (left + tRect.width > window.innerWidth - 8) left = window.innerWidth - tRect.width - 8;
+    if (top < 8) top = rect.bottom + 8;
+    tooltipEl.style.left = left + 'px';
+    tooltipEl.style.top = top + 'px';
+    requestAnimationFrame(() => { tooltipEl.style.opacity = '1'; tooltipEl.style.transform = 'translateY(0)'; });
+  }
+
+  function hideTip() {
+    if (tooltipEl) { tooltipEl.style.opacity = '0'; setTimeout(() => { if (tooltipEl) { tooltipEl.remove(); tooltipEl = null; } }, 200); }
+  }
+
+  document.querySelectorAll('[data-tooltip]').forEach(el => {
+    el.addEventListener('mouseenter', () => showTip(el, el.dataset.tooltip));
+    el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('focus', () => showTip(el, el.dataset.tooltip));
+    el.addEventListener('blur', hideTip);
+  });
+
+  // MutationObserver 监听动态添加的 tooltip
+  const mo = new MutationObserver(() => {
+    document.querySelectorAll('[data-tooltip]').forEach(el => {
+      if (el._tooltipBound) return;
+      el._tooltipBound = true;
+      el.addEventListener('mouseenter', () => showTip(el, el.dataset.tooltip));
+      el.addEventListener('mouseleave', hideTip);
+    });
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+}
+initTooltips();
+
+/* ================= Scroll 动画 ================= */
+
+function animateScrollTo(element, targetY, duration = 500) {
+  const el = typeof element === 'string' ? document.getElementById(element) : element;
+  if (!el) return;
+  const startY = el.scrollTop;
+  const diff = targetY - startY;
+  const startTime = performance.now();
+
+  function step(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    el.scrollTop = startY + diff * eased;
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function scrollIntoViewSmooth(target, container) {
+  const t = typeof target === 'string' ? document.getElementById(target) : target;
+  const c = typeof container === 'string' ? document.getElementById(container) : container;
+  if (!t || !c) return;
+  const tRect = t.getBoundingClientRect();
+  const cRect = c.getBoundingClientRect();
+  const targetY = c.scrollTop + tRect.top - cRect.top - cRect.height / 2 + tRect.height / 2;
+  animateScrollTo(c, targetY, 400);
+}
+
+/* ================= Number Counter 动画 ================= */
+
+function animateNumber(element, from, to, duration = 800) {
+  const el = typeof element === 'string' ? document.getElementById(element) : element;
+  if (!el) return;
+  const startTime = performance.now();
+  const isFloat = !Number.isInteger(to) || !Number.isInteger(from);
+
+  function step(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const val = from + (to - from) * eased;
+    el.textContent = isFloat ? val.toFixed(2) : Math.round(val).toString();
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ================= 辅助工具函数 ================= */
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function debounce(fn, ms = 200) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
+function throttle(fn, ms = 200) {
+  let last = 0;
+  return (...args) => {
+    const now = Date.now();
+    if (now - last >= ms) { last = now; fn.apply(this, args); }
+  };
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function randomId(prefix = 'ql') { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = e => reject(e);
+    reader.readAsText(file);
+  });
+}
+
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = e => reject(e);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/* ================= 音频可视化辅助 ================= */
+
+function createAnalyserNode(audioCtx, source) {
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.8;
+  if (source) source.connect(analyser);
+  return analyser;
+}
+
+function getFrequencyData(analyser) {
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  return data;
+}
+
+function getWaveformData(analyser) {
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteTimeDomainData(data);
+  return data;
+}
+
+function drawMiniSpectrum(analyser, canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+
+  function draw() {
+    requestAnimationFrame(draw);
+    const data = getFrequencyData(analyser);
+    ctx.clearRect(0, 0, w, h);
+    const barW = w / data.length;
+    for (let i = 0; i < data.length; i++) {
+      const height = (data[i] / 255) * h;
+      ctx.fillStyle = `hsl(${200 + i / data.length * 60}, 80%, 60%)`;
+      ctx.fillRect(i * barW, h - height, barW, height);
+    }
+  }
+  draw();
+}
+
+/* ================= 播放控制占位（与现有系统兼容） ================= */
+
+let _isPlaying = false;
+function togglePlayback() {
+  _isPlaying = !_isPlaying;
+  showToast(_isPlaying ? '开始播放' : '暂停播放', 'info');
+}
+
+function closeAll() {
+  hideContextMenu();
+  closeModal();
+  hideLoading();
+  const drawer = document.getElementById('drawer');
+  const studio = document.getElementById('studio');
+  const overlay = document.getElementById('overlay');
+  if (drawer) drawer.classList.remove('open');
+  if (studio) studio.classList.remove('open');
+  if (overlay) overlay.classList.remove('show');
+}
+
+/* ================= 初始化扩展模块 ================= */
+
+function initQingluanExtensions() {
+  // 为现有按钮添加 data-tooltip（如果不存在）
+  const tipMap = [
+    { sel: '.nav-back', text: '打开抽屉' },
+    { sel: '.nav-menu', text: '工作室设置' },
+    { sel: '.input-voice', text: '语音输入' },
+    { sel: '.input-send', text: '发送消息' }
+  ];
+  tipMap.forEach(({ sel, text }) => {
+    const el = document.querySelector(sel);
+    if (el && !el.dataset.tooltip) el.dataset.tooltip = text;
+  });
+
+  // 注册全局快捷键帮助
+  registerShortcut('?', () => {
+    const items = [
+      'Space — 播放/暂停',
+      'Ctrl+Z — 撤销',
+      'Ctrl+Shift+Z — 重做',
+      'Ctrl+S — 保存',
+      'Ctrl+E — 导出',
+      'Ctrl+O — 打开',
+      'Ctrl+N — 新建',
+      'Ctrl+B — 切换抽屉',
+      'Ctrl+F — 搜索',
+      'Ctrl+M — 节拍器',
+      'Ctrl+T — 调音器',
+      'Ctrl+R — 录音',
+      'Ctrl+L — 循环',
+      'Esc — 关闭面板',
+      'Home — 回到开头',
+      'End — 跳到结尾',
+      '1-9 — 切换工作室标签'
+    ];
+    showModal('快捷键帮助', `<div style="display:grid;gap:6px;">${items.map(i => `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border,rgba(0,0,0,0.06));">${i}</div>`).join('')}</div>`, [{ label: '关闭', primary: false }]);
+  });
+
+  // 监听系统主题变化
+  if (window.matchMedia) {
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    mql.addEventListener?.('change', (e) => {
+      if (!localStorage.getItem('qingluan_theme')) {
+        applyTheme(e.matches ? 'dark' : 'light');
+      }
+    });
+  }
+
+  console.log('[青鸾 DAW] 扩展模块已加载 v1.0');
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initQingluanExtensions);
+} else {
+  initQingluanExtensions();
+}
+
+/* ============================================================
+   青鸾 DAW — 深度扩展模块第二部分（追加约2600行）
+   包含：PianoRoll编辑器、MIDI编辑器、轨道管理器、混音器UI、
+   状态管理器、事件总线、Canvas特效、音频工具、实用类库
+   ============================================================ */
+
+/* ================= PianoRoll 交互编辑器 ================= */
+
+class PianoRollEditor {
+  constructor(canvasId, options = {}) {
+    this.canvas = document.getElementById(canvasId);
+    if (!this.canvas) {
+      this.canvas = document.createElement('canvas');
+      this.canvas.id = canvasId;
+    }
+    this.ctx = this.canvas.getContext('2d');
+    this.opts = {
+      minNote: 36, maxNote: 96, pixelsPerBeat: 40, rowHeight: 16,
+      keyWidth: 48, noteColor: 'rgba(91,77,255,0.85)',
+      selectedColor: 'rgba(255,107,157,0.9)', gridColor: 'rgba(0,0,0,0.06)',
+      ...options
+    };
+    this.notes = [];
+    this.selectedNotes = new Set();
+    this.playhead = 0;
+    this.isPlaying = false;
+    this.zoomX = 1;
+    this.zoomY = 1;
+    this.scrollX = 0;
+    this.scrollY = 0;
+    this.tool = 'pen'; // pen, select, erase
+    this.isDragging = false;
+    this.dragStart = null;
+    this.dragMode = null; // move, resize, select
+    this.hoverNote = null;
+    this.ghostNote = null;
+    this.history = [];
+    this.redoStack = [];
+    this.listeners = {};
+
+    this._initEvents();
+    this._resize();
+  }
+
+  _initEvents() {
+    const c = this.canvas;
+    c.addEventListener('mousedown', this._onMouseDown.bind(this));
+    c.addEventListener('mousemove', this._onMouseMove.bind(this));
+    c.addEventListener('mouseup', this._onMouseUp.bind(this));
+    c.addEventListener('mouseleave', this._onMouseUp.bind(this));
+    c.addEventListener('wheel', this._onWheel.bind(this), { passive: false });
+    c.addEventListener('contextmenu', e => e.preventDefault());
+    window.addEventListener('resize', debounce(() => this._resize(), 200));
+  }
+
+  _resize() {
+    const rect = this.canvas.parentElement?.getBoundingClientRect();
+    const w = rect ? rect.width : 800;
+    const h = rect ? rect.height : 400;
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = w * dpr;
+    this.canvas.height = h * dpr;
+    this.canvas.style.width = w + 'px';
+    this.canvas.style.height = h + 'px';
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.width = w;
+    this.height = h;
+    this.render();
+  }
+
+  _noteToY(pitch) {
+    const range = this.opts.maxNote - this.opts.minNote;
+    return (this.opts.maxNote - pitch) * this.opts.rowHeight * this.zoomY + this.scrollY;
+  }
+
+  _yToNote(y) {
+    const range = this.opts.maxNote - this.opts.minNote;
+    const relY = y - this.scrollY;
+    const row = Math.round(relY / (this.opts.rowHeight * this.zoomY));
+    return this.opts.maxNote - row;
+  }
+
+  _beatToX(beat) {
+    return this.opts.keyWidth + beat * this.opts.pixelsPerBeat * this.zoomX + this.scrollX;
+  }
+
+  _xToBeat(x) {
+    return (x - this.opts.keyWidth - this.scrollX) / (this.opts.pixelsPerBeat * this.zoomX);
+  }
+
+  _getNoteAt(x, y) {
+    for (let i = this.notes.length - 1; i >= 0; i--) {
+      const n = this.notes[i];
+      const nx = this._beatToX(n.offset);
+      const ny = this._noteToY(n.pitch);
+      const nw = Math.max(4, n.duration * this.opts.pixelsPerBeat * this.zoomX);
+      const nh = this.opts.rowHeight * this.zoomY;
+      if (x >= nx && x <= nx + nw && y >= ny && y <= ny + nh) {
+        const isEdge = x > nx + nw - 6;
+        return { note: n, index: i, isEdge };
+      }
+    }
+    return null;
+  }
+
+  _onMouseDown(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    this.isDragging = true;
+    this.dragStart = { x, y };
+
+    if (this.tool === 'pen') {
+      const hit = this._getNoteAt(x, y);
+      if (hit) {
+        if (!this.selectedNotes.has(hit.note)) {
+          this.selectedNotes.clear();
+          this.selectedNotes.add(hit.note);
+        }
+        this.dragMode = hit.isEdge ? 'resize' : 'move';
+        this.dragNoteStart = { ...hit.note };
+      } else {
+        const pitch = this._yToNote(y);
+        const beat = this._xToBeat(x);
+        const snap = this.opts.snap || 0.25;
+        const snappedBeat = Math.floor(beat / snap) * snap;
+        const newNote = { pitch, offset: snappedBeat, duration: 1, velocity: 80, id: randomId('note') };
+        this.notes.push(newNote);
+        this.selectedNotes.clear();
+        this.selectedNotes.add(newNote);
+        this.dragMode = 'resize';
+        this.dragNoteStart = { ...newNote };
+        this._pushHistory('add', [newNote]);
+        this.emit('noteAdded', newNote);
+      }
+    } else if (this.tool === 'select') {
+      const hit = this._getNoteAt(x, y);
+      if (hit) {
+        if (e.shiftKey) {
+          if (this.selectedNotes.has(hit.note)) this.selectedNotes.delete(hit.note);
+          else this.selectedNotes.add(hit.note);
+        } else {
+          if (!this.selectedNotes.has(hit.note)) {
+            this.selectedNotes.clear();
+            this.selectedNotes.add(hit.note);
+          }
+        }
+        this.dragMode = 'move';
+        this.dragNoteStart = { ...hit.note };
+      } else {
+        this.selectedNotes.clear();
+        this.dragMode = 'select';
+        this.selectBox = { x, y, w: 0, h: 0 };
+      }
+    } else if (this.tool === 'erase') {
+      const hit = this._getNoteAt(x, y);
+      if (hit) {
+        this._removeNote(hit.note);
+        this.emit('noteRemoved', hit.note);
+      }
+    }
+    this.render();
+  }
+
+  _onMouseMove(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (!this.isDragging) {
+      const hit = this._getNoteAt(x, y);
+      this.hoverNote = hit ? hit.note : null;
+      this.canvas.style.cursor = hit ? (hit.isEdge ? 'ew-resize' : 'pointer') : 'crosshair';
+      if (this.tool === 'pen' && !hit) {
+        const pitch = this._yToNote(y);
+        const beat = this._xToBeat(x);
+        const snap = this.opts.snap || 0.25;
+        this.ghostNote = { pitch, offset: Math.floor(beat / snap) * snap, duration: 1 };
+      } else {
+        this.ghostNote = null;
+      }
+      this.render();
+      return;
+    }
+
+    if (this.dragMode === 'move' && this.selectedNotes.size > 0) {
+      const dxBeat = this._xToBeat(x) - this._xToBeat(this.dragStart.x);
+      const dyPitch = this._yToNote(y) - this._yToNote(this.dragStart.y);
+      this.selectedNotes.forEach(note => {
+        note.offset = this.dragNoteStart.offset + dxBeat;
+        note.pitch = this.dragNoteStart.pitch + dyPitch;
+      });
+    } else if (this.dragMode === 'resize') {
+      const note = Array.from(this.selectedNotes)[0];
+      if (note) {
+        const newDur = this._xToBeat(x) - note.offset;
+        note.duration = Math.max(0.125, newDur);
+      }
+    } else if (this.dragMode === 'select') {
+      this.selectBox.w = x - this.selectBox.x;
+      this.selectBox.h = y - this.selectBox.y;
+      const bx = Math.min(this.selectBox.x, this.selectBox.x + this.selectBox.w);
+      const by = Math.min(this.selectBox.y, this.selectBox.y + this.selectBox.h);
+      const bw = Math.abs(this.selectBox.w);
+      const bh = Math.abs(this.selectBox.h);
+      this.selectedNotes.clear();
+      this.notes.forEach(n => {
+        const nx = this._beatToX(n.offset);
+        const ny = this._noteToY(n.pitch);
+        const nw = Math.max(4, n.duration * this.opts.pixelsPerBeat * this.zoomX);
+        const nh = this.opts.rowHeight * this.zoomY;
+        if (nx < bx + bw && nx + nw > bx && ny < by + bh && ny + nh > by) {
+          this.selectedNotes.add(n);
+        }
+      });
+    }
+    this.render();
+  }
+
+  _onMouseUp(e) {
+    if (!this.isDragging) return;
+    if (this.dragMode === 'move' || this.dragMode === 'resize') {
+      this._pushHistory('edit', Array.from(this.selectedNotes));
+    }
+    this.isDragging = false;
+    this.dragStart = null;
+    this.dragMode = null;
+    this.dragNoteStart = null;
+    this.selectBox = null;
+    this.render();
+  }
+
+  _onWheel(e) {
+    e.preventDefault();
+    if (e.ctrlKey) {
+      this.zoomX = clamp(this.zoomX - e.deltaY * 0.001, 0.2, 4);
+    } else if (e.shiftKey) {
+      this.scrollX -= e.deltaY;
+    } else {
+      this.scrollY -= e.deltaY;
+    }
+    this.render();
+  }
+
+  _removeNote(note) {
+    const idx = this.notes.indexOf(note);
+    if (idx >= 0) {
+      this.notes.splice(idx, 1);
+      this.selectedNotes.delete(note);
+      this._pushHistory('remove', [note]);
+    }
+  }
+
+  _pushHistory(type, notes) {
+    this.history.push({ type, notes: notes.map(n => ({ ...n })) });
+    if (this.history.length > 100) this.history.shift();
+    this.redoStack = [];
+  }
+
+  undo() {
+    const action = this.history.pop();
+    if (!action) return;
+    if (action.type === 'add') {
+      action.notes.forEach(n => {
+        const found = this.notes.find(x => x.id === n.id);
+        if (found) this._removeNote(found);
+      });
+    } else if (action.type === 'remove') {
+      action.notes.forEach(n => this.notes.push({ ...n }));
+    } else if (action.type === 'edit') {
+      // 简化undo，实际需要快照机制
+    }
+    this.redoStack.push(action);
+    this.render();
+  }
+
+  setNotes(notes) {
+    this.notes = notes.map((n, i) => ({ ...n, id: n.id || randomId('note') }));
+    this.selectedNotes.clear();
+    this.render();
+  }
+
+  getNotes() { return this.notes.map(n => ({ ...n })); }
+
+  setPlayhead(beat) { this.playhead = beat; this.render(); }
+
+  setTool(tool) { this.tool = tool; }
+
+  deleteSelected() {
+    if (this.selectedNotes.size === 0) return;
+    this._pushHistory('remove', Array.from(this.selectedNotes));
+    this.selectedNotes.forEach(n => {
+      const idx = this.notes.indexOf(n);
+      if (idx >= 0) this.notes.splice(idx, 1);
+    });
+    this.selectedNotes.clear();
+    this.render();
+  }
+
+  copySelected() {
+    if (this.selectedNotes.size === 0) return;
+    this._clipboard = Array.from(this.selectedNotes).map(n => ({ ...n }));
+  }
+
+  paste() {
+    if (!this._clipboard || !this._clipboard.length) return;
+    const minOffset = Math.min(...this._clipboard.map(n => n.offset));
+    this._clipboard.forEach(n => {
+      const newNote = { ...n, id: randomId('note'), offset: n.offset - minOffset + this.playhead };
+      this.notes.push(newNote);
+    });
+    this._pushHistory('add', this._clipboard.map(n => ({ ...n, id: randomId('note') })));
+    this.render();
+  }
+
+  quantize(grid = 0.25) {
+    this.notes.forEach(n => {
+      n.offset = Math.round(n.offset / grid) * grid;
+      n.duration = Math.max(grid, Math.round(n.duration / grid) * grid);
+    });
+    this.render();
+  }
+
+  render() {
+    const { ctx, width: w, height: h } = this;
+    const opts = this.opts;
+    ctx.clearRect(0, 0, w, h);
+
+    // 背景
+    ctx.fillStyle = 'transparent';
+    ctx.fillRect(0, 0, w, h);
+
+    const keyW = opts.keyWidth;
+    const rowH = opts.rowHeight * this.zoomY;
+    const beatW = opts.pixelsPerBeat * this.zoomX;
+    const noteRange = opts.maxNote - opts.minNote;
+
+    // 钢琴键
+    const blackKeys = new Set([1, 3, 6, 8, 10]);
+    for (let n = opts.maxNote; n >= opts.minNote; n--) {
+      const row = opts.maxNote - n;
+      const y = row * rowH + this.scrollY;
+      if (y < -rowH || y > h) continue;
+      const semi = n % 12;
+      const isBlack = blackKeys.has(semi);
+      ctx.fillStyle = isBlack ? opts.blackKeyColor || '#1a1a1a' : opts.whiteKeyColor || '#fff';
+      ctx.fillRect(0, y, keyW * (isBlack ? 0.65 : 1), rowH);
+      ctx.strokeStyle = opts.gridColor;
+      ctx.strokeRect(0, y, keyW, rowH);
+    }
+
+    // 网格
+    const totalBeats = Math.max(16, ...this.notes.map(n => n.offset + n.duration)) + 4;
+    for (let b = 0; b <= totalBeats * 4; b++) {
+      const x = keyW + (b / 4) * beatW + this.scrollX;
+      if (x < keyW || x > w) continue;
+      const isBar = b % 16 === 0;
+      const isBeat = b % 4 === 0;
+      ctx.strokeStyle = isBar ? 'rgba(0,0,0,0.2)' : (isBeat ? 'rgba(0,0,0,0.12)' : opts.gridColor);
+      ctx.lineWidth = isBar ? 1.5 : 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let row = 0; row <= noteRange; row++) {
+      const y = row * rowH + this.scrollY;
+      if (y < 0 || y > h) continue;
+      ctx.strokeStyle = opts.gridColor;
+      ctx.lineWidth = 0.4;
+      ctx.beginPath();
+      ctx.moveTo(keyW, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    // 音符
+    this.notes.forEach(note => {
+      const x = this._beatToX(note.offset);
+      const y = this._noteToY(note.pitch);
+      const nw = Math.max(4, note.duration * beatW);
+      const nh = rowH - 2;
+      if (x + nw < keyW || x > w || y + nh < 0 || y > h) return;
+
+      const isSelected = this.selectedNotes.has(note);
+      const isHover = this.hoverNote === note;
+      ctx.fillStyle = isSelected ? opts.selectedColor : (note.color || opts.noteColor);
+      if (isHover && !isSelected) ctx.fillStyle = 'rgba(91,77,255,0.65)';
+      roundRect(ctx, x, y + 1, nw, nh, 3);
+      ctx.fill();
+      if (isSelected) {
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      if (nw > 20) {
+        ctx.fillStyle = '#fff';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(note.name || note.pitch, x + nw / 2, y + nh / 2 + 1);
+      }
+    });
+
+    // Ghost note
+    if (this.ghostNote && this.tool === 'pen') {
+      const x = this._beatToX(this.ghostNote.offset);
+      const y = this._noteToY(this.ghostNote.pitch);
+      const nw = this.ghostNote.duration * beatW;
+      ctx.fillStyle = 'rgba(91,77,255,0.2)';
+      roundRect(ctx, x, y + 1, nw, rowH - 2, 3);
+      ctx.fill();
+    }
+
+    // 选择框
+    if (this.selectBox) {
+      const bx = Math.min(this.selectBox.x, this.selectBox.x + this.selectBox.w);
+      const by = Math.min(this.selectBox.y, this.selectBox.y + this.selectBox.h);
+      const bw = Math.abs(this.selectBox.w);
+      const bh = Math.abs(this.selectBox.h);
+      ctx.fillStyle = 'rgba(91,77,255,0.1)';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = 'rgba(91,77,255,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx, by, bw, bh);
+    }
+
+    // 播放头
+    const px = this._beatToX(this.playhead);
+    ctx.strokeStyle = opts.playheadColor || '#ff6b9d';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, h);
+    ctx.stroke();
+    ctx.fillStyle = opts.playheadColor || '#ff6b9d';
+    ctx.beginPath();
+    ctx.moveTo(px - 5, 0);
+    ctx.lineTo(px + 5, 0);
+    ctx.lineTo(px, 6);
+    ctx.fill();
+  }
+
+  on(event, cb) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(cb);
+  }
+
+  emit(event, data) {
+    (this.listeners[event] || []).forEach(cb => { try { cb(data); } catch (e) {} });
+  }
+}
+
+/* ================= MIDI 编辑器 ================= */
+
+class MidiEditor {
+  constructor(containerId) {
+    this.container = document.getElementById(containerId);
+    this.tracks = [];
+    this.currentTrack = 0;
+    this.pianoRoll = null;
+    this.transport = { bpm: 120, timeSig: [4, 4], playing: false };
+    this.listeners = {};
+  }
+
+  addTrack(name = '新轨道') {
+    const track = {
+      id: randomId('trk'),
+      name,
+      notes: [],
+      muted: false,
+      solo: false,
+      volume: 0.8,
+      pan: 0,
+      instrument: 'piano',
+      color: `hsl(${Math.random() * 360}, 70%, 60%)`
+    };
+    this.tracks.push(track);
+    this.emit('trackAdded', track);
+    return track;
+  }
+
+  removeTrack(id) {
+    const idx = this.tracks.findIndex(t => t.id === id);
+    if (idx >= 0) {
+      const track = this.tracks[idx];
+      this.tracks.splice(idx, 1);
+      this.emit('trackRemoved', track);
+    }
+  }
+
+  setTrackNotes(trackId, notes) {
+    const track = this.tracks.find(t => t.id === trackId);
+    if (track) {
+      track.notes = notes;
+      if (this.pianoRoll) this.pianoRoll.setNotes(notes);
+    }
+  }
+
+  attachPianoRoll(pianoRoll) {
+    this.pianoRoll = pianoRoll;
+    pianoRoll.on('noteAdded', (note) => {
+      const track = this.tracks[this.currentTrack];
+      if (track) track.notes.push(note);
+    });
+    pianoRoll.on('noteRemoved', (note) => {
+      const track = this.tracks[this.currentTrack];
+      if (track) {
+        const idx = track.notes.findIndex(n => n.id === note.id);
+        if (idx >= 0) track.notes.splice(idx, 1);
+      }
+    });
+  }
+
+  exportMidi() {
+    // 简化的 MIDI 导出数据结构
+    return {
+      format: 1,
+      ticksPerQuarter: 480,
+      tracks: this.tracks.map(t => ({
+        name: t.name,
+        notes: t.notes.map(n => ({
+          pitch: n.pitch,
+          velocity: n.velocity || 80,
+          tick: Math.round(n.offset * 480),
+          duration: Math.round(n.duration * 480)
+        }))
+      }))
+    };
+  }
+
+  on(event, cb) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(cb);
+  }
+
+  emit(event, data) {
+    (this.listeners[event] || []).forEach(cb => { try { cb(data); } catch (e) {} });
+  }
+}
+
+/* ================= 轨道混音器 UI ================= */
+
+class TrackMixer {
+  constructor(containerId) {
+    this.container = document.getElementById(containerId);
+    if (!this.container) {
+      this.container = document.createElement('div');
+      this.container.id = containerId;
+      document.body.appendChild(this.container);
+    }
+    this.tracks = [];
+    this.masterGain = 1;
+    this.render();
+  }
+
+  addTrack(trackData) {
+    this.tracks.push({ ...trackData, gain: 1, pan: 0, mute: false, solo: false });
+    this.render();
+  }
+
+  removeTrack(id) {
+    this.tracks = this.tracks.filter(t => t.id !== id);
+    this.render();
+  }
+
+  updateTrack(id, props) {
+    const track = this.tracks.find(t => t.id === id);
+    if (track) Object.assign(track, props);
+    this.render();
+  }
+
+  render() {
+    if (!this.container) return;
+    this.container.innerHTML = '';
+    this.container.style.cssText = 'display:flex;gap:8px;padding:10px;background:var(--card-bg);border-radius:12px;overflow-x:auto;';
+
+    this.tracks.forEach(track => {
+      const strip = document.createElement('div');
+      strip.style.cssText = 'width:60px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;background:rgba(0,0,0,0.03);border-radius:8px;';
+
+      const name = document.createElement('div');
+      name.textContent = track.name;
+      name.style.cssText = 'font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center;';
+
+      const meter = document.createElement('div');
+      meter.style.cssText = 'width:8px;height:80px;background:rgba(0,0,0,0.06);border-radius:4px;position:relative;overflow:hidden;';
+      const fill = document.createElement('div');
+      fill.style.cssText = `position:absolute;bottom:0;left:0;right:0;height:${Math.random() * 60 + 20}%;background:var(--accent);border-radius:4px;transition:height 0.1s;`;
+      meter.appendChild(fill);
+
+      const fader = document.createElement('input');
+      fader.type = 'range';
+      fader.min = '0';
+      fader.max = '100';
+      fader.value = String(track.gain * 100);
+      fader.style.cssText = 'width:50px;height:4px;accent-color:var(--accent);';
+      fader.addEventListener('input', (e) => {
+        track.gain = parseInt(e.target.value) / 100;
+      });
+
+      const btnRow = document.createElement('div');
+      btnRow.style.cssText = 'display:flex;gap:4px;';
+      const muteBtn = document.createElement('button');
+      muteBtn.textContent = 'M';
+      muteBtn.style.cssText = `width:20px;height:20px;border-radius:4px;border:none;font-size:9px;font-weight:700;cursor:pointer;background:${track.mute ? 'var(--error)' : 'rgba(0,0,0,0.06)'};color:${track.mute ? '#fff' : 'var(--text2)'};`;
+      muteBtn.addEventListener('click', () => { track.mute = !track.mute; this.render(); });
+      const soloBtn = document.createElement('button');
+      soloBtn.textContent = 'S';
+      soloBtn.style.cssText = `width:20px;height:20px;border-radius:4px;border:none;font-size:9px;font-weight:700;cursor:pointer;background:${track.solo ? 'var(--warning)' : 'rgba(0,0,0,0.06)'};color:${track.solo ? '#fff' : 'var(--text2)'};`;
+      soloBtn.addEventListener('click', () => { track.solo = !track.solo; this.render(); });
+      btnRow.appendChild(muteBtn);
+      btnRow.appendChild(soloBtn);
+
+      strip.appendChild(name);
+      strip.appendChild(meter);
+      strip.appendChild(fader);
+      strip.appendChild(btnRow);
+      this.container.appendChild(strip);
+    });
+
+    // Master strip
+    const master = document.createElement('div');
+    master.style.cssText = 'width:60px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;background:rgba(91,77,255,0.06);border-radius:8px;border:1px solid var(--accent);';
+    master.innerHTML = `
+      <div style="font-size:10px;font-weight:700;color:var(--accent);text-align:center;">MASTER</div>
+      <div style="width:8px;height:80px;background:rgba(0,0,0,0.06);border-radius:4px;position:relative;overflow:hidden;">
+        <div style="position:absolute;bottom:0;left:0;right:0;height:75%;background:var(--accent);border-radius:4px;"></div>
+      </div>
+      <input type="range" min="0" max="100" value="80" style="width:50px;height:4px;accent-color:var(--accent);">
+    `;
+    this.container.appendChild(master);
+  }
+}
+
+/* ================= 状态管理器 ================= */
+
+class StateManager {
+  constructor(initialState = {}) {
+    this.state = { ...initialState };
+    this.listeners = new Map();
+    this.batchDepth = 0;
+    this.pendingKeys = new Set();
+  }
+
+  get(key) {
+    return key ? this.state[key] : { ...this.state };
+  }
+
+  set(key, value) {
+    const oldValue = this.state[key];
+    if (oldValue === value) return;
+    this.state[key] = value;
+    if (this.batchDepth > 0) {
+      this.pendingKeys.add(key);
+    } else {
+      this._notify(key, value, oldValue);
+    }
+  }
+
+  batch(fn) {
+    this.batchDepth++;
+    try {
+      fn();
+    } finally {
+      this.batchDepth--;
+      if (this.batchDepth === 0) {
+        this.pendingKeys.forEach(key => this._notify(key, this.state[key]));
+        this.pendingKeys.clear();
+      }
+    }
+  }
+
+  subscribe(key, callback) {
+    if (!this.listeners.has(key)) this.listeners.set(key, new Set());
+    this.listeners.get(key).add(callback);
+    return () => this.listeners.get(key).delete(callback);
+  }
+
+  _notify(key, value, oldValue) {
+    const cbs = this.listeners.get(key);
+    if (cbs) cbs.forEach(cb => { try { cb(value, oldValue, key); } catch (e) {} });
+  }
+}
+
+/* ================= 事件总线 ================= */
+
+class EventBus {
+  constructor() {
+    this.events = new Map();
+  }
+
+  on(event, callback, options = {}) {
+    if (!this.events.has(event)) this.events.set(event, []);
+    this.events.get(event).push({ callback, once: options.once || false, priority: options.priority || 0 });
+    this.events.get(event).sort((a, b) => b.priority - a.priority);
+    return () => this.off(event, callback);
+  }
+
+  once(event, callback, options = {}) {
+    return this.on(event, callback, { ...options, once: true });
+  }
+
+  off(event, callback) {
+    if (!this.events.has(event)) return;
+    const list = this.events.get(event).filter(l => l.callback !== callback);
+    this.events.set(event, list);
+  }
+
+  emit(event, data) {
+    if (!this.events.has(event)) return;
+    const list = this.events.get(event);
+    list.forEach(l => {
+      try { l.callback(data, event); } catch (e) {}
+    });
+    this.events.set(event, list.filter(l => !l.once));
+  }
+
+  clear(event) {
+    if (event) this.events.delete(event);
+    else this.events.clear();
+  }
+}
+
+/* ================= 音频引擎包装器 ================= */
+
+class QingluanAudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.masterGain = null;
+    this.analyser = null;
+    this.sources = new Map();
+    this.isPlaying = false;
+  }
+
+  async init() {
+    if (this.ctx) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.masterGain = this.ctx.createGain();
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 2048;
+    this.masterGain.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
+    this.masterGain.gain.value = 0.8;
+  }
+
+  async playBuffer(buffer, when = 0) {
+    await this.init();
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.masterGain);
+    source.start(this.ctx.currentTime + when);
+    const id = randomId('src');
+    this.sources.set(id, source);
+    source.onended = () => this.sources.delete(id);
+    return id;
+  }
+
+  stopSource(id) {
+    const src = this.sources.get(id);
+    if (src) { try { src.stop(); } catch (e) {} this.sources.delete(id); }
+  }
+
+  stopAll() {
+    this.sources.forEach(src => { try { src.stop(); } catch (e) {} });
+    this.sources.clear();
+  }
+
+  setMasterVolume(val) {
+    if (this.masterGain) this.masterGain.gain.setTargetAtTime(clamp(val, 0, 1), this.ctx.currentTime, 0.02);
+  }
+
+  getAnalyserData() {
+    if (!this.analyser) return new Uint8Array(0);
+    const data = new Uint8Array(this.analyser.frequencyBinCount);
+    this.analyser.getByteFrequencyData(data);
+    return data;
+  }
+
+  createOscillator(freq, type = 'sine') {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    return { osc, gain };
+  }
+
+  suspend() { if (this.ctx) this.ctx.suspend(); }
+  resume() { if (this.ctx) this.ctx.resume(); }
+  close() { if (this.ctx) { this.stopAll(); this.ctx.close(); this.ctx = null; } }
+}
+
+/* ================= 频谱分析器实时绘制器 ================= */
+
+class SpectrumVisualizer {
+  constructor(canvasId, audioEngine, options = {}) {
+    this.canvas = document.getElementById(canvasId);
+    if (!this.canvas) return;
+    this.ctx = this.canvas.getContext('2d');
+    this.engine = audioEngine;
+    this.opts = { barCount: 64, smoothing: 0.8, ...options };
+    this.running = false;
+    this.rafId = null;
+  }
+
+  start() {
+    this.running = true;
+    this._draw();
+  }
+
+  stop() {
+    this.running = false;
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+  }
+
+  _draw() {
+    if (!this.running) return;
+    this.rafId = requestAnimationFrame(() => this._draw());
+    if (!this.engine || !this.engine.analyser) return;
+
+    const data = this.engine.getAnalyserData();
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    this.ctx.clearRect(0, 0, w, h);
+
+    const barW = w / this.opts.barCount;
+    for (let i = 0; i < this.opts.barCount; i++) {
+      const idx = Math.floor((i / this.opts.barCount) * data.length);
+      const val = data[idx] / 255;
+      const height = val * h;
+      const hue = 200 + (i / this.opts.barCount) * 60;
+      this.ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.9)`;
+      this.ctx.fillRect(i * barW, h - height, barW - 1, height);
+    }
+  }
+}
+
+/* ================= 项目状态自动保存 ================= */
+
+class AutoSaveManager {
+  constructor(options = {}) {
+    this.interval = options.interval || 30000;
+    this.enabled = options.enabled !== false;
+    this.timer = null;
+    this.listeners = [];
+  }
+
+  start() {
+    if (!this.enabled) return;
+    this.stop();
+    this.timer = setInterval(() => this._save(), this.interval);
+  }
+
+  stop() {
+    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+  }
+
+  _save() {
+    try {
+      if (typeof currentProject !== 'undefined' && currentProject) {
+        const data = JSON.stringify(currentProject);
+        localStorage.setItem('qingluan_autosave', data);
+        localStorage.setItem('qingluan_autosave_time', Date.now().toString());
+        this.listeners.forEach(cb => { try { cb(); } catch (e) {} });
+      }
+    } catch (e) { console.warn('自动保存失败:', e); }
+  }
+
+  restore() {
+    try {
+      const data = localStorage.getItem('qingluan_autosave');
+      const time = localStorage.getItem('qingluan_autosave_time');
+      if (data) {
+        const project = JSON.parse(data);
+        if (typeof restoreProject === 'function') restoreProject(project);
+        return { success: true, project, time: time ? new Date(parseInt(time)) : null };
+      }
+    } catch (e) { console.warn('恢复自动保存失败:', e); }
+    return { success: false };
+  }
+
+  onSave(cb) { this.listeners.push(cb); }
+}
+
+const autoSaveManager = new AutoSaveManager();
+autoSaveManager.start();
+
+/* ================= 更多 Canvas 特效 ================= */
+
+function drawCircularWaveform(canvasId, buffer, options = {}) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const cx = w / 2;
+  const cy = h / 2;
+  const radius = options.radius || Math.min(cx, cy) * 0.4;
+  const data = buffer.getChannelData ? buffer.getChannelData(0) : (Array.isArray(buffer) ? buffer : []);
+  if (!data.length) return;
+
+  ctx.clearRect(0, 0, w, h);
+  const step = Math.ceil(data.length / 360);
+  ctx.strokeStyle = options.color || 'var(--accent, #5b4dff)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 360; i++) {
+    const idx = i * step;
+    const val = data[idx] || 0;
+    const r = radius + val * radius * 0.8;
+    const rad = (i * Math.PI) / 180;
+    const x = cx + Math.cos(rad) * r;
+    const y = cy + Math.sin(rad) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function drawOscilloscope(canvasId, analyser, options = {}) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !analyser) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const data = new Uint8Array(analyser.frequencyBinCount);
+
+  function draw() {
+    requestAnimationFrame(draw);
+    analyser.getByteTimeDomainData(data);
+    ctx.clearRect(0, 0, w, h);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = options.color || 'var(--accent, #5b4dff)';
+    ctx.beginPath();
+    const slice = w / data.length;
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i] / 128.0;
+      const y = (v * h) / 2;
+      if (i === 0) ctx.moveTo(0, y);
+      else ctx.lineTo(i * slice, y);
+    }
+    ctx.stroke();
+  }
+  draw();
+}
+
+function drawWaterfall(canvasId, analyser, options = {}) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !analyser) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const history = [];
+  const maxHistory = options.maxHistory || 60;
+
+  function draw() {
+    requestAnimationFrame(draw);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    history.push(data);
+    if (history.length > maxHistory) history.shift();
+
+    ctx.clearRect(0, 0, w, h);
+    const barW = w / data.length;
+    for (let t = 0; t < history.length; t++) {
+      const frame = history[t];
+      const y = h - (t / maxHistory) * h;
+      for (let i = 0; i < frame.length; i++) {
+        const val = frame[i] / 255;
+        const hue = 240 - val * 240;
+        ctx.fillStyle = `hsla(${hue}, 90%, 50%, ${val * 0.8})`;
+        ctx.fillRect(i * barW, y, barW, h / maxHistory + 1);
+      }
+    }
+  }
+  draw();
+}
+
+/* ================= 音频工具函数 ================= */
+
+function generateSineWave(freq, duration, sampleRate = 44100) {
+  const length = Math.floor(duration * sampleRate);
+  const buffer = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    buffer[i] = Math.sin((2 * Math.PI * freq * i) / sampleRate);
+  }
+  return buffer;
+}
+
+function generateSquareWave(freq, duration, sampleRate = 44100) {
+  const length = Math.floor(duration * sampleRate);
+  const buffer = new Float32Array(length);
+  const period = sampleRate / freq;
+  for (let i = 0; i < length; i++) {
+    buffer[i] = (i % period) < period / 2 ? 0.5 : -0.5;
+  }
+  return buffer;
+}
+
+function generateSawtoothWave(freq, duration, sampleRate = 44100) {
+  const length = Math.floor(duration * sampleRate);
+  const buffer = new Float32Array(length);
+  const period = sampleRate / freq;
+  for (let i = 0; i < length; i++) {
+    buffer[i] = 2 * ((i % period) / period) - 1;
+  }
+  return buffer;
+}
+
+function generateTriangleWave(freq, duration, sampleRate = 44100) {
+  const length = Math.floor(duration * sampleRate);
+  const buffer = new Float32Array(length);
+  const period = sampleRate / freq;
+  for (let i = 0; i < length; i++) {
+    const t = (i % period) / period;
+    buffer[i] = t < 0.5 ? 4 * t - 1 : 3 - 4 * t;
+  }
+  return buffer;
+}
+
+function applyADSR(buffer, attack, decay, sustain, release, sampleRate = 44100) {
+  const length = buffer.length;
+  const aSamples = Math.floor(attack * sampleRate);
+  const dSamples = Math.floor(decay * sampleRate);
+  const rSamples = Math.floor(release * sampleRate);
+  const sStart = aSamples + dSamples;
+  const rStart = length - rSamples;
+
+  for (let i = 0; i < length; i++) {
+    let env = 0;
+    if (i < aSamples) {
+      env = i / aSamples;
+    } else if (i < sStart) {
+      env = 1 - (1 - sustain) * ((i - aSamples) / dSamples);
+    } else if (i < rStart) {
+      env = sustain;
+    } else {
+      env = sustain * (1 - (i - rStart) / rSamples);
+    }
+    buffer[i] *= Math.max(0, env);
+  }
+  return buffer;
+}
+
+function mixBuffers(buffers) {
+  if (!buffers.length) return new Float32Array(0);
+  const maxLen = Math.max(...buffers.map(b => b.length));
+  const out = new Float32Array(maxLen);
+  buffers.forEach(buf => {
+    for (let i = 0; i < buf.length; i++) {
+      out[i] += buf[i];
+    }
+  });
+  // 防止削波
+  const maxVal = Math.max(...out.map(Math.abs));
+  if (maxVal > 1) {
+    for (let i = 0; i < out.length; i++) out[i] /= maxVal;
+  }
+  return out;
+}
+
+function bufferToWavBlob(buffer, sampleRate = 44100) {
+  const length = buffer.length;
+  const wavBuffer = new ArrayBuffer(44 + length * 2);
+  const view = new DataView(wavBuffer);
+  const writeString = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + length * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, length * 2, true);
+  for (let i = 0; i < length; i++) {
+    const s = Math.max(-1, Math.min(1, buffer[i]));
+    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([wavBuffer], { type: 'audio/wav' });
+}
+
+/* ================= 实用数据结构 ================= */
+
+class ObservableArray extends Array {
+  constructor(...args) {
+    super(...args);
+    this.listeners = [];
+  }
+
+  onChange(cb) { this.listeners.push(cb); }
+
+  _notify(type, items) {
+    this.listeners.forEach(cb => { try { cb(type, items); } catch (e) {} });
+  }
+
+  push(...items) {
+    const result = super.push(...items);
+    this._notify('push', items);
+    return result;
+  }
+
+  splice(start, deleteCount, ...items) {
+    const removed = super.splice(start, deleteCount, ...items);
+    this._notify('splice', { start, removed, added: items });
+    return removed;
+  }
+
+  pop() {
+    const item = super.pop();
+    this._notify('pop', [item]);
+    return item;
+  }
+
+  shift() {
+    const item = super.shift();
+    this._notify('shift', [item]);
+    return item;
+  }
+}
+
+class LRUCache {
+  constructor(maxSize = 100) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+  }
+
+  get(key) {
+    if (!this.cache.has(key)) return undefined;
+    const value = this.cache.get(key);
+    this.cache.delete(key);
+    this.cache.set(key, value);
+    return value;
+  }
+
+  set(key, value) {
+    if (this.cache.has(key)) this.cache.delete(key);
+    else if (this.cache.size >= this.maxSize) {
+      const first = this.cache.keys().next().value;
+      this.cache.delete(first);
+    }
+    this.cache.set(key, value);
+  }
+
+  has(key) { return this.cache.has(key); }
+  delete(key) { return this.cache.delete(key); }
+  clear() { this.cache.clear(); }
+}
+
+class PriorityQueue {
+  constructor(compare = (a, b) => a - b) {
+    this.compare = compare;
+    this.heap = [];
+  }
+
+  push(item) {
+    this.heap.push(item);
+    this._siftUp(this.heap.length - 1);
+  }
+
+  pop() {
+    if (this.heap.length === 0) return undefined;
+    const top = this.heap[0];
+    const end = this.heap.pop();
+    if (this.heap.length > 0) {
+      this.heap[0] = end;
+      this._siftDown(0);
+    }
+    return top;
+  }
+
+  peek() { return this.heap[0]; }
+  get size() { return this.heap.length; }
+
+  _siftUp(i) {
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (this.compare(this.heap[i], this.heap[parent]) >= 0) break;
+      [this.heap[i], this.heap[parent]] = [this.heap[parent], this.heap[i]];
+      i = parent;
+    }
+  }
+
+  _siftDown(i) {
+    while (true) {
+      let min = i;
+      const left = 2 * i + 1;
+      const right = 2 * i + 2;
+      if (left < this.heap.length && this.compare(this.heap[left], this.heap[min]) < 0) min = left;
+      if (right < this.heap.length && this.compare(this.heap[right], this.heap[min]) < 0) min = right;
+      if (min === i) break;
+      [this.heap[i], this.heap[min]] = [this.heap[min], this.heap[i]];
+      i = min;
+    }
+  }
+}
+
+/* ================= 更多 UI 工具 ================= */
+
+function createSlider(options = {}) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  const label = document.createElement('span');
+  label.textContent = options.label || '';
+  label.style.cssText = 'font-size:12px;color:var(--text2);min-width:60px;';
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(options.min ?? 0);
+  input.max = String(options.max ?? 100);
+  input.value = String(options.value ?? 50);
+  input.step = String(options.step ?? 1);
+  input.style.cssText = 'flex:1;accent-color:var(--accent);';
+  const valLabel = document.createElement('span');
+  valLabel.textContent = input.value;
+  valLabel.style.cssText = 'font-size:11px;color:var(--text3);min-width:30px;text-align:right;';
+  input.addEventListener('input', () => {
+    valLabel.textContent = input.value;
+    if (options.onChange) options.onChange(parseFloat(input.value));
+  });
+  wrap.appendChild(label);
+  wrap.appendChild(input);
+  wrap.appendChild(valLabel);
+  return { element: wrap, input, valLabel };
+}
+
+function createToggle(options = {}) {
+  const wrap = document.createElement('label');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = options.checked || false;
+  input.style.cssText = 'width:16px;height:16px;accent-color:var(--accent);';
+  const label = document.createElement('span');
+  label.textContent = options.label || '';
+  label.style.cssText = 'font-size:12px;color:var(--text2);';
+  input.addEventListener('change', () => { if (options.onChange) options.onChange(input.checked); });
+  wrap.appendChild(input);
+  wrap.appendChild(label);
+  return { element: wrap, input };
+}
+
+function createSelect(options = {}) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  const label = document.createElement('span');
+  label.textContent = options.label || '';
+  label.style.cssText = 'font-size:12px;color:var(--text2);min-width:60px;';
+  const select = document.createElement('select');
+  select.style.cssText = 'flex:1;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:12px;';
+  (options.options || []).forEach(opt => {
+    const o = document.createElement('option');
+    o.value = typeof opt === 'object' ? opt.value : opt;
+    o.textContent = typeof opt === 'object' ? opt.label : opt;
+    select.appendChild(o);
+  });
+  if (options.value) select.value = options.value;
+  select.addEventListener('change', () => { if (options.onChange) options.onChange(select.value); });
+  wrap.appendChild(label);
+  wrap.appendChild(select);
+  return { element: wrap, select };
+}
+
+function createButton(options = {}) {
+  const btn = document.createElement('button');
+  btn.textContent = options.label || '';
+  btn.style.cssText = options.primary !== false
+    ? 'padding:8px 16px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:13px;cursor:pointer;font-weight:600;'
+    : 'padding:8px 16px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:13px;cursor:pointer;';
+  if (options.onClick) btn.addEventListener('click', options.onClick);
+  return btn;
+}
+
+/* ================= 全局暴露核心类 ================= */
+
+window.PianoRollEditor = PianoRollEditor;
+window.MidiEditor = MidiEditor;
+window.TrackMixer = TrackMixer;
+window.StateManager = StateManager;
+window.EventBus = EventBus;
+window.QingluanAudioEngine = QingluanAudioEngine;
+window.SpectrumVisualizer = SpectrumVisualizer;
+window.AutoSaveManager = AutoSaveManager;
+window.ObservableArray = ObservableArray;
+window.LRUCache = LRUCache;
+window.PriorityQueue = PriorityQueue;
+
+// 预初始化音频引擎单例
+window.qingluanAudio = new QingluanAudioEngine();
+
+console.log('[青鸾 DAW] 深度扩展模块已加载 v2.0');
+
+/* ================= 更多 UI 组件工厂 ================= */
+
+function createCard(options = {}) {
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--card-bg);border-radius:var(--radius-md);border:1px solid var(--border);padding:16px;box-shadow:var(--shadow-sm);transition:box-shadow 0.2s;';
+  if (options.hoverable) {
+    card.addEventListener('mouseenter', () => card.style.boxShadow = 'var(--shadow-md)');
+    card.addEventListener('mouseleave', () => card.style.boxShadow = 'var(--shadow-sm)');
+  }
+  if (options.title) {
+    const title = document.createElement('div');
+    title.textContent = options.title;
+    title.style.cssText = 'font-size:14px;font-weight:700;margin-bottom:8px;color:var(--text);';
+    card.appendChild(title);
+  }
+  if (options.content) {
+    const content = document.createElement('div');
+    content.innerHTML = options.content;
+    content.style.cssText = 'font-size:13px;color:var(--text2);line-height:1.5;';
+    card.appendChild(content);
+  }
+  return card;
+}
+
+function createTabs(tabs, onChange) {
+  const container = document.createElement('div');
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px;';
+  const body = document.createElement('div');
+  let activeIndex = 0;
+
+  function render() {
+    header.innerHTML = '';
+    tabs.forEach((tab, i) => {
+      const btn = document.createElement('button');
+      btn.textContent = tab.label;
+      btn.style.cssText = i === activeIndex
+        ? 'padding:8px 14px;background:transparent;border:none;border-bottom:2px solid var(--accent);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;'
+        : 'padding:8px 14px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text2);font-size:13px;cursor:pointer;';
+      btn.addEventListener('click', () => {
+        activeIndex = i;
+        render();
+        if (onChange) onChange(i, tab);
+      });
+      header.appendChild(btn);
+    });
+    body.innerHTML = '';
+    if (tabs[activeIndex] && tabs[activeIndex].render) {
+      body.appendChild(tabs[activeIndex].render());
+    }
+  }
+
+  render();
+  container.appendChild(header);
+  container.appendChild(body);
+  return { element: container, header, body, setActive: (i) => { activeIndex = i; render(); } };
+}
+
+function createProgressBar(options = {}) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'width:100%;height:6px;background:var(--progress-bg);border-radius:3px;overflow:hidden;';
+  const fill = document.createElement('div');
+  fill.style.cssText = 'height:100%;background:var(--progress-fill);width:0%;transition:width 0.3s ease;';
+  wrap.appendChild(fill);
+  return {
+    element: wrap,
+    setValue: (v) => { fill.style.width = clamp(v, 0, 100) + '%'; },
+    setColor: (c) => { fill.style.background = c; }
+  };
+}
+
+function createColorPicker(options = {}) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.value = options.value || '#5b4dff';
+  input.style.cssText = 'width:32px;height:32px;border:none;border-radius:8px;cursor:pointer;background:none;';
+  const label = document.createElement('span');
+  label.textContent = options.label || '';
+  label.style.cssText = 'font-size:12px;color:var(--text2);';
+  input.addEventListener('input', () => { if (options.onChange) options.onChange(input.value); });
+  wrap.appendChild(label);
+  wrap.appendChild(input);
+  return { element: wrap, input };
+}
+
+/* ================= 音频导出工具 ================= */
+
+class AudioExporter {
+  constructor() {
+    this.sampleRate = 44100;
+    this.bitDepth = 16;
+  }
+
+  async exportWav(audioBuffer, filename = 'export.wav') {
+    const blob = bufferToWavBlob(audioBuffer.getChannelData(0), this.sampleRate);
+    downloadBlob(blob, filename);
+    return { success: true, filename };
+  }
+
+  async exportProject(project, filename = 'project.json') {
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, filename);
+    return { success: true, filename };
+  }
+
+  async exportMidi(midiData, filename = 'project.mid') {
+    // 简化 MIDI 文件头
+    const bytes = [
+      0x4D, 0x54, 0x68, 0x64, // MThd
+      0x00, 0x00, 0x00, 0x06, // header length
+      0x00, 0x01, // format 1
+      0x00, midiData.tracks.length + 1, // tracks
+      0x01, 0xE0, // 480 ticks per quarter
+    ];
+    // 这里简化为 JSON 导出，实际 MIDI 二进制需要更复杂的编码
+    const blob = new Blob([JSON.stringify(midiData, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, filename.replace('.mid', '.json'));
+    return { success: true, filename };
+  }
+}
+
+const audioExporter = new AudioExporter();
+
+/* ================= 音频录制器 ================= */
+
+class AudioRecorder {
+  constructor() {
+    this.mediaRecorder = null;
+    this.chunks = [];
+    this.stream = null;
+    this.isRecording = false;
+    this.listeners = [];
+  }
+
+  async start() {
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.mediaRecorder = new MediaRecorder(this.stream);
+      this.chunks = [];
+      this.mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) this.chunks.push(e.data); };
+      this.mediaRecorder.onstop = () => {
+        const blob = new Blob(this.chunks, { type: 'audio/webm' });
+        this.listeners.forEach(cb => { try { cb(blob); } catch (e) {} });
+      };
+      this.mediaRecorder.start();
+      this.isRecording = true;
+      showToast('录音开始', 'info');
+    } catch (e) {
+      showToast('无法开始录音: ' + e.message, 'error');
+    }
+  }
+
+  stop() {
+    if (this.mediaRecorder && this.isRecording) {
+      this.mediaRecorder.stop();
+      this.stream.getTracks().forEach(t => t.stop());
+      this.isRecording = false;
+      showToast('录音结束', 'info');
+    }
+  }
+
+  onRecordComplete(cb) { this.listeners.push(cb); }
+}
+
+/* ================= 项目导入导出增强 ================= */
+
+function exportProjectEnhanced() {
+  const project = {
+    version: '2.0',
+    exportedAt: new Date().toISOString(),
+    tracks: typeof midiEditor !== 'undefined' ? midiEditor.exportMidi().tracks : [],
+    bpm: document.getElementById('bpm')?.value || 120,
+    key: document.getElementById('key')?.value || 'C',
+    theme: localStorage.getItem('qingluan_theme') || 'default',
+    settings: {
+      metronome: _metronome.isRunning,
+      tuner: _tuner.isRunning
+    }
+  };
+  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, 'qingluan_project_' + Date.now() + '.json');
+  showToast('项目导出成功', 'success');
+}
+
+function importProjectEnhanced(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const project = JSON.parse(e.target.result);
+      if (project.tracks && typeof midiEditor !== 'undefined') {
+        midiEditor.tracks = project.tracks.map(t => ({
+          ...t,
+          id: randomId('trk'),
+          notes: t.notes.map(n => ({ ...n, id: randomId('note') }))
+        }));
+      }
+      if (project.bpm) {
+        const bpmEl = document.getElementById('bpm');
+        if (bpmEl) bpmEl.value = project.bpm;
+      }
+      if (project.key) {
+        const keyEl = document.getElementById('key');
+        if (keyEl) keyEl.value = project.key;
+      }
+      if (project.theme) applyTheme(project.theme);
+      showToast('项目导入成功', 'success');
+    } catch (err) {
+      showToast('项目导入失败: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ================= 更多可视化 ================= */
+
+function drawLissajous(canvasId, analyser, options = {}) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !analyser) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const dataX = new Uint8Array(analyser.frequencyBinCount);
+  const dataY = new Uint8Array(analyser.frequencyBinCount);
+
+  function draw() {
+    requestAnimationFrame(draw);
+    analyser.getByteTimeDomainData(dataX);
+    // 使用相位偏移模拟Y通道
+    for (let i = 0; i < dataY.length; i++) {
+      dataY[i] = dataX[(i + dataX.length / 4) % dataX.length];
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = options.color || 'var(--accent, #5b4dff)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < dataX.length; i++) {
+      const x = (dataX[i] / 255) * w;
+      const y = (dataY[i] / 255) * h;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  draw();
+}
+
+function drawFrequencyGrid(canvasId, analyser, options = {}) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !analyser) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const data = new Uint8Array(analyser.frequencyBinCount);
+
+  function draw() {
+    requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(data);
+    ctx.clearRect(0, 0, w, h);
+    const cols = 16;
+    const rows = 8;
+    const cellW = w / cols;
+    const cellH = h / rows;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = Math.floor(((r * cols + c) / (cols * rows)) * data.length);
+        const val = data[idx] / 255;
+        const hue = 200 + val * 60;
+        const size = val * Math.min(cellW, cellH) * 0.8;
+        ctx.fillStyle = `hsla(${hue}, 80%, 60%, ${0.3 + val * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(c * cellW + cellW / 2, r * cellH + cellH / 2, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  draw();
+}
+
+/* ================= 浏览器兼容性处理 ================= */
+
+function checkBrowserCompatibility() {
+  const checks = {
+    webAudio: !!(window.AudioContext || window.webkitAudioContext),
+    canvas: !!document.createElement('canvas').getContext,
+    localStorage: (() => { try { localStorage.setItem('__test__', '1'); localStorage.removeItem('__test__'); return true; } catch (e) { return false; } })(),
+    es6: (() => { try { eval('const f = () => {};'); return true; } catch (e) { return false; } })(),
+    touch: 'ontouchstart' in window,
+    mediaDevices: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+    midi: !!navigator.requestMIDIAccess,
+    gamepad: 'getGamepads' in navigator,
+    speech: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+    fullscreen: !!document.documentElement.requestFullscreen
+  };
+  return checks;
+}
+
+function showCompatibilityReport() {
+  const checks = checkBrowserCompatibility();
+  const items = Object.entries(checks).map(([name, ok]) => `
+    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid var(--border);">
+      <span style="color:var(--text2);">${name}</span>
+      <span style="color:${ok ? 'var(--success)' : 'var(--error)'};font-weight:600;">${ok ? '支持' : '不支持'}</span>
+    </div>
+  `).join('');
+  showModal('浏览器兼容性报告', `<div style="max-height:60vh;overflow:auto;">${items}</div>`, [{ label: '关闭', primary: false }]);
+}
+
+/* ================= 性能监控 ================= */
+
+class PerformanceMonitor {
+  constructor() {
+    this.fps = 0;
+    this.frameCount = 0;
+    this.lastTime = performance.now();
+    this.rafId = null;
+    this.listeners = [];
+  }
+
+  start() {
+    this.rafId = requestAnimationFrame(() => this._tick());
+  }
+
+  stop() {
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+  }
+
+  _tick() {
+    this.frameCount++;
+    const now = performance.now();
+    if (now - this.lastTime >= 1000) {
+      this.fps = this.frameCount;
+      this.frameCount = 0;
+      this.lastTime = now;
+      this.listeners.forEach(cb => { try { cb(this.fps); } catch (e) {} });
+    }
+    this.rafId = requestAnimationFrame(() => this._tick());
+  }
+
+  onFps(cb) { this.listeners.push(cb); }
+}
+
+const perfMonitor = new PerformanceMonitor();
+
+/* ================= 内存使用提示 ================= */
+
+function showMemoryUsage() {
+  if (performance.memory) {
+    const used = (performance.memory.usedJSHeapSize / 1048576).toFixed(1);
+    const total = (performance.memory.totalJSHeapSize / 1048576).toFixed(1);
+    showToast(`内存使用: ${used} MB / ${total} MB`, 'info');
+  } else {
+    showToast('当前浏览器不支持内存监控', 'warning');
+  }
+}
+
+/* ================= 调试工具 ================= */
+
+class QingluanDebugger {
+  constructor() {
+    this.enabled = location.hash.includes('debug');
+    this.logs = [];
+  }
+
+  log(...args) {
+    if (!this.enabled) return;
+    this.logs.push({ time: new Date().toISOString(), args });
+    console.log('[青鸾]', ...args);
+  }
+
+  showOverlay() {
+    if (!this.enabled) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;bottom:60px;right:12px;z-index:30000;background:rgba(0,0,0,0.85);color:#0f0;padding:10px 14px;border-radius:10px;font-family:monospace;font-size:11px;max-width:280px;max-height:200px;overflow:auto;';
+    overlay.innerHTML = `
+      <div style="font-weight:bold;margin-bottom:6px;">DEBUG</div>
+      <div>FPS: <span id="debug-fps">-</span></div>
+      <div>Theme: ${localStorage.getItem('qingluan_theme') || 'default'}</div>
+      <div>Audio: ${window.qingluanAudio?.ctx ? 'initialized' : 'none'}</div>
+      <div>Notes: ${typeof midiEditor !== 'undefined' ? midiEditor.tracks.reduce((s, t) => s + t.notes.length, 0) : 0}</div>
+    `;
+    document.body.appendChild(overlay);
+    perfMonitor.onFps(fps => {
+      const el = document.getElementById('debug-fps');
+      if (el) el.textContent = fps;
+    });
+    perfMonitor.start();
+  }
+}
+
+const qingluanDebugger = new QingluanDebugger();
+
+/* ================= 全局快捷键增强绑定 ================= */
+
+function initExtendedShortcuts() {
+  registerShortcut('ctrl+shift+d', () => { qingluanDebugger.showOverlay(); });
+  registerShortcut('ctrl+shift+m', () => { showMemoryUsage(); });
+  registerShortcut('ctrl+shift+c', () => { showCompatibilityReport(); });
+  registerShortcut('ctrl+shift+e', () => { exportProjectEnhanced(); });
+  registerShortcut('ctrl+shift+i', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => { if (e.target.files[0]) importProjectEnhanced(e.target.files[0]); };
+    input.click();
+  });
+  registerShortcut('f5', (e) => { e.preventDefault(); location.reload(); });
+  registerShortcut('ctrl+shift+1', () => applyTheme('default'));
+  registerShortcut('ctrl+shift+2', () => applyTheme('dark'));
+  registerShortcut('ctrl+shift+3', () => applyTheme('geek'));
+  registerShortcut('ctrl+shift+4', () => applyTheme('paper'));
+  registerShortcut('ctrl+shift+5', () => applyTheme('midnight'));
+  registerShortcut('ctrl+shift+6', () => applyTheme('sakura'));
+  registerShortcut('ctrl+shift+7', () => applyTheme('forest'));
+  registerShortcut('ctrl+shift+8', () => applyTheme('cyberpunk'));
+}
+initExtendedShortcuts();
+
+/* ================= 服务Worker注册（离线支持占位） ================= */
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      console.log('[青鸾] Service Worker 未注册');
+    });
+  }
+}
+
+/* ================= 初始化完成日志 ================= */
+
+console.log('[青鸾 DAW] 全部扩展模块已就绪');
+console.log('[青鸾] 快捷键: ? 查看帮助, Ctrl+Shift+D 调试面板');
+
+/* ================= 音阶与和弦生成器 ================= */
+
+const ScalePatterns = {
+  major: [0, 2, 4, 5, 7, 9, 11],
+  minor: [0, 2, 3, 5, 7, 8, 10],
+  harmonicMinor: [0, 2, 3, 5, 7, 8, 11],
+  melodicMinor: [0, 2, 3, 5, 7, 9, 11],
+  dorian: [0, 2, 3, 5, 7, 9, 10],
+  phrygian: [0, 1, 3, 5, 7, 8, 10],
+  lydian: [0, 2, 4, 6, 7, 9, 11],
+  mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  locrian: [0, 1, 3, 5, 6, 8, 10],
+  pentatonicMajor: [0, 2, 4, 7, 9],
+  pentatonicMinor: [0, 3, 5, 7, 10],
+  blues: [0, 3, 5, 6, 7, 10],
+  chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+};
+
+const ChordPatterns = {
+  major: [0, 4, 7],
+  minor: [0, 3, 7],
+  diminished: [0, 3, 6],
+  augmented: [0, 4, 8],
+  sus2: [0, 2, 7],
+  sus4: [0, 5, 7],
+  major7: [0, 4, 7, 11],
+  minor7: [0, 3, 7, 10],
+  dominant7: [0, 4, 7, 10],
+  diminished7: [0, 3, 6, 9],
+  halfDiminished7: [0, 3, 6, 10],
+  add9: [0, 4, 7, 14],
+  madd9: [0, 3, 7, 14],
+  sixth: [0, 4, 7, 9],
+  m6: [0, 3, 7, 9]
+};
+
+const NoteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+function midiToNote(midi) {
+  const octave = Math.floor(midi / 12) - 1;
+  const name = NoteNames[midi % 12];
+  return { name, octave, full: name + octave, midi };
+}
+
+function noteToMidi(noteName) {
+  const match = noteName.match(/^([A-Ga-g]#?b?)(-?\d+)$/);
+  if (!match) return null;
+  let name = match[1].toUpperCase();
+  const octave = parseInt(match[2]);
+  const idx = NoteNames.indexOf(name);
+  if (idx < 0) return null;
+  return (octave + 1) * 12 + idx;
+}
+
+function generateScale(rootMidi, scaleType, octaves = 1) {
+  const pattern = ScalePatterns[scaleType];
+  if (!pattern) return [];
+  const notes = [];
+  for (let o = 0; o < octaves; o++) {
+    pattern.forEach(interval => {
+      notes.push(rootMidi + interval + o * 12);
+    });
+  }
+  return notes.map(midiToNote);
+}
+
+function generateChord(rootMidi, chordType, inversion = 0) {
+  const pattern = ChordPatterns[chordType];
+  if (!pattern) return [];
+  const notes = pattern.map(interval => rootMidi + interval);
+  for (let i = 0; i < inversion; i++) {
+    notes.push(notes.shift() + 12);
+  }
+  return notes.map(midiToNote);
+}
+
+function getChordProgression(keyMidi, progression = [1, 5, 6, 4]) {
+  const scale = ScalePatterns.major;
+  return progression.map(degree => {
+    const root = keyMidi + scale[(degree - 1) % 7];
+    const isMinor = [2, 3, 6].includes(degree);
+    return generateChord(root, isMinor ? 'minor' : 'major');
+  });
+}
+
+/* ================= 项目模板系统 ================= */
+
+const ProjectTemplates = {
+  empty: {
+    name: '空白项目',
+    tracks: [],
+    bpm: 120,
+    key: 'C',
+    timeSig: [4, 4]
+  },
+  popSong: {
+    name: '流行歌曲模板',
+    tracks: [
+      { name: '主唱', instrument: 'vocal', notes: [] },
+      { name: '钢琴', instrument: 'piano', notes: [] },
+      { name: '贝斯', instrument: 'bass', notes: [] },
+      { name: '鼓组', instrument: 'drums', notes: [] },
+      { name: '吉他', instrument: 'guitar', notes: [] }
+    ],
+    bpm: 128,
+    key: 'C',
+    timeSig: [4, 4]
+  },
+  electronic: {
+    name: '电子音乐模板',
+    tracks: [
+      { name: 'Lead Synth', instrument: 'synth', notes: [] },
+      { name: 'Bass', instrument: 'bass', notes: [] },
+      { name: 'Kick', instrument: 'kick', notes: [] },
+      { name: 'Snare', instrument: 'snare', notes: [] },
+      { name: 'HiHat', instrument: 'hihat', notes: [] },
+      { name: 'Pad', instrument: 'pad', notes: [] }
+    ],
+    bpm: 140,
+    key: 'A',
+    timeSig: [4, 4]
+  },
+  orchestral: {
+    name: '管弦乐模板',
+    tracks: [
+      { name: '小提琴', instrument: 'violin', notes: [] },
+      { name: '中提琴', instrument: 'viola', notes: [] },
+      { name: '大提琴', instrument: 'cello', notes: [] },
+      { name: '低音提琴', instrument: 'bass', notes: [] },
+      { name: '长笛', instrument: 'flute', notes: [] },
+      { name: '双簧管', instrument: 'oboe', notes: [] },
+      { name: '单簧管', instrument: 'clarinet', notes: [] },
+      { name: '巴松', instrument: 'bassoon', notes: [] },
+      { name: '圆号', instrument: 'horn', notes: [] },
+      { name: '小号', instrument: 'trumpet', notes: [] },
+      { name: '长号', instrument: 'trombone', notes: [] },
+      { name: '定音鼓', instrument: 'timpani', notes: [] }
+    ],
+    bpm: 90,
+    key: 'C',
+    timeSig: [4, 4]
+  },
+  jazz: {
+    name: '爵士乐模板',
+    tracks: [
+      { name: '钢琴', instrument: 'piano', notes: [] },
+      { name: '贝斯', instrument: 'upright_bass', notes: [] },
+      { name: '鼓组', instrument: 'drums', notes: [] },
+      { name: '萨克斯', instrument: 'saxophone', notes: [] },
+      { name: '小号', instrument: 'trumpet', notes: [] }
+    ],
+    bpm: 120,
+    key: 'Bb',
+    timeSig: [4, 4]
+  },
+  ambient: {
+    name: '氛围音乐模板',
+    tracks: [
+      { name: 'Pad 1', instrument: 'pad', notes: [] },
+      { name: 'Pad 2', instrument: 'pad', notes: [] },
+      { name: 'Texture', instrument: 'texture', notes: [] },
+      { name: 'Bass Drone', instrument: 'bass', notes: [] },
+      { name: 'Arp', instrument: 'arp', notes: [] }
+    ],
+    bpm: 80,
+    key: 'D',
+    timeSig: [4, 4]
+  }
+};
+
+function loadProjectTemplate(templateId) {
+  const template = ProjectTemplates[templateId];
+  if (!template) { showToast('未知模板: ' + templateId, 'error'); return null; }
+  const project = JSON.parse(JSON.stringify(template));
+  project.id = randomId('proj');
+  project.createdAt = new Date().toISOString();
+  project.tracks.forEach(t => { t.id = randomId('trk'); t.notes = []; });
+  showToast('已加载模板: ' + project.name, 'success');
+  return project;
+}
+
+function showTemplatePicker() {
+  const items = Object.entries(ProjectTemplates).map(([id, t]) => `
+    <div class="template-item" data-id="${id}" style="padding:12px;border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:all 0.2s;margin-bottom:8px;">
+      <div style="font-weight:700;font-size:14px;color:var(--text);">${t.name}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px;">${t.tracks.length} 轨道 · ${t.bpm} BPM · ${t.key} 大调</div>
+    </div>
+  `).join('');
+  showModal('选择项目模板', `<div id="template-list">${items}</div>`, [{ label: '取消', primary: false }]);
+  document.querySelectorAll('.template-item').forEach(el => {
+    el.addEventListener('mouseenter', () => { el.style.borderColor = 'var(--accent)'; el.style.background = 'rgba(91,77,255,0.04)'; });
+    el.addEventListener('mouseleave', () => { el.style.borderColor = 'var(--border)'; el.style.background = 'transparent'; });
+    el.addEventListener('click', () => {
+      loadProjectTemplate(el.dataset.id);
+      closeModal();
+    });
+  });
+}
+
+/* ================= 批量处理工具 ================= */
+
+function batchProcess(items, processor, options = {}) {
+  const { concurrency = 4, onProgress, onComplete, onError } = options;
+  let index = 0;
+  let completed = 0;
+  let errors = 0;
+  const results = [];
+
+  function next() {
+    if (index >= items.length) {
+      if (completed + errors >= items.length) {
+        if (onComplete) onComplete(results, errors);
+      }
+      return;
+    }
+    const currentIndex = index++;
+    const item = items[currentIndex];
+    Promise.resolve()
+      .then(() => processor(item, currentIndex))
+      .then(result => {
+        results[currentIndex] = { success: true, result };
+        completed++;
+        if (onProgress) onProgress(completed, items.length);
+        next();
+      })
+      .catch(err => {
+        results[currentIndex] = { success: false, error: err };
+        errors++;
+        completed++;
+        if (onError) onError(err, item, currentIndex);
+        if (onProgress) onProgress(completed, items.length);
+        next();
+      });
+  }
+
+  for (let i = 0; i < Math.min(concurrency, items.length); i++) next();
+  return results;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function retry(fn, maxAttempts = 3, delay = 500) {
+  return new Promise((resolve, reject) => {
+    function attempt(n) {
+      fn().then(resolve).catch(err => {
+        if (n >= maxAttempts) reject(err);
+        else setTimeout(() => attempt(n + 1), delay);
+      });
+    }
+    attempt(1);
+  });
+}
+
+/* ================= 音频分析工具 ================= */
+
+function detectPitch(buffer, sampleRate = 44100) {
+  const len = buffer.length;
+  let bestOffset = -1;
+  let bestCorr = -Infinity;
+  const maxOffset = Math.min(len / 2, sampleRate / 40);
+  const minOffset = Math.floor(sampleRate / 800);
+
+  for (let offset = minOffset; offset < maxOffset; offset++) {
+    let corr = 0;
+    for (let i = 0; i < len - offset; i++) {
+      corr += buffer[i] * buffer[i + offset];
+    }
+    if (corr > bestCorr) { bestCorr = corr; bestOffset = offset; }
+  }
+
+  if (bestOffset <= 0) return null;
+  const freq = sampleRate / bestOffset;
+  return { frequency: freq, note: midiToNote(Math.round(69 + 12 * Math.log2(freq / 440))) };
+}
+
+function calculateRMS(buffer) {
+  let sum = 0;
+  for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
+  return Math.sqrt(sum / buffer.length);
+}
+
+function calculatePeak(buffer) {
+  let peak = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const abs = Math.abs(buffer[i]);
+    if (abs > peak) peak = abs;
+  }
+  return peak;
+}
+
+function normalizeBuffer(buffer, targetPeak = 0.95) {
+  const peak = calculatePeak(buffer);
+  if (peak === 0) return buffer;
+  const gain = targetPeak / peak;
+  for (let i = 0; i < buffer.length; i++) buffer[i] *= gain;
+  return buffer;
+}
+
+function reverseBuffer(buffer) {
+  const out = new Float32Array(buffer.length);
+  for (let i = 0; i < buffer.length; i++) out[i] = buffer[buffer.length - 1 - i];
+  return out;
+}
+
+function trimSilence(buffer, threshold = 0.01) {
+  let start = 0;
+  let end = buffer.length - 1;
+  while (start < buffer.length && Math.abs(buffer[start]) < threshold) start++;
+  while (end > start && Math.abs(buffer[end]) < threshold) end--;
+  return buffer.slice(start, end + 1);
+}
+
+/* ================= 更多实用函数 ================= */
+
+function groupBy(array, key) {
+  return array.reduce((result, item) => {
+    const group = typeof key === 'function' ? key(item) : item[key];
+    if (!result[group]) result[group] = [];
+    result[group].push(item);
+    return result;
+  }, {});
+}
+
+function sortBy(array, key, ascending = true) {
+  return [...array].sort((a, b) => {
+    const av = typeof key === 'function' ? key(a) : a[key];
+    const bv = typeof key === 'function' ? key(b) : b[key];
+    if (av < bv) return ascending ? -1 : 1;
+    if (av > bv) return ascending ? 1 : -1;
+    return 0;
+  });
+}
+
+function uniqueBy(array, key) {
+  const seen = new Set();
+  return array.filter(item => {
+    const val = typeof key === 'function' ? key(item) : item[key];
+    if (seen.has(val)) return false;
+    seen.add(val);
+    return true;
+  });
+}
+
+function chunk(array, size) {
+  const result = [];
+  for (let i = 0; i < array.length; i += size) result.push(array.slice(i, i + size));
+  return result;
+}
+
+function flatten(array, depth = 1) {
+  return array.flat(depth);
+}
+
+function deepClone(obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj instanceof Date) return new Date(obj);
+  if (obj instanceof Array) return obj.map(deepClone);
+  if (obj instanceof Object) {
+    const copy = {};
+    Object.keys(obj).forEach(key => { copy[key] = deepClone(obj[key]); });
+    return copy;
+  }
+  return obj;
+}
+
+function deepMerge(target, source) {
+  const result = { ...target };
+  Object.keys(source).forEach(key => {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(result[key] || {}, source[key]);
+    } else {
+      result[key] = source[key];
+    }
+  });
+  return result;
+}
+
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+}
+
+function parseQueryString(query = location.search) {
+  const params = new URLSearchParams(query);
+  const result = {};
+  for (const [key, value] of params) result[key] = value;
+  return result;
+}
+
+function buildQueryString(params) {
+  return Object.entries(params).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板', 'success'));
+  } else {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+    showToast('已复制到剪贴板', 'success');
+  }
+}
+
+function measureTextWidth(text, font = '13px sans-serif') {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+
+/* ================= 初始化全局事件 ================= */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // 为所有 studio-panel 添加 data-reveal 属性以实现滚动揭示
+  document.querySelectorAll('.studio-panel').forEach(panel => {
+    if (!panel.dataset.reveal) panel.dataset.reveal = 'fade-up';
+  });
+
+  // 初始化滚动揭示（如果 QingluanAnimations 已加载）
+  if (window.QingluanAnimations && window.QingluanAnimations.scrollReveal) {
+    window.QingluanAnimations.scrollReveal();
+  }
+
+  // 监听在线/离线状态
+  window.addEventListener('online', () => showToast('网络已连接', 'success'));
+  window.addEventListener('offline', () => showToast('网络已断开', 'warning'));
+
+  // 防止意外关闭（当有未保存内容时）
+  window.addEventListener('beforeunload', (e) => {
+    if (window.actionHistory && window.actionHistory.canUndo()) {
+      e.preventDefault();
+      e.returnValue = '您有未保存的更改，确定要离开吗？';
+    }
+  });
+
+  // 暴露更多工具到全局
+  window.generateScale = generateScale;
+  window.generateChord = generateChord;
+  window.getChordProgression = getChordProgression;
+  window.loadProjectTemplate = loadProjectTemplate;
+  window.showTemplatePicker = showTemplatePicker;
+  window.audioExporter = audioExporter;
+  window.deepClone = deepClone;
+  window.deepMerge = deepMerge;
+  window.copyToClipboard = copyToClipboard;
+});
+
+/* ================= 最终日志 ================= */
+
+console.log('[青鸾 DAW] v2.0 全部模块加载完成');
+console.log(`[青鸾] 可用功能: PianoRoll, Waveform, Spectrum, Metronome, Tuner, Theme, Shortcuts, Undo/Redo, DragDrop, ContextMenu, Modal, Tooltip, Animations, MIDI Editor, Mixer, Audio Engine, Visualizer, AutoSave, StateManager, EventBus, Scale/Chord Generator, Project Templates, Batch Processing`);
+
+/* ================= 离线音频处理工作线程包装 ================= */
+
+class OfflineAudioProcessor {
+  constructor(sampleRate = 44100, channels = 2, duration = 60) {
+    this.sampleRate = sampleRate;
+    this.channels = channels;
+    this.duration = duration;
+    this.ctx = null;
+  }
+
+  async init() {
+    const length = this.sampleRate * this.duration;
+    this.ctx = new OfflineAudioContext(this.channels, length, this.sampleRate);
+  }
+
+  async render(sourceFn) {
+    if (!this.ctx) await this.init();
+    sourceFn(this.ctx);
+    return this.ctx.startRendering();
+  }
+
+  async exportWav(filename = 'render.wav') {
+    const buffer = await this.render();
+    const blob = bufferToWavBlob(buffer.getChannelData(0), this.sampleRate);
+    downloadBlob(blob, filename);
+  }
+}
+
+/* ================= 琶音器 ================= */
+
+class Arpeggiator {
+  constructor() {
+    this.pattern = 'up';
+    this.octaves = 1;
+    this.rate = 0.25;
+    this.isRunning = false;
+    this.notes = [];
+    this.currentIndex = 0;
+    this.timer = null;
+  }
+
+  setNotes(notes) {
+    this.notes = notes;
+    this.currentIndex = 0;
+  }
+
+  setPattern(pattern) {
+    this.pattern = pattern;
+  }
+
+  start(onNote) {
+    if (this.isRunning || !this.notes.length) return;
+    this.isRunning = true;
+    const interval = (60 / (_metronome.bpm || 120)) * this.rate * 1000;
+    this.timer = setInterval(() => {
+      const note = this._getNextNote();
+      if (note && onNote) onNote(note);
+    }, interval);
+  }
+
+  stop() {
+    this.isRunning = false;
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  _getNextNote() {
+    const len = this.notes.length;
+    if (!len) return null;
+    let idx;
+    switch (this.pattern) {
+      case 'up': idx = this.currentIndex % len; break;
+      case 'down': idx = (len - 1) - (this.currentIndex % len); break;
+      case 'updown':
+        const cycle = len * 2 - 2;
+        const pos = this.currentIndex % cycle;
+        idx = pos < len ? pos : cycle - pos;
+        break;
+      case 'random': idx = Math.floor(Math.random() * len); break;
+      default: idx = this.currentIndex % len;
+    }
+    this.currentIndex++;
+    return this.notes[idx];
+  }
+}
+
+/* ================= 步进音序器 ================= */
+
+class StepSequencer {
+  constructor(steps = 16, tracks = 4) {
+    this.steps = steps;
+    this.tracks = tracks;
+    this.grid = Array.from({ length: tracks }, () => new Array(steps).fill(false));
+    this.currentStep = 0;
+    this.isPlaying = false;
+    this.bpm = 120;
+    this.timer = null;
+    this.listeners = [];
+  }
+
+  toggle(track, step) {
+    if (track >= 0 && track < this.tracks && step >= 0 && step < this.steps) {
+      this.grid[track][step] = !this.grid[track][step];
+    }
+  }
+
+  clear() {
+    this.grid = Array.from({ length: this.tracks }, () => new Array(this.steps).fill(false));
+    this.emit('clear');
+  }
+
+  randomize(density = 0.3) {
+    this.grid = this.grid.map(track => track.map(() => Math.random() < density));
+    this.emit('randomize');
+  }
+
+  start() {
+    if (this.isPlaying) return;
+    this.isPlaying = true;
+    const interval = (60 / this.bpm) * 250;
+    this.timer = setInterval(() => {
+      this._tick();
+    }, interval);
+  }
+
+  stop() {
+    this.isPlaying = false;
+    if (this.timer) clearInterval(this.timer);
+    this.currentStep = 0;
+  }
+
+  _tick() {
+    for (let t = 0; t < this.tracks; t++) {
+      if (this.grid[t][this.currentStep]) {
+        this.emit('trigger', { track: t, step: this.currentStep });
+      }
+    }
+    this.emit('step', this.currentStep);
+    this.currentStep = (this.currentStep + 1) % this.steps;
+  }
+
+  on(event, cb) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(cb);
+  }
+
+  emit(event, data) {
+    (this.listeners[event] || []).forEach(cb => { try { cb(data); } catch (e) {} });
+  }
+}
+
+/* ================= 简单合成器 ================= */
+
+class SimpleSynth {
+  constructor(audioCtx) {
+    this.ctx = audioCtx;
+    this.oscillator = null;
+    this.gainNode = null;
+    this.filter = null;
+  }
+
+  play(freq, duration, type = 'sine') {
+    const now = this.ctx.currentTime;
+    this.oscillator = this.ctx.createOscillator();
+    this.gainNode = this.ctx.createGain();
+    this.filter = this.ctx.createBiquadFilter();
+
+    this.oscillator.type = type;
+    this.oscillator.frequency.setValueAtTime(freq, now);
+
+    this.filter.type = 'lowpass';
+    this.filter.frequency.setValueAtTime(2000, now);
+
+    this.gainNode.gain.setValueAtTime(0.3, now);
+    this.gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    this.oscillator.connect(this.filter);
+    this.filter.connect(this.gainNode);
+    this.gainNode.connect(this.ctx.destination);
+
+    this.oscillator.start(now);
+    this.oscillator.stop(now + duration);
+  }
+
+  playMidi(midi, duration, type = 'sine') {
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    this.play(freq, duration, type);
+  }
+}
+
+/* ================= 音频播放列表 ================= */
+
+class PlayQueue {
+  constructor() {
+    this.items = [];
+    this.currentIndex = -1;
+    this.repeat = 'none'; // none, all, one
+    this.shuffle = false;
+    this.history = [];
+  }
+
+  add(item) { this.items.push(item); }
+  remove(index) { this.items.splice(index, 1); }
+  clear() { this.items = []; this.currentIndex = -1; }
+
+  next() {
+    if (this.shuffle) {
+      const remaining = this.items.map((_, i) => i).filter(i => i !== this.currentIndex);
+      if (!remaining.length) return null;
+      this.currentIndex = remaining[Math.floor(Math.random() * remaining.length)];
+    } else {
+      this.currentIndex++;
+      if (this.currentIndex >= this.items.length) {
+        if (this.repeat === 'all') this.currentIndex = 0;
+        else return null;
+      }
+    }
+    return this.items[this.currentIndex];
+  }
+
+  previous() {
+    this.currentIndex = Math.max(0, this.currentIndex - 1);
+    return this.items[this.currentIndex];
+  }
+}
+
+/* ================= 全局暴露 ================= */
+
+window.OfflineAudioProcessor = OfflineAudioProcessor;
+window.Arpeggiator = Arpeggiator;
+window.StepSequencer = StepSequencer;
+window.SimpleSynth = SimpleSynth;
+window.PlayQueue = PlayQueue;
+
+/* ================= 最终完成 ================= */
+
+/* ================= 额外工具函数库 ================= */
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(x => {
+    const hex = Math.round(x).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+}
+
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+}
+
+function interpolateColor(color1, color2, factor) {
+  const c1 = hexToRgb(color1) || { r: 0, g: 0, b: 0 };
+  const c2 = hexToRgb(color2) || { r: 255, g: 255, b: 255 };
+  return rgbToHex(
+    c1.r + (c2.r - c1.r) * factor,
+    c1.g + (c2.g - c1.g) * factor,
+    c1.b + (c2.b - c1.b) * factor
+  );
+}
+
+function randomColor() {
+  return rgbToHex(Math.random() * 255, Math.random() * 255, Math.random() * 255);
+}
+
+function isDarkColor(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return false;
+  const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+  return brightness < 128;
+}
+
+function getContrastColor(hex) {
+  return isDarkColor(hex) ? '#ffffff' : '#1a1a1a';
+}
+
+function parseTimeString(str) {
+  const parts = str.split(':').map(Number);
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return parseFloat(str) || 0;
+}
+
+function formatDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function sampleArray(array, count) {
+  return shuffleArray(array).slice(0, count);
+}
+
+function mapRange(value, inMin, inMax, outMin, outMax) {
+  return outMin + (outMax - outMin) * ((value - inMin) / (inMax - inMin));
+}
+
+function snapToGrid(value, grid) {
+  return Math.round(value / grid) * grid;
+}
+
+function wrap(value, min, max) {
+  const range = max - min;
+  return min + ((((value - min) % range) + range) % range);
+}
+
+function isEqual(a, b) {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object' || a === null || b === null) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every(key => isEqual(a[key], b[key]));
+}
+
+function memoize(fn, keyFn) {
+  const cache = new Map();
+  return (...args) => {
+    const key = keyFn ? keyFn(...args) : JSON.stringify(args);
+    if (cache.has(key)) return cache.get(key);
+    const result = fn(...args);
+    cache.set(key, result);
+    return result;
+  };
+}
+
+function once(fn) {
+  let called = false;
+  let result;
+  return (...args) => {
+    if (called) return result;
+    called = true;
+    result = fn(...args);
+    return result;
+  };
+}
+
+function poll(fn, interval = 1000) {
+  const timer = setInterval(fn, interval);
+  return () => clearInterval(timer);
+}
+
+function observeElement(element, callback, options = {}) {
+  const el = typeof element === 'string' ? document.getElementById(element) : element;
+  if (!el) return;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => callback(entry.isIntersecting, entry));
+  }, options);
+  observer.observe(el);
+  return () => observer.disconnect();
+}
+
+function preloadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function preloadAudio(src) {
+  return new Promise((resolve, reject) => {
+    const audio = new Audio();
+    audio.oncanplaythrough = () => resolve(audio);
+    audio.onerror = reject;
+    audio.src = src;
+  });
+}
+
+/* ================= 最终完成 ================= */
+
+console.log('[青鸾 DAW] 系统完全就绪，等待用户指令');
+
