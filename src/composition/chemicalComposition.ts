@@ -9,6 +9,8 @@
  * =============================================================================
  */
 
+import { clamp } from '../utils/audioUtils.js';
+
 const SAMPLE_RATE = 44100;
 
 // ==================== 核心类型定义 ====================
@@ -47,10 +49,6 @@ interface ReactionLogEntry {
 
 function randomId(prefix = 'mol'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}_${Date.now().toString(36).slice(-4)}`;
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
 }
 
 function dist3d(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }): number {

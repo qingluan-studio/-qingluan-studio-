@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import MusicTheoryEngine from './engines/musicTheory.js';
 import AIComposerEngine from './composition/aiComposer.js';
 import * as VocalSynthesis from './synthesis/vocalSynthesis.js';
+import { frequencyToMidi } from './utils/audioUtils.js';
 import RealisticVoiceEngine, { WavExporter, getAllVowelsForVoice, createDefaultRenderConfig } from './synthesis/realisticVoice.js';
 import RealisticArrangerEngine, { exportArrangementToWav, StyleTemplates } from './composition/realisticArranger.js';
 import { generateLyrics, generateFoodLyrics, generateEmotionLyrics, generateCharacterLyrics, formatLyrics } from './composition/lyricGenerator.js';
@@ -685,7 +686,7 @@ app.post('/api/synth/realistic', async (c) => {
         startTime: i * 0.5,
         duration: body.durations?.[i] || 0.5,
         frequency: freq,
-        midiNote: freqToMidi(freq),
+        midiNote: frequencyToMidi(freq),
         lyric: (body.text?.[i] || 'a'),
         voice: { techniques: [], f0: freq, vibratoDepth: 4, vibratoRate: 5.5, velocity: 0.7, brightness: 0.5, breathiness: 0.2 },
       };
@@ -708,9 +709,6 @@ app.post('/api/synth/realistic', async (c) => {
 function noteToFreq(note: string): number {
   const map: Record<string, number> = { 'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23, 'G4': 392.00, 'A4': 440.00, 'B4': 493.88, 'C5': 523.25 };
   return map[note] || 261.63;
-}
-function freqToMidi(freq: number): number {
-  return Math.round(69 + 12 * Math.log2(freq / 440));
 }
 
 app.post('/api/synth/jianpu', async (c) => {

@@ -5,6 +5,7 @@
 // ============================================================
 
 import { CognitiveInvariantEngine, CognitiveClosedLoop } from '../engines/cognitiveEngine.js';
+import { clamp, dbToGain, gainToDb, hannWindow, fft } from '../utils/audioUtils.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 1: 核心类型与工具
@@ -42,82 +43,6 @@ const DEFAULT_CONFIG: FlawlessConfig = {
   autoRepair: true,
   maxIterations: 5,
 };
-
-// 工具函数
-function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
-}
-
-function dbToGain(db: number): number {
-  return Math.pow(10, db / 20);
-}
-
-function gainToDb(gain: number): number {
-  return 20 * Math.log10(gain + 1e-12);
-}
-
-// 汉宁窗
-function hannWindow(size: number): Float32Array {
-  const w = new Float32Array(size);
-  for (let i = 0; i < size; i++) {
-    w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (size - 1));
-  }
-  return w;
-}
-
-// FFT (Cooley-Tukey 迭代版)
-function fft(real: Float32Array, imag: Float32Array): void {
-  const n = real.length;
-  if (n <= 1) return;
-
-  // 位反转重排
-  let j = 0;
-  for (let i = 0; i < n; i++) {
-    if (i < j) {
-      [real[i], real[j]] = [real[j], real[i]];
-      [imag[i], imag[j]] = [imag[j], imag[i]];
-    }
-    let m = n >> 1;
-    while (m >= 1 && j >= m) {
-      j -= m;
-      m >>= 1;
-    }
-    j += m;
-  }
-
-  for (let s = 1; s <= Math.log2(n); s++) {
-    const m = 1 << s;
-    const wmReal = Math.cos(-2 * Math.PI / m);
-    const wmImag = Math.sin(-2 * Math.PI / m);
-    for (let k = 0; k < n; k += m) {
-      let wReal = 1, wImag = 0;
-      for (let j2 = 0; j2 < m / 2; j2++) {
-        const tReal = wReal * real[k + j2 + m / 2] - wImag * imag[k + j2 + m / 2];
-        const tImag = wReal * imag[k + j2 + m / 2] + wImag * real[k + j2 + m / 2];
-        const uReal = real[k + j2];
-        const uImag = imag[k + j2];
-        real[k + j2] = uReal + tReal;
-        imag[k + j2] = uImag + tImag;
-        real[k + j2 + m / 2] = uReal - tReal;
-        imag[k + j2 + m / 2] = uImag - tImag;
-        const nextWReal = wReal * wmReal - wImag * wmImag;
-        wImag = wReal * wmImag + wImag * wmReal;
-        wReal = nextWReal;
-      }
-    }
-  }
-}
-
-// 逆FFT
-function ifft(real: Float32Array, imag: Float32Array): void {
-  const n = real.length;
-  for (let i = 0; i < n; i++) imag[i] = -imag[i];
-  fft(real, imag);
-  for (let i = 0; i < n; i++) {
-    real[i] /= n;
-    imag[i] = -imag[i] / n;
-  }
-}
 
 // ═════════════════════════════════════════════════════════════
 // Part 2: 高品质波形生成器
@@ -550,7 +475,7 @@ export class FlawDetector {
     const imag = new Float32Array(windowSize);
     const w = hannWindow(windowSize);
     for (let i = 0; i < windowSize; i++) real[i] = signal[i] * w[i];
-    fft(real, imag);
+    fft(real, imag, false);
     const magnitudes = new Float32Array(windowSize / 2);
     for (let i = 0; i < windowSize / 2; i++) {
       magnitudes[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);

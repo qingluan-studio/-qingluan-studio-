@@ -1,3 +1,5 @@
+import { clamp, lerp } from '../utils/audioUtils.js';
+
 // ============================================================
 // 青鸾 DAW — 人性化演奏引擎 (Humanization Engine)
 // ============================================================
@@ -27,14 +29,6 @@ function rng(seed: number): () => number {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return v < min ? min : v > max ? max : v;
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
 }
 
 /** Perlin fade 曲线: 6t^5 - 15t^4 + 10t^3 */

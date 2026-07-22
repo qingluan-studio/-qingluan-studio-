@@ -1,4 +1,5 @@
 import { BitWriter } from './bitWriter.js';
+import { clamp } from '../utils/audioUtils.js';
 
 const CRC8_TABLE = new Uint8Array(256);
 const CRC16_TABLE = new Uint16Array(256);
@@ -30,10 +31,6 @@ function crc16(data: Uint8Array): number {
     crc = ((crc << 8) ^ CRC16_TABLE[((crc >> 8) ^ data[i]) & 0xFF]) & 0xFFFF;
   }
   return crc;
-}
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
 }
 
 function toIntegerSamples(pcm: Float32Array, bps: number): Int32Array {

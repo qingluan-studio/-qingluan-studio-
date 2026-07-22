@@ -8,6 +8,7 @@
  */
 
 import { DEFAULT_SAMPLE_RATE } from './audioEffects.js';
+import { clamp, dbToGain, gainToDb } from '../utils/audioUtils.js';
 
 // ============================================================================
 // 接口定义
@@ -42,21 +43,6 @@ export interface ListenerPosition {
 // ============================================================================
 // 工具函数
 // ============================================================================
-
-/** 将分贝转换为线性增益 */
-function dbToGain(db: number): number {
-  return Math.pow(10.0, db / 20.0);
-}
-
-/** 将线性增益转换为分贝 */
-function gainToDb(gain: number): number {
-  return 20.0 * Math.log10(Math.max(gain, 1e-10));
-}
-
-/** 限制数值范围 */
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
 
 /** 一阶低通滤波器（支持动态截止频率） */
 class DynamicLowpass {

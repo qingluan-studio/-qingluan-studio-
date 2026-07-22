@@ -8,6 +8,8 @@
 // 采样率: 44100 Hz
 // ============================================================
 
+import { clamp, fft } from '../utils/audioUtils.js';
+
 // ═════════════════════════════════════════════════════════════
 // Part 1: 核心类型与常量
 // ═════════════════════════════════════════════════════════════
@@ -30,10 +32,6 @@ export interface ModificationRule {
 
 const TWO_PI = Math.PI * 2;
 
-function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
-}
-
 // 工具：求数组最大值的索引
 function argMax(arr: Float32Array): number {
   let maxIdx = 0;
@@ -45,52 +43,6 @@ function argMax(arr: Float32Array): number {
     }
   }
   return maxIdx;
-}
-
-// ═════════════════════════════════════════════════════════════
-// Part 2: 简化 FFT (Cooley-Tukey DIT)
-// ═════════════════════════════════════════════════════════════
-
-function fft(real: Float32Array, imag: Float32Array): void {
-  const n = real.length;
-  if (n <= 1) return;
-
-  // 位反转重排
-  let j = 0;
-  for (let i = 0; i < n; i++) {
-    if (i < j) {
-      const tReal = real[i]; real[i] = real[j]; real[j] = tReal;
-      const tImag = imag[i]; imag[i] = imag[j]; imag[j] = tImag;
-    }
-    let m = n >> 1;
-    while (m >= 1 && j >= m) {
-      j -= m;
-      m >>= 1;
-    }
-    j += m;
-  }
-
-  for (let s = 1; s <= Math.log2(n); s++) {
-    const m = 1 << s;
-    const wmReal = Math.cos(-TWO_PI / m);
-    const wmImag = Math.sin(-TWO_PI / m);
-    for (let k = 0; k < n; k += m) {
-      let wReal = 1, wImag = 0;
-      for (let j2 = 0; j2 < m / 2; j2++) {
-        const tReal = wReal * real[k + j2 + m / 2] - wImag * imag[k + j2 + m / 2];
-        const tImag = wReal * imag[k + j2 + m / 2] + wImag * real[k + j2 + m / 2];
-        const uReal = real[k + j2];
-        const uImag = imag[k + j2];
-        real[k + j2] = uReal + tReal;
-        imag[k + j2] = uImag + tImag;
-        real[k + j2 + m / 2] = uReal - tReal;
-        imag[k + j2 + m / 2] = uImag - tImag;
-        const nextWReal = wReal * wmReal - wImag * wmImag;
-        wImag = wReal * wmImag + wImag * wmReal;
-        wReal = nextWReal;
-      }
-    }
-  }
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -120,7 +72,7 @@ function analyzeSpectrum(
     real[i] *= w;
   }
 
-  fft(real, imag);
+  fft(real, imag, false);
 
   // 计算幅值谱
   const mag = new Float32Array(n / 2);

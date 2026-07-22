@@ -1,3 +1,5 @@
+import { clamp, lerp, smoothstep, mapRange } from '../utils/audioUtils.js';
+
 /**
  * MusicVisualizer.ts
  * 音乐可视化引擎
@@ -157,35 +159,6 @@ export const BAND_RANGES = {
 // ============================================================================
 // 数学工具函数
 // ============================================================================
-
-/**
- * 将值从源范围映射到目标范围
- */
-export function mapRange(value: number, inMin: number, inMax: number, outMin: number, outMax: number): number {
-  return outMin + ((value - inMin) / (inMax - inMin)) * (outMax - outMin);
-}
-
-/**
- * 线性插值
- */
-export function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-/**
- * 平滑插值 (smoothstep)
- */
-export function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-}
-
-/**
- * 限制值在范围内
- */
-export function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
-}
 
 /**
  * 计算dB值

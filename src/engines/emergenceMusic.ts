@@ -20,6 +20,7 @@ import {
   SimpleAgent,
   InvariantScores,
 } from './cognitiveEngine.js';
+import { clamp, lerp } from '../utils/audioUtils.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 公共工具
@@ -34,14 +35,6 @@ function rng(seed: number): () => number {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function clamp(v: number, min: number, max: number) {
-  return v < min ? min : v > max ? max : v;
-}
-
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
 }
 
 function shannonEntropy(probs: number[]): number {

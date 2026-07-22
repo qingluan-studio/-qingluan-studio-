@@ -1,8 +1,5 @@
 import { BitWriter } from './bitWriter.js';
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
-}
+import { clamp } from '../utils/audioUtils.js';
 
 /* ═══════════════════════════════════════════════════════════════
    Simplified MP3 Encoder (MPEG-1 Layer III container)

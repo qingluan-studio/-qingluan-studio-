@@ -1,3 +1,5 @@
+import { midiToFrequency, frequencyToMidi, lerp, smoothstep, fft, normalizeBuffer, semitoneToRatio } from '../utils/audioUtils.js';
+
 /**
  * AI歌声合成引擎 (AI Vocal Synthesis Engine)
  * 纯TypeScript实现，零外部付费API依赖
@@ -239,60 +241,12 @@ export const PINYIN_TO_PHONEMES: Readonly<Record<string, PinyinMapEntry>> = {
 // ==================== 工具函数 ====================
 
 /**
- * 将MIDI音符编号转换为频率 (Hz)
- * @param midiNote MIDI音符编号 (0-127)
- * @returns 频率 (Hz)
- */
-export function midiToFrequency(midiNote: number): number {
-  if (midiNote < 0 || midiNote > 127) {
-    throw new RangeError('MIDI note must be between 0 and 127');
-  }
-  return A4_FREQUENCY * Math.pow(SEMITONE_RATIO, midiNote - A4_MIDI_NOTE);
-}
-
-/**
- * 将频率 (Hz) 转换为MIDI音符编号
- * @param frequency 频率 (Hz)
- * @returns MIDI音符编号
- */
-export function frequencyToMidi(frequency: number): number {
-  if (frequency <= 0) {
-    throw new RangeError('Frequency must be positive');
-  }
-  return A4_MIDI_NOTE + 12 * Math.log2(frequency / A4_FREQUENCY);
-}
-
-/**
- * 半音偏移转换为频率比
- * @param semitones 半音数
- * @returns 频率倍率
- */
-export function semitoneToRatio(semitones: number): number {
-  return Math.pow(SEMITONE_RATIO, semitones);
-}
-
-/**
  * 线性插值
  * @param a 起始值
  * @param b 结束值
  * @param t 插值系数 (0-1)
  * @returns 插值结果
  */
-export function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-/**
- * 平滑步插值 (Smoothstep)
- * @param a 起始值
- * @param b 结束值
- * @param t 插值系数
- * @returns 平滑插值结果
- */
-export function smoothstep(a: number, b: number, t: number): number {
-  const x = Math.max(0, Math.min(1, (t - a) / (b - a)));
-  return x * x * (3 - 2 * x);
-}
 
 /**
  * 三次 Hermite 插值
@@ -368,73 +322,6 @@ export function createBlackmanWindow(size: number): Float32Array {
 }
 
 /**
- * 快速傅里叶变换 (Cooley-Tukey FFT)
- * 仅支持2的幂次大小
- * @param real 实部输入
- * @param imag 虚部输入 (会被修改)
- * @param invert 是否逆变换
- */
-export function fft(real: Float32Array, imag: Float32Array, invert: boolean): void {
-  const n = real.length;
-  if (n !== imag.length) {
-    throw new Error('Real and imag arrays must have same length');
-  }
-  if ((n & (n - 1)) !== 0) {
-    throw new Error('FFT size must be power of 2');
-  }
-
-  // 位反转置换
-  let j = 0;
-  for (let i = 1; i < n; i++) {
-    let bit = n >> 1;
-    while (j >= bit) {
-      j -= bit;
-      bit >>= 1;
-    }
-    j += bit;
-    if (i < j) {
-      let temp = real[i];
-      real[i] = real[j];
-      real[j] = temp;
-      temp = imag[i];
-      imag[i] = imag[j];
-      imag[j] = temp;
-    }
-  }
-
-  // Cooley-Tukey 蝶形运算
-  for (let len = 2; len <= n; len <<= 1) {
-    const ang = (2 * Math.PI) / len * (invert ? -1 : 1);
-    const wlenReal = Math.cos(ang);
-    const wlenImag = Math.sin(ang);
-    for (let i = 0; i < n; i += len) {
-      let wReal = 1;
-      let wImag = 0;
-      for (let k = 0; k < len / 2; k++) {
-        const uReal = real[i + k];
-        const uImag = imag[i + k];
-        const vReal = real[i + k + len / 2] * wReal - imag[i + k + len / 2] * wImag;
-        const vImag = real[i + k + len / 2] * wImag + imag[i + k + len / 2] * wReal;
-        real[i + k] = uReal + vReal;
-        imag[i + k] = uImag + vImag;
-        real[i + k + len / 2] = uReal - vReal;
-        imag[i + k + len / 2] = uImag - vImag;
-        const nextWReal = wReal * wlenReal - wImag * wlenImag;
-        wImag = wReal * wlenImag + wImag * wlenReal;
-        wReal = nextWReal;
-      }
-    }
-  }
-
-  if (invert) {
-    for (let i = 0; i < n; i++) {
-      real[i] /= n;
-      imag[i] /= n;
-    }
-  }
-}
-
-/**
  * 计算实信号的FFT幅度谱
  * @param signal 输入信号
  * @param fftSize FFT大小 (2的幂)
@@ -452,26 +339,6 @@ export function computeMagnitudeSpectrum(signal: Float32Array, fftSize: number):
     mag[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
   }
   return mag;
-}
-
-/**
- * 将 Float32Array 标准化到 [-1, 1] 范围
- * @param buffer 音频缓冲区
- * @returns 标准化后的峰值振幅
- */
-export function normalizeBuffer(buffer: Float32Array): number {
-  let maxAmp = 0;
-  for (let i = 0; i < buffer.length; i++) {
-    const abs = Math.abs(buffer[i]);
-    if (abs > maxAmp) maxAmp = abs;
-  }
-  if (maxAmp > 1.0) {
-    const scale = 1.0 / maxAmp;
-    for (let i = 0; i < buffer.length; i++) {
-      buffer[i] *= scale;
-    }
-  }
-  return maxAmp;
 }
 
 /**

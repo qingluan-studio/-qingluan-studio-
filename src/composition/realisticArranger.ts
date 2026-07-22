@@ -14,6 +14,17 @@ const SAMPLE_RATE = 44100;
 const TWO_PI = Math.PI * 2;
 const MAX_TRACKS = 16;
 
+// ==================== 高性能 sin 查表法 ====================
+const SIN_TABLE_SIZE = 65536;
+const SIN_TABLE = new Float32Array(SIN_TABLE_SIZE);
+for (let i = 0; i < SIN_TABLE_SIZE; i++) {
+  SIN_TABLE[i] = Math.sin((i / SIN_TABLE_SIZE) * TWO_PI);
+}
+function fastSin(phase: number): number {
+  const idx = ((phase / TWO_PI) * SIN_TABLE_SIZE) | 0;
+  return SIN_TABLE[idx & (SIN_TABLE_SIZE - 1)];
+}
+
 // ==================== 核心类型定义 ====================
 
 /** 音符事件 */
@@ -215,8 +226,14 @@ export class AudioUtils {
   static sineWave(freq: number, duration: number, amp = 1.0, phase = 0): Float32Array {
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const phaseInc = tpi * freq / sr;
+    let p = phase;
     for (let i = 0; i < len; i++) {
-      buf[i] = Math.sin(TWO_PI * freq * i / SAMPLE_RATE + phase) * amp;
+      buf[i] = fastSin(p) * amp;
+      p += phaseInc;
+      if (p > tpi) p -= tpi;
     }
     return buf;
   }
@@ -361,11 +378,13 @@ export class AudioUtils {
 
   /** 将 buffer 混入目标（支持偏移） */
   static mixInto(target: Float32Array, source: Float32Array, offset: number, amp = 1.0): void {
-    for (let i = 0; i < source.length; i++) {
-      const idx = offset + i;
-      if (idx >= 0 && idx < target.length) {
-        target[idx] += source[i] * amp;
-      }
+    const tgt = target;
+    const src = source;
+    const start = Math.max(0, -offset);
+    const end = Math.min(src.length, tgt.length - offset);
+    const a = amp;
+    for (let i = start; i < end; i++) {
+      tgt[offset + i] += src[i] * a;
     }
   }
 
@@ -552,8 +571,12 @@ export class ChorusProcessor {
     const delayLine = new Float32Array(maxDelay);
     let writeIndex = 0;
 
+    const phaseInc = TWO_PI * rate / SAMPLE_RATE;
+    let phase = 0;
     for (let i = 0; i < len; i++) {
-      const lfo = Math.sin(TWO_PI * rate * i / SAMPLE_RATE);
+      const lfo = fastSin(phase);
+      phase += phaseInc;
+      if (phase > TWO_PI) phase -= TWO_PI;
       const modDelay = (1 + lfo) * 0.5 * depth * maxDelay;
       const readIndex = (writeIndex - Math.floor(modDelay) + maxDelay) % maxDelay;
       const frac = modDelay - Math.floor(modDelay);
@@ -605,12 +628,16 @@ export abstract class InstrumentSynthesizer {
  */
 export class PianoSynthesizer extends InstrumentSynthesizer {
   readonly type = "piano" as const;
+  private phases = new Float32Array(15); // 12 harmonics + 3 sympathetic
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration;
     const len = Math.floor((duration + 4.0) * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     // 12个核心泛音（高精细度物理建模）
     const harmonics = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -618,32 +645,42 @@ export class PianoSynthesizer extends InstrumentSynthesizer {
 
     for (let h = 0; h < harmonics.length; h++) {
       const hf = freq * harmonics[h];
-      const hAmp = harmonicAmps[h] * note.velocity;
-      const decay = 0.3 + 2.0 / harmonics[h]; // 高频衰减更快
-      const phase = Math.random() * TWO_PI;
+      const hAmp = harmonicAmps[h] * vel;
+      const decaySamples = (0.3 + 2.0 / harmonics[h]) * sr;
+      let phase = this.phases[h];
+      const phaseInc = tpi * hf / sr;
       for (let i = 0; i < len; i++) {
-        const t = i / SAMPLE_RATE;
-        const env = Math.exp(-t / decay);
-        buf[i] += Math.sin(TWO_PI * hf * t + phase) * hAmp * env;
+        const env = Math.exp(-i / decaySamples);
+        buf[i] += fastSin(phase) * hAmp * env;
+        phase += phaseInc;
+        if (phase > tpi) phase -= tpi;
       }
+      this.phases[h] = phase;
     }
 
     // 弦间共鸣（模拟其他弦的微弱振动）
     const sympatheticFreqs = [freq * 1.4983, freq * 1.3348, freq * 1.1892];
-    for (const sf of sympatheticFreqs) {
-      const sPhase = Math.random() * TWO_PI;
+    const sDecaySamples = 1.5 * sr;
+    const sAmp = 0.03 * vel;
+    for (let s = 0; s < sympatheticFreqs.length; s++) {
+      const sf = sympatheticFreqs[s];
+      let phase = this.phases[12 + s];
+      const phaseInc = tpi * sf / sr;
       for (let i = 0; i < len; i++) {
-        const t = i / SAMPLE_RATE;
-        const env = Math.exp(-t / 1.5) * 0.03 * note.velocity;
-        buf[i] += Math.sin(TWO_PI * sf * t + sPhase) * env;
+        const env = Math.exp(-i / sDecaySamples);
+        buf[i] += fastSin(phase) * sAmp * env;
+        phase += phaseInc;
+        if (phase > tpi) phase -= tpi;
       }
+      this.phases[12 + s] = phase;
     }
 
     // 踏板共振（低频噪声混响感）
     const pedalNoise = AudioUtils.pinkNoise(len);
     const pedalEnv = AudioUtils.expDecay(len, 2.0);
+    const pedalAmp = 0.02 * vel;
     for (let i = 0; i < len; i++) {
-      buf[i] += pedalNoise[i] * pedalEnv[i] * 0.02 * note.velocity;
+      buf[i] += pedalNoise[i] * pedalEnv[i] * pedalAmp;
     }
 
     return buf;
@@ -689,11 +726,14 @@ export class AcousticGuitarSynthesizer extends InstrumentSynthesizer {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
       const slideStart = Math.floor(note.duration * 0.5 * SAMPLE_RATE);
       const slideEnd = Math.min(len, Math.floor(note.duration * SAMPLE_RATE));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
+        const f = freq + (targetFreq - freq) * t;
         // 简单频率偏移近似（通过重采样相位调制）
-        buf[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+        buf[i] *= fastSin(sPhase) * 0.5;
+        sPhase += TWO_PI * f / SAMPLE_RATE;
+        if (sPhase > TWO_PI) sPhase -= TWO_PI;
       }
     }
 
@@ -739,9 +779,12 @@ export class ElectricGuitarSynthesizer extends InstrumentSynthesizer {
     // 哇音效果（LFO 控制低通滤波）
     const wahRate = 2.0; // Hz
     const wahOut = new Float32Array(len);
+    const wahPhaseInc = TWO_PI * wahRate / SAMPLE_RATE;
+    let wahPhase = 0;
     for (let i = 0; i < len; i++) {
-      const lfo = 0.5 + 0.5 * Math.sin(TWO_PI * wahRate * i / SAMPLE_RATE);
-      const cutoff = 300 + lfo * 2000;
+      const lfo = 0.5 + 0.5 * fastSin(wahPhase);
+      wahPhase += wahPhaseInc;
+      if (wahPhase > TWO_PI) wahPhase -= TWO_PI;
       // 简化：逐样本调整截止频率不现实，改为振幅调制模拟
       wahOut[i] = driven[i] * (0.7 + 0.3 * lfo);
     }
@@ -756,32 +799,41 @@ export class ElectricGuitarSynthesizer extends InstrumentSynthesizer {
  */
 export class BassSynthesizer extends InstrumentSynthesizer {
   readonly type = "bass" as const;
+  private phase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 1.0;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
+    const decaySamples = 0.4 * sr;
 
-    // 低通滤波正弦波（基础音）
+    let phase = this.phase;
+    const phaseInc = tpi * freq / sr;
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = Math.exp(-t / 0.4);
-      // 加入轻微谐波使声音不那么纯
-      const val = Math.sin(TWO_PI * freq * t) + 0.3 * Math.sin(TWO_PI * freq * 2 * t);
-      buf[i] = val * note.velocity * env;
+      const env = Math.exp(-i / decaySamples);
+      const val = fastSin(phase) + 0.3 * fastSin(phase * 2);
+      buf[i] = val * vel * env;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
     }
+
+    this.phase = phase;
 
     // 击弦/勾弦模拟（attack 噪声 burst）
-    const attackLen = Math.min(len, Math.floor(0.02 * SAMPLE_RATE));
+    const attackLen = Math.min(len, Math.floor(0.02 * sr));
     const noise = AudioUtils.whiteNoise(attackLen);
     const attackEnv = AudioUtils.expDecay(attackLen, 0.005);
+    const attackAmp = 0.5 * vel;
     for (let i = 0; i < attackLen; i++) {
-      buf[i] += noise[i] * attackEnv[i] * 0.5 * note.velocity;
+      buf[i] += noise[i] * attackEnv[i] * attackAmp;
     }
 
-    const filtered = AudioUtils.lowpass(buf, 800);
-    return filtered;
+    return AudioUtils.lowpass(buf, 800);
   }
 }
 
@@ -818,14 +870,22 @@ export class DrumKitSynthesizer extends InstrumentSynthesizer {
     const duration = 0.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
     const startFreq = 60;
     const endFreq = 30;
+    const sweepTime = 0.1 * sr;
+    const decaySamples = 0.15 * sr;
+    const vel = note.velocity;
+    let phase = 0;
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const freq = AudioUtils.lerp(startFreq, endFreq, Math.min(1, t / 0.1));
-      const env = Math.exp(-t / 0.15);
-      const phase = TWO_PI * (startFreq * t + (endFreq - startFreq) * t * t / (2 * 0.1));
-      buf[i] = Math.sin(phase) * env * note.velocity;
+      const sweepT = i < sweepTime ? i / sweepTime : 1;
+      const freq = startFreq + (endFreq - startFreq) * sweepT;
+      const env = Math.exp(-i / decaySamples);
+      buf[i] = fastSin(phase) * env * vel;
+      phase += tpi * freq / sr;
+      if (phase > tpi) phase -= tpi;
     }
     return buf;
   }
@@ -835,12 +895,20 @@ export class DrumKitSynthesizer extends InstrumentSynthesizer {
     const duration = 0.4;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
     const noise = AudioUtils.whiteNoise(len);
+    const decaySamples = 0.12 * sr;
+    const vel = note.velocity;
+    let phase = 0;
+    const phaseInc = tpi * 200 / sr;
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = Math.exp(-t / 0.12);
-      const tone = Math.sin(TWO_PI * 200 * t) * 0.4;
-      buf[i] = (noise[i] * 0.6 + tone) * env * note.velocity;
+      const env = Math.exp(-i / decaySamples);
+      const tone = fastSin(phase) * 0.4;
+      buf[i] = (noise[i] * 0.6 + tone) * env * vel;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
     }
     return buf;
   }
@@ -850,12 +918,15 @@ export class DrumKitSynthesizer extends InstrumentSynthesizer {
     const duration = 0.15;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
     const noise = AudioUtils.whiteNoise(len);
     const hp = AudioUtils.highpass(noise, 8000);
+    const decaySamples = 0.03 * sr;
+    const vel = note.velocity;
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = Math.exp(-t / 0.03);
-      buf[i] = hp[i] * env * note.velocity * 0.6;
+      const env = Math.exp(-i / decaySamples);
+      buf[i] = hp[i] * env * vel * 0.6;
     }
     return buf;
   }
@@ -865,16 +936,27 @@ export class DrumKitSynthesizer extends InstrumentSynthesizer {
     const duration = 2.0;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
     const noise = AudioUtils.pinkNoise(len);
     const metalFreqs = [400, 600, 900, 1300, 1800];
+    const decaySamples = 0.8 * sr;
+    const vel = note.velocity;
+    const metalPhases = new Float32Array(metalFreqs.length);
+    const metalPhaseIncs = new Float32Array(metalFreqs.length);
+    for (let m = 0; m < metalFreqs.length; m++) {
+      metalPhaseIncs[m] = tpi * metalFreqs[m] / sr;
+    }
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = Math.exp(-t / 0.8);
+      const env = Math.exp(-i / decaySamples);
       let metal = 0;
-      for (const mf of metalFreqs) {
-        metal += Math.sin(TWO_PI * mf * t) * 0.05;
+      for (let m = 0; m < metalFreqs.length; m++) {
+        metal += fastSin(metalPhases[m]) * 0.05;
+        metalPhases[m] += metalPhaseIncs[m];
+        if (metalPhases[m] > tpi) metalPhases[m] -= tpi;
       }
-      buf[i] = (noise[i] * 0.5 + metal) * env * note.velocity;
+      buf[i] = (noise[i] * 0.5 + metal) * env * vel;
     }
     return buf;
   }
@@ -885,10 +967,18 @@ export class DrumKitSynthesizer extends InstrumentSynthesizer {
     const duration = 0.6;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const decaySamples = 0.25 * sr;
+    const vel = note.velocity;
+    let phase = 0;
+    const phaseInc = tpi * freq / sr;
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = Math.exp(-t / 0.25);
-      buf[i] = Math.sin(TWO_PI * freq * t) * env * note.velocity;
+      const env = Math.exp(-i / decaySamples);
+      buf[i] = fastSin(phase) * env * vel;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
     }
     return buf;
   }
@@ -900,43 +990,59 @@ export class DrumKitSynthesizer extends InstrumentSynthesizer {
  */
 export class ViolinSynthesizer extends InstrumentSynthesizer {
   readonly type = "violin" as const;
+  private phase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 0.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
+
+    // 预计算 ADSR
+    const env = AudioUtils.adsr(len, 0.1, 0.2, 0.8, 0.4);
 
     // 颤音参数
-    const vibratoRate = 6.0; // Hz
-    const vibratoDepth = 0.015; // 半音
+    const vibratoRate = 6.0;
+    const vibratoDepth = 0.015;
+    const vibratoPhaseInc = tpi * vibratoRate / sr;
 
     // 滑音
     const targetFreq = note.slideTo !== undefined ? AudioUtils.midiToFreq(note.slideTo) : freq;
+    const slideLen = note.duration * 0.5 * sr;
+
+    let phase = this.phase;
+    let vibratoPhase = 0;
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.1, 0.2, 0.8, 0.4)[i];
-
       // 滑音插值
-      const slideT = Math.min(1, t / (note.duration * 0.5));
-      const currentFreq = AudioUtils.lerp(freq, targetFreq, slideT);
+      const slideT = i < slideLen ? i / slideLen : 1;
+      const currentFreq = freq + (targetFreq - freq) * slideT;
 
       // 颤音
-      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth;
-      const modFreq = currentFreq * Math.pow(2, vibrato / 12);
+      const vibrato = fastSin(vibratoPhase) * vibratoDepth;
+      vibratoPhase += vibratoPhaseInc;
+      if (vibratoPhase > tpi) vibratoPhase -= tpi;
+      const modFreq = currentFreq * (1 + vibrato * 0.05776226504666211);
 
-      // 锯齿波
+      // 锯齿波（8个谐波）
       let sample = 0;
       for (let h = 1; h <= 8; h++) {
-        sample += Math.sin(TWO_PI * modFreq * h * t) / h;
+        sample += fastSin(phase * h) / h;
       }
 
       // 弓压变化（模拟 bow pressure 的轻微噪声）
       const bowNoise = (Math.random() * 2 - 1) * 0.02;
 
-      buf[i] = (sample + bowNoise) * env * note.velocity * 0.3;
+      buf[i] = (sample + bowNoise) * env[i] * vel * 0.3;
+
+      phase += tpi * modFreq / sr;
+      if (phase > tpi) phase -= tpi;
     }
+
+    this.phase = phase;
 
     return AudioUtils.lowpass(buf, 4000);
   }
@@ -962,31 +1068,33 @@ export class CelloSynthesizer extends InstrumentSynthesizer {
  */
 export class FluteSynthesizer extends InstrumentSynthesizer {
   readonly type = "flute" as const;
+  private phase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 0.3;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     const noise = AudioUtils.pinkNoise(len);
+    const env = AudioUtils.adsr(len, 0.05, 0.15, 0.7, 0.3);
+
+    let phase = this.phase;
+    const phaseInc = tpi * freq / sr;
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.05, 0.15, 0.7, 0.3)[i];
-
-      // 正弦波 + 偶次谐波
-      let sample = Math.sin(TWO_PI * freq * t);
-      sample += 0.2 * Math.sin(TWO_PI * freq * 2 * t);
-      sample += 0.1 * Math.sin(TWO_PI * freq * 4 * t);
-      sample += 0.05 * Math.sin(TWO_PI * freq * 6 * t);
-
-      // 气息噪声
+      const p = phase;
+      const sample = fastSin(p) + 0.2 * fastSin(p * 2) + 0.1 * fastSin(p * 4) + 0.05 * fastSin(p * 6);
       const breath = noise[i] * 0.08;
-
-      buf[i] = (sample + breath) * env * note.velocity * 0.4;
+      buf[i] = (sample + breath) * env[i] * vel * 0.4;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
     }
 
+    this.phase = phase;
     return buf;
   }
 }
@@ -1003,15 +1111,15 @@ export class SaxophoneSynthesizer extends InstrumentSynthesizer {
     const duration = note.duration + 0.4;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const vel = note.velocity;
 
-    const saw = AudioUtils.sawWave(freq, duration + 0.4, note.velocity);
+    const saw = AudioUtils.sawWave(freq, duration + 0.4, vel);
     const noise = AudioUtils.pinkNoise(len);
+    const env = AudioUtils.adsr(len, 0.08, 0.2, 0.75, 0.35);
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.08, 0.2, 0.75, 0.35)[i];
       const breath = noise[i] * 0.06;
-      buf[i] = (saw[i] + breath) * env * 0.3;
+      buf[i] = (saw[i] + breath) * env[i] * 0.3;
     }
 
     // 共振峰滤波（模拟萨克斯管体）
@@ -1028,35 +1136,37 @@ export class SaxophoneSynthesizer extends InstrumentSynthesizer {
 export class SynthSynthesizer extends InstrumentSynthesizer {
   readonly type = "synth" as const;
 
-  renderNote(note: NoteEvent, emotion: EmotionType): Float32Array {
+  renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 0.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const vel = note.velocity;
 
     let waveform = "saw" as "saw" | "square" | "triangle" | "sine";
     let osc: Float32Array;
-    // 可扩展波形选择
     if (waveform === "square") {
-      osc = AudioUtils.squareWave(freq, duration + 0.5, note.velocity);
+      osc = AudioUtils.squareWave(freq, duration + 0.5, vel);
     } else if (waveform === "triangle") {
-      osc = AudioUtils.triangleWave(freq, duration + 0.5, note.velocity);
+      osc = AudioUtils.triangleWave(freq, duration + 0.5, vel);
     } else if (waveform === "sine") {
-      osc = AudioUtils.sineWave(freq, duration + 0.5, note.velocity);
+      osc = AudioUtils.sineWave(freq, duration + 0.5, vel);
     } else {
-      osc = AudioUtils.sawWave(freq, duration + 0.5, note.velocity);
+      osc = AudioUtils.sawWave(freq, duration + 0.5, vel);
     }
 
     const env = AudioUtils.adsr(len, 0.02, 0.2, 0.6, 0.4);
 
     // 滤波器包络（截止频率随时间变化）
+    const decaySamples = 0.3 * sr;
+    const inv3000 = 1 / 3000;
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const filterEnv = Math.exp(-t / 0.3);
+      const filterEnv = Math.exp(-i / decaySamples);
       const cutoff = 200 + filterEnv * 4000;
-      // 简化：用振幅缩放模拟滤波效果
-      const filterSim = Math.min(1, cutoff / 3000);
-      buf[i] = osc[i] * env[i] * filterSim;
+      const filterSim = cutoff * inv3000;
+      const f = filterSim < 1 ? filterSim : 1;
+      buf[i] = osc[i] * env[i] * f;
     }
 
     return buf;
@@ -1100,10 +1210,15 @@ export class GuzhengSynthesizer extends InstrumentSynthesizer {
     // 揉弦效果（vibrato 较慢且深）
     const vibratoRate = 5.0;
     const vibratoDepth = 0.03;
+    const vibratoPhaseInc = TWO_PI * vibratoRate / SAMPLE_RATE;
+    let vibratoPhase = 0;
+    const fadeInLen = 2 * SAMPLE_RATE;
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth;
-      const mod = 1 + vibrato * Math.min(1, t * 2); // 渐入
+      const fade = i < fadeInLen ? i / fadeInLen : 1;
+      const vibrato = fastSin(vibratoPhase) * vibratoDepth * fade;
+      vibratoPhase += vibratoPhaseInc;
+      if (vibratoPhase > TWO_PI) vibratoPhase -= TWO_PI;
+      const mod = 1 + vibrato;
       buf[i] *= mod;
     }
 
@@ -1129,10 +1244,13 @@ export class GuzhengSynthesizer extends InstrumentSynthesizer {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
       const slideStart = Math.floor(note.duration * 0.3 * SAMPLE_RATE);
       const slideEnd = Math.min(len, Math.floor(note.duration * 0.9 * SAMPLE_RATE));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
-        buf[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.3;
+        const f = freq + (targetFreq - freq) * t;
+        buf[i] *= fastSin(sPhase) * 0.3;
+        sPhase += TWO_PI * f / SAMPLE_RATE;
+        if (sPhase > TWO_PI) sPhase -= TWO_PI;
       }
     }
 
@@ -1152,22 +1270,31 @@ export class ErhuSynthesizer extends InstrumentSynthesizer {
     const duration = note.duration + 1.0;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     // 锯齿波基础
-    const saw = AudioUtils.sawWave(freq, duration + 1.0, note.velocity);
+    const saw = AudioUtils.sawWave(freq, duration + 1.0, vel);
+
+    // 预计算 ADSR
+    const env = AudioUtils.adsr(len, 0.15, 0.3, 0.75, 0.5);
 
     // 揉弦颤音（较深，模拟二胡揉弦）
     const vibratoRate = 5.5;
     const vibratoDepth = 0.04;
+    const vibratoPhaseInc = tpi * vibratoRate / sr;
+    let vibratoPhase = 0;
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.15, 0.3, 0.75, 0.5)[i];
-      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth * Math.min(1, t);
-      const modFreq = freq * Math.pow(2, vibrato / 12);
-      // 重采样相位偏移来模拟频率变化（简化）
+      const fade = i < sr ? i / sr : 1;
+      const vibrato = fastSin(vibratoPhase) * vibratoDepth * fade;
+      vibratoPhase += vibratoPhaseInc;
+      if (vibratoPhase > tpi) vibratoPhase -= tpi;
+      const modFreq = freq * (1 + vibrato * 0.05776226504666211);
       const phaseIdx = Math.floor(i * modFreq / freq);
       const sample = saw[Math.min(phaseIdx, saw.length - 1)] || 0;
-      buf[i] = sample * env;
+      buf[i] = sample * env[i];
     }
 
     // 蛇皮共振峰
@@ -1177,12 +1304,15 @@ export class ErhuSynthesizer extends InstrumentSynthesizer {
     // 滑音
     if (note.slideTo !== undefined) {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
-      const slideStart = Math.floor(note.duration * 0.2 * SAMPLE_RATE);
-      const slideEnd = Math.min(len, Math.floor(note.duration * 0.7 * SAMPLE_RATE));
+      const slideStart = Math.floor(note.duration * 0.2 * sr);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.7 * sr));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
-        f2[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+        const f = freq + (targetFreq - freq) * t;
+        f2[i] *= fastSin(sPhase) * 0.5;
+        sPhase += tpi * f / sr;
+        if (sPhase > tpi) sPhase -= tpi;
       }
     }
 
@@ -1255,43 +1385,53 @@ export class PipaSynthesizer extends InstrumentSynthesizer {
  */
 export class DiziSynthesizer extends InstrumentSynthesizer {
   readonly type = "dizi" as const;
+  private phase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 0.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     const noise = AudioUtils.pinkNoise(len);
+    const env = AudioUtils.adsr(len, 0.04, 0.15, 0.8, 0.3);
+
+    let phase = this.phase;
+    const phaseInc = tpi * freq / sr;
+    const huashePhaseInc = tpi * 12 / sr;
+    let huashePhase = 0;
+    const fadeInLen = sr / 3;
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.04, 0.15, 0.8, 0.3)[i];
-
-      // 正弦波 + 谐波列
-      let sample = Math.sin(TWO_PI * freq * t);
-      sample += 0.25 * Math.sin(TWO_PI * freq * 2 * t);
-      sample += 0.12 * Math.sin(TWO_PI * freq * 3 * t);
-      sample += 0.06 * Math.sin(TWO_PI * freq * 4 * t);
-
-      // 气息噪声
+      const p = phase;
+      let sample = fastSin(p) + 0.25 * fastSin(p * 2) + 0.12 * fastSin(p * 3) + 0.06 * fastSin(p * 4);
       const breath = noise[i] * 0.05;
-
-      // 花舌效果（快速颤音 12Hz）
-      const huashe = 1 + 0.08 * Math.sin(TWO_PI * 12 * t) * Math.min(1, t * 3);
-
-      buf[i] = (sample + breath) * env * note.velocity * huashe * 0.35;
+      const fade = i < fadeInLen ? i / fadeInLen : 1;
+      const huashe = 1 + 0.08 * fastSin(huashePhase) * fade;
+      buf[i] = (sample + breath) * env[i] * vel * huashe * 0.35;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
+      huashePhase += huashePhaseInc;
+      if (huashePhase > tpi) huashePhase -= tpi;
     }
+
+    this.phase = phase;
 
     // 滑音
     if (note.slideTo !== undefined) {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
-      const slideStart = Math.floor(note.duration * 0.4 * SAMPLE_RATE);
-      const slideEnd = Math.min(len, Math.floor(note.duration * 0.8 * SAMPLE_RATE));
+      const slideStart = Math.floor(note.duration * 0.4 * sr);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.8 * sr));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
-        buf[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.4;
+        const f = freq + (targetFreq - freq) * t;
+        buf[i] *= fastSin(sPhase) * 0.4;
+        sPhase += tpi * f / sr;
+        if (sPhase > tpi) sPhase -= tpi;
       }
     }
 
@@ -1305,30 +1445,33 @@ export class DiziSynthesizer extends InstrumentSynthesizer {
  */
 export class XiaoSynthesizer extends InstrumentSynthesizer {
   readonly type = "xiao" as const;
+  private phase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 1.0;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     const noise = AudioUtils.pinkNoise(len);
+    const env = AudioUtils.adsr(len, 0.1, 0.3, 0.85, 0.6);
+
+    let phase = this.phase;
+    const phaseInc = tpi * freq / sr;
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.1, 0.3, 0.85, 0.6)[i];
-
-      // 更低频，更纯
-      let sample = Math.sin(TWO_PI * freq * t);
-      sample += 0.15 * Math.sin(TWO_PI * freq * 2 * t);
-      sample += 0.05 * Math.sin(TWO_PI * freq * 3 * t);
-
-      // 气息控制（更柔和）
+      const p = phase;
+      const sample = fastSin(p) + 0.15 * fastSin(p * 2) + 0.05 * fastSin(p * 3);
       const breath = noise[i] * 0.04;
-
-      buf[i] = (sample + breath) * env * note.velocity * 0.4;
+      buf[i] = (sample + breath) * env[i] * vel * 0.4;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
     }
 
+    this.phase = phase;
     return AudioUtils.lowpass(buf, 3500);
   }
 }
@@ -1344,6 +1487,10 @@ export class LuoGuSynthesizer extends InstrumentSynthesizer {
     const duration = 1.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
+    const decaySamples = 0.3 * sr;
     const noise = AudioUtils.whiteNoise(len);
 
     // 非线性失真噪声
@@ -1351,14 +1498,21 @@ export class LuoGuSynthesizer extends InstrumentSynthesizer {
 
     // 金属谐波
     const metalFreqs = [200, 350, 520, 800, 1100];
+    const metalPhases = new Float32Array(metalFreqs.length);
+    const metalPhaseIncs = new Float32Array(metalFreqs.length);
+    for (let m = 0; m < metalFreqs.length; m++) {
+      metalPhaseIncs[m] = tpi * metalFreqs[m] / sr;
+    }
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = Math.exp(-t / 0.3);
+      const env = Math.exp(-i / decaySamples);
       let metal = 0;
-      for (const mf of metalFreqs) {
-        metal += Math.sin(TWO_PI * mf * t) * 0.06;
+      for (let m = 0; m < metalFreqs.length; m++) {
+        metal += fastSin(metalPhases[m]) * 0.06;
+        metalPhases[m] += metalPhaseIncs[m];
+        if (metalPhases[m] > tpi) metalPhases[m] -= tpi;
       }
-      buf[i] = (distorted[i] * 0.4 + metal) * env * note.velocity;
+      buf[i] = (distorted[i] * 0.4 + metal) * env * vel;
     }
 
     return buf;
@@ -1371,12 +1525,16 @@ export class LuoGuSynthesizer extends InstrumentSynthesizer {
  */
 export class YangQinSynthesizer extends InstrumentSynthesizer {
   readonly type = "yangQin" as const;
+  private phases = new Float32Array(8);
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 1.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     // 高频泛音丰富
     const harmonics = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -1384,13 +1542,17 @@ export class YangQinSynthesizer extends InstrumentSynthesizer {
 
     for (let h = 0; h < harmonics.length; h++) {
       const hf = freq * harmonics[h];
-      const hAmp = amps[h] * note.velocity;
-      const phase = Math.random() * TWO_PI;
+      const hAmp = amps[h] * vel;
+      const decaySamples = (0.2 + h * 0.05) * sr;
+      let phase = this.phases[h];
+      const phaseInc = tpi * hf / sr;
       for (let i = 0; i < len; i++) {
-        const t = i / SAMPLE_RATE;
-        const env = Math.exp(-t / (0.2 + h * 0.05));
-        buf[i] += Math.sin(TWO_PI * hf * t + phase) * hAmp * env;
+        const env = Math.exp(-i / decaySamples);
+        buf[i] += fastSin(phase) * hAmp * env;
+        phase += phaseInc;
+        if (phase > tpi) phase -= tpi;
       }
+      this.phases[h] = phase;
     }
 
     return buf;
@@ -1403,39 +1565,50 @@ export class YangQinSynthesizer extends InstrumentSynthesizer {
  */
 export class SuoNaSynthesizer extends InstrumentSynthesizer {
   readonly type = "suoNa" as const;
+  private phase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 0.6;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     const noise = AudioUtils.pinkNoise(len);
+    const env = AudioUtils.adsr(len, 0.03, 0.15, 0.85, 0.25);
+
+    let phase = this.phase;
+    const phaseInc = tpi * freq / sr;
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.03, 0.15, 0.85, 0.25)[i];
-
-      // 方波 + 强谐波
+      const p = phase;
       let sample = 0;
       for (let h = 1; h <= 6; h += 2) {
-        sample += Math.sin(TWO_PI * freq * h * t) / h;
+        sample += fastSin(p * h) / h;
       }
       sample *= 0.6;
-
       const breath = noise[i] * 0.06;
-      buf[i] = (sample + breath) * env * note.velocity * 0.5;
+      buf[i] = (sample + breath) * env[i] * vel * 0.5;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
     }
+
+    this.phase = phase;
 
     // 滑音
     if (note.slideTo !== undefined) {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
-      const slideStart = Math.floor(note.duration * 0.3 * SAMPLE_RATE);
-      const slideEnd = Math.min(len, Math.floor(note.duration * 0.8 * SAMPLE_RATE));
+      const slideStart = Math.floor(note.duration * 0.3 * sr);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.8 * sr));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
-        buf[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+        const f = freq + (targetFreq - freq) * t;
+        buf[i] *= fastSin(sPhase) * 0.5;
+        sPhase += tpi * f / sr;
+        if (sPhase > tpi) sPhase -= tpi;
       }
     }
 
@@ -1456,21 +1629,32 @@ export class JinghuSynthesizer extends InstrumentSynthesizer {
     const duration = note.duration + 1.2;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     // 锯齿波基础（擦弦感）
-    const saw = AudioUtils.sawWave(freq, duration, note.velocity);
+    const saw = AudioUtils.sawWave(freq, duration, vel);
+
+    // 预计算 ADSR
+    const env = AudioUtils.adsr(len, 0.08, 0.25, 0.7, 0.4);
 
     // 快速深颤音（京胡标志性技法）
     const vibratoRate = 7.0;
     const vibratoDepth = 0.06;
+    const vibratoPhaseInc = tpi * vibratoRate / sr;
+    let vibratoPhase = 0;
+    const fadeInLen = 2 * sr;
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.08, 0.25, 0.7, 0.4)[i];
-      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth * Math.min(1, t * 2);
-      const modFreq = freq * Math.pow(2, vibrato / 12);
+      const fade = i < fadeInLen ? i / fadeInLen : 1;
+      const vibrato = fastSin(vibratoPhase) * vibratoDepth * fade;
+      vibratoPhase += vibratoPhaseInc;
+      if (vibratoPhase > tpi) vibratoPhase -= tpi;
+      const modFreq = freq * (1 + vibrato * 0.05776226504666211);
       const phaseIdx = Math.floor(i * modFreq / freq);
       const sample = saw[Math.min(phaseIdx, saw.length - 1)] || 0;
-      buf[i] = sample * env;
+      buf[i] = sample * env[i];
     }
 
     // 高频共振峰：尖锐明亮（1000Hz 和 2800Hz）
@@ -1484,12 +1668,15 @@ export class JinghuSynthesizer extends InstrumentSynthesizer {
     // 滑音
     if (note.slideTo !== undefined) {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
-      const slideStart = Math.floor(note.duration * 0.2 * SAMPLE_RATE);
-      const slideEnd = Math.min(len, Math.floor(note.duration * 0.7 * SAMPLE_RATE));
+      const slideStart = Math.floor(note.duration * 0.2 * sr);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.7 * sr));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
-        filtered[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+        const f = freq + (targetFreq - freq) * t;
+        filtered[i] *= fastSin(sPhase) * 0.5;
+        sPhase += tpi * f / sr;
+        if (sPhase > tpi) sPhase -= tpi;
       }
     }
 
@@ -1509,19 +1696,28 @@ export class ErhuangSynthesizer extends InstrumentSynthesizer {
     const duration = note.duration + 1.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
-    const saw = AudioUtils.sawWave(freq, duration, note.velocity);
+    const saw = AudioUtils.sawWave(freq, duration, vel);
+    const env = AudioUtils.adsr(len, 0.1, 0.3, 0.75, 0.5);
+
     const vibratoRate = 6.0;
     const vibratoDepth = 0.045;
+    const vibratoPhaseInc = tpi * vibratoRate / sr;
+    let vibratoPhase = 0;
+    const fadeInLen = sr * 1.5;
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.1, 0.3, 0.75, 0.5)[i];
-      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth * Math.min(1, t * 1.5);
-      const modFreq = freq * Math.pow(2, vibrato / 12);
+      const fade = i < fadeInLen ? i / fadeInLen : 1;
+      const vibrato = fastSin(vibratoPhase) * vibratoDepth * fade;
+      vibratoPhase += vibratoPhaseInc;
+      if (vibratoPhase > tpi) vibratoPhase -= tpi;
+      const modFreq = freq * (1 + vibrato * 0.05776226504666211);
       const phaseIdx = Math.floor(i * modFreq / freq);
       const sample = saw[Math.min(phaseIdx, saw.length - 1)] || 0;
-      buf[i] = sample * env;
+      buf[i] = sample * env[i];
     }
 
     let filtered = AudioUtils.formantFilter(buf, 800, 5);
@@ -1530,12 +1726,15 @@ export class ErhuangSynthesizer extends InstrumentSynthesizer {
 
     if (note.slideTo !== undefined) {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
-      const slideStart = Math.floor(note.duration * 0.2 * SAMPLE_RATE);
-      const slideEnd = Math.min(len, Math.floor(note.duration * 0.7 * SAMPLE_RATE));
+      const slideStart = Math.floor(note.duration * 0.2 * sr);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.7 * sr));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
-        filtered[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+        const f = freq + (targetFreq - freq) * t;
+        filtered[i] *= fastSin(sPhase) * 0.5;
+        sPhase += tpi * f / sr;
+        if (sPhase > tpi) sPhase -= tpi;
       }
     }
 
@@ -1612,45 +1811,56 @@ export class PipaJingSynthesizer extends InstrumentSynthesizer {
  */
 export class GuQinSynthesizer extends InstrumentSynthesizer {
   readonly type = "guQin" as const;
+  private phases = new Float32Array(4);
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 3.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     // 1. 散音：基础正弦 + 低频谐波（深沉）
+    const env1 = AudioUtils.adsr(len, 0.2, 0.8, 0.6, 2.5);
+    let phase = this.phases[0];
+    const phaseInc = tpi * freq / sr;
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.2, 0.8, 0.6, 2.5)[i];
-      let sample = Math.sin(TWO_PI * freq * t) * 0.6;
-      sample += Math.sin(TWO_PI * freq * 2 * t) * 0.25;
-      sample += Math.sin(TWO_PI * freq * 3 * t) * 0.12;
-      sample += Math.sin(TWO_PI * freq * 4 * t) * 0.06;
-      buf[i] += sample * env * note.velocity;
+      const p = phase;
+      const sample = fastSin(p) * 0.6 + fastSin(p * 2) * 0.25 + fastSin(p * 3) * 0.12 + fastSin(p * 4) * 0.06;
+      buf[i] += sample * env1[i] * vel;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
     }
+    this.phases[0] = phase;
 
     // 2. 按音：略带摩擦感（添加高频谐波）
+    const env2 = AudioUtils.adsr(len, 0.15, 0.5, 0.5, 2.0);
+    let phase2 = this.phases[1];
+    const phaseInc2 = tpi * freq / sr;
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.15, 0.5, 0.5, 2.0)[i];
-      let sample = Math.sin(TWO_PI * freq * t) * 0.4;
-      sample += Math.sin(TWO_PI * freq * 1.5 * t) * 0.15; // 非整数倍模拟按弦张力
-      sample += Math.sin(TWO_PI * freq * 2.5 * t) * 0.08;
-      buf[i] += sample * env * note.velocity * 0.5;
+      const p = phase2;
+      const sample = fastSin(p) * 0.4 + fastSin(p * 1.5) * 0.15 + fastSin(p * 2.5) * 0.08;
+      buf[i] += sample * env2[i] * vel * 0.5;
+      phase2 += phaseInc2;
+      if (phase2 > tpi) phase2 -= tpi;
     }
+    this.phases[1] = phase2;
 
     // 3. 泛音：极高次谐波，短暂明亮
-    const harmonicLen = Math.floor(Math.min(len, 1.5 * SAMPLE_RATE));
+    const harmonicLen = Math.floor(Math.min(len, 1.5 * sr));
+    const env3 = AudioUtils.adsr(harmonicLen, 0.05, 0.3, 0.3, 0.8);
+    let phase3 = this.phases[2];
+    const phaseInc3 = tpi * freq / sr;
     for (let i = 0; i < harmonicLen; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(harmonicLen, 0.05, 0.3, 0.3, 0.8)[i];
-      let sample = Math.sin(TWO_PI * freq * 2 * t) * 0.3;
-      sample += Math.sin(TWO_PI * freq * 3 * t) * 0.2;
-      sample += Math.sin(TWO_PI * freq * 4 * t) * 0.1;
-      sample += Math.sin(TWO_PI * freq * 5 * t) * 0.05;
-      buf[i] += sample * env * note.velocity * 0.4;
+      const p = phase3;
+      const sample = fastSin(p * 2) * 0.3 + fastSin(p * 3) * 0.2 + fastSin(p * 4) * 0.1 + fastSin(p * 5) * 0.05;
+      buf[i] += sample * env3[i] * vel * 0.4;
+      phase3 += phaseInc3;
+      if (phase3 > tpi) phase3 -= tpi;
     }
+    this.phases[2] = phase3;
 
     // 低频共振峰（木质琴体共鸣）
     let filtered = AudioUtils.formantFilter(buf, 200, 4);
@@ -1669,41 +1879,52 @@ export class GuQinSynthesizer extends InstrumentSynthesizer {
  */
 export class XiaoQuSynthesizer extends InstrumentSynthesizer {
   readonly type = "xiaoQu" as const;
+  private phase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 0.6;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     const noise = AudioUtils.pinkNoise(len);
+    const env = AudioUtils.adsr(len, 0.06, 0.2, 0.85, 0.4);
+
+    let phase = this.phase;
+    const phaseInc = tpi * freq / sr;
+    const vibratoPhaseInc = tpi * 4.5 / sr;
+    let vibratoPhase = 0;
+    const fadeInLen = 2 * sr;
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.06, 0.2, 0.85, 0.4)[i];
-
-      let sample = Math.sin(TWO_PI * freq * t);
-      sample += 0.2 * Math.sin(TWO_PI * freq * 2 * t);
-      sample += 0.08 * Math.sin(TWO_PI * freq * 3 * t);
-      sample += 0.04 * Math.sin(TWO_PI * freq * 4 * t);
-
-      // 更多气息噪声（昆曲水磨调气息细腻）
+      const p = phase;
+      const sample = fastSin(p) + 0.2 * fastSin(p * 2) + 0.08 * fastSin(p * 3) + 0.04 * fastSin(p * 4);
       const breath = noise[i] * 0.08;
-
-      // 慢速深颤音（昆曲韵味）
-      const vibrato = 1 + 0.05 * Math.sin(TWO_PI * 4.5 * t) * Math.min(1, t * 2);
-
-      buf[i] = (sample + breath) * env * note.velocity * vibrato * 0.35;
+      const fade = i < fadeInLen ? i / fadeInLen : 1;
+      const vibrato = 1 + 0.05 * fastSin(vibratoPhase) * fade;
+      buf[i] = (sample + breath) * env[i] * vel * vibrato * 0.35;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
+      vibratoPhase += vibratoPhaseInc;
+      if (vibratoPhase > tpi) vibratoPhase -= tpi;
     }
+
+    this.phase = phase;
 
     if (note.slideTo !== undefined) {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
-      const slideStart = Math.floor(note.duration * 0.4 * SAMPLE_RATE);
-      const slideEnd = Math.min(len, Math.floor(note.duration * 0.85 * SAMPLE_RATE));
+      const slideStart = Math.floor(note.duration * 0.4 * sr);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.85 * sr));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
-        buf[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.4;
+        const f = freq + (targetFreq - freq) * t;
+        buf[i] *= fastSin(sPhase) * 0.4;
+        sPhase += tpi * f / sr;
+        if (sPhase > tpi) sPhase -= tpi;
       }
     }
 
@@ -1717,38 +1938,50 @@ export class XiaoQuSynthesizer extends InstrumentSynthesizer {
  */
 export class MorinKhuurSynthesizer extends InstrumentSynthesizer {
   readonly type = "morinKhuur" as const;
+  private neighPhase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 2.0;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
-    const saw = AudioUtils.sawWave(freq, duration, note.velocity);
+    const saw = AudioUtils.sawWave(freq, duration, vel);
 
     // 深而慢的颤音（蒙古长调特色）
     const vibratoRate = 4.0;
     const vibratoDepth = 0.05;
+    const vibratoPhaseInc = tpi * vibratoRate / sr;
+    let vibratoPhase = 0;
+    const env1 = AudioUtils.adsr(len, 0.18, 0.4, 0.8, 1.2);
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.18, 0.4, 0.8, 1.2)[i];
-      const vibrato = Math.sin(TWO_PI * vibratoRate * t) * vibratoDepth * Math.min(1, t);
-      const modFreq = freq * Math.pow(2, vibrato / 12);
+      const fade = i < sr ? i / sr : 1;
+      const vibrato = fastSin(vibratoPhase) * vibratoDepth * fade;
+      vibratoPhase += vibratoPhaseInc;
+      if (vibratoPhase > tpi) vibratoPhase -= tpi;
+      const modFreq = freq * (1 + vibrato * 0.05776226504666211);
       const phaseIdx = Math.floor(i * modFreq / freq);
       const sample = saw[Math.min(phaseIdx, saw.length - 1)] || 0;
-      buf[i] = sample * env;
+      buf[i] = sample * env1[i];
     }
 
     // 马嘶声泛音：添加高频噪声谐波
     const noise = AudioUtils.pinkNoise(len);
+    const env2 = AudioUtils.adsr(len, 0.3, 0.5, 0.6, 1.0);
+    let neighPhase = this.neighPhase;
+    const neighPhaseInc = tpi * freq * 2.7 / sr;
+
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      const env = AudioUtils.adsr(len, 0.3, 0.5, 0.6, 1.0)[i];
-      // 模拟马嘶声的高频泛音结构
-      const neigh = Math.sin(TWO_PI * freq * 2.7 * t) * 0.08 + noise[i] * 0.04;
-      buf[i] += neigh * env * note.velocity;
+      const neigh = fastSin(neighPhase) * 0.08 + noise[i] * 0.04;
+      buf[i] += neigh * env2[i] * vel;
+      neighPhase += neighPhaseInc;
+      if (neighPhase > tpi) neighPhase -= tpi;
     }
+    this.neighPhase = neighPhase;
 
     // 共振峰：草原的辽阔感（中低频为主）
     let filtered = AudioUtils.formantFilter(buf, 450, 5);
@@ -1757,12 +1990,15 @@ export class MorinKhuurSynthesizer extends InstrumentSynthesizer {
 
     if (note.slideTo !== undefined) {
       const targetFreq = AudioUtils.midiToFreq(note.slideTo);
-      const slideStart = Math.floor(note.duration * 0.25 * SAMPLE_RATE);
-      const slideEnd = Math.min(len, Math.floor(note.duration * 0.75 * SAMPLE_RATE));
+      const slideStart = Math.floor(note.duration * 0.25 * sr);
+      const slideEnd = Math.min(len, Math.floor(note.duration * 0.75 * sr));
+      let sPhase = 0;
       for (let i = slideStart; i < slideEnd; i++) {
         const t = (i - slideStart) / (slideEnd - slideStart);
-        const f = AudioUtils.lerp(freq, targetFreq, t);
-        filtered[i] *= Math.sin(TWO_PI * f * i / SAMPLE_RATE) * 0.5;
+        const f = freq + (targetFreq - freq) * t;
+        filtered[i] *= fastSin(sPhase) * 0.5;
+        sPhase += tpi * f / sr;
+        if (sPhase > tpi) sPhase -= tpi;
       }
     }
 
@@ -1853,34 +2089,43 @@ export class DramyinSynthesizer extends InstrumentSynthesizer {
  */
 export class DungKarSynthesizer extends InstrumentSynthesizer {
   readonly type = "dungKar" as const;
+  private phase = 0;
 
   renderNote(note: NoteEvent, _emotion: EmotionType): Float32Array {
     const freq = AudioUtils.midiToFreq(note.midi);
     const duration = note.duration + 2.5;
     const len = Math.floor(duration * SAMPLE_RATE);
     const buf = new Float32Array(len);
+    const sr = SAMPLE_RATE;
+    const tpi = TWO_PI;
+    const vel = note.velocity;
 
     const noise = AudioUtils.pinkNoise(len);
+    const env = AudioUtils.adsr(len, 0.4, 0.6, 0.9, 2.0);
+
+    let phase = this.phase;
+    const phaseInc = tpi * freq / sr;
+    const vibratoPhaseInc = tpi * 2.5 / sr;
+    let vibratoPhase = 0;
+    const fadeInLen = sr * 2;
 
     for (let i = 0; i < len; i++) {
-      const t = i / SAMPLE_RATE;
-      // 长起音，庄严深远
-      const env = AudioUtils.adsr(len, 0.4, 0.6, 0.9, 2.0)[i];
-
-      // 方波基础 + 低频谐波（铜管感）
+      const p = phase;
       let sample = 0;
       for (let h = 1; h <= 5; h++) {
-        sample += Math.sin(TWO_PI * freq * h * t) / h * 0.5;
+        sample += fastSin(p * h) / h * 0.5;
       }
-
-      // 长管共振噪声
       const breath = noise[i] * 0.05;
-
-      // 极低频微颤（庄严感）
-      const vibrato = 1 + 0.02 * Math.sin(TWO_PI * 2.5 * t) * Math.min(1, t * 0.5);
-
-      buf[i] = (sample + breath) * env * note.velocity * vibrato * 0.5;
+      const fade = i < fadeInLen ? i / fadeInLen : 1;
+      const vibrato = 1 + 0.02 * fastSin(vibratoPhase) * fade;
+      buf[i] = (sample + breath) * env[i] * vel * vibrato * 0.5;
+      phase += phaseInc;
+      if (phase > tpi) phase -= tpi;
+      vibratoPhase += vibratoPhaseInc;
+      if (vibratoPhase > tpi) vibratoPhase -= tpi;
     }
+
+    this.phase = phase;
 
     // 低频共振峰（100-600Hz 范围增强）
     let filtered = AudioUtils.formantFilter(buf, 200, 4);
@@ -2839,24 +3084,24 @@ export class TrackMixer {
 
   /** 处理轨道并输出立体声（interleaved L/R） */
   process(): Float32Array {
-    if (this.config.mute) return new Float32Array(this.buffer.length * 2);
+    if (this.config.mute) return new Float32Array(0);
 
     const pan = this.config.pan;
     const gain = this.config.gain;
-    const len = this.buffer.length;
+    const buf = this.buffer;
+    const len = buf.length;
     const out = new Float32Array(len * 2);
 
     // 简单 shelving EQ 模拟（增益缩放近似）
     const lowBoost = Math.pow(10, this.config.lowShelfDb / 20);
     const highBoost = Math.pow(10, this.config.highShelfDb / 20);
+    const eqGain = (lowBoost + highBoost) * 0.5;
 
     const leftGain = gain * Math.min(1, 1 - pan) * Math.SQRT1_2;
     const rightGain = gain * Math.min(1, 1 + pan) * Math.SQRT1_2;
 
     for (let i = 0; i < len; i++) {
-      const sample = this.buffer[i];
-      // 简单 EQ：低频通过增益，高频通过另一增益（此处简化统一处理）
-      const eqSample = sample * ((lowBoost + highBoost) / 2);
+      const eqSample = buf[i] * eqGain;
       out[i * 2] = eqSample * leftGain;
       out[i * 2 + 1] = eqSample * rightGain;
     }
@@ -2887,7 +3132,8 @@ export class MixingEngine {
    * 混音并输出立体声 interleaved Float32Array
    */
   mix(): Float32Array {
-    if (this.tracks.length === 0) return new Float32Array(0);
+    const trackCount = this.tracks.length;
+    if (trackCount === 0) return new Float32Array(0);
 
     // 确定最大长度
     let maxLen = 0;
@@ -2903,14 +3149,15 @@ export class MixingEngine {
 
     // 先计算 RMS 用于自动平衡
     const rmsValues = this.tracks.map((t) => t.getRMS());
-    const avgRMS = rmsValues.reduce((a, b) => a + b, 0) / rmsValues.length;
+    const avgRMS = rmsValues.reduce((a, b) => a + b, 0) / trackCount;
 
-    for (let i = 0; i < this.tracks.length; i++) {
+    for (let i = 0; i < trackCount; i++) {
       const track = this.tracks[i];
       const cfg = track.getConfig();
       if (hasSolo && !cfg.solo) continue;
 
       const processed = track.process();
+      if (processed.length === 0) continue;
       const trackMaxLen = processed.length / 2;
 
       // 自动平衡
@@ -2918,19 +3165,26 @@ export class MixingEngine {
       const balanceGain = avgRMS > 0 ? avgRMS / (rms + 1e-10) : 1;
       const autoGain = Math.min(2, balanceGain);
 
-      for (let j = 0; j < trackMaxLen; j++) {
-        mixed[j * 2] += processed[j * 2] * autoGain;
-        mixed[j * 2 + 1] += processed[j * 2 + 1] * autoGain;
+      let j = 0;
+      const m = mixed;
+      const p = processed;
+      const ag = autoGain;
+      for (; j < trackMaxLen; j++) {
+        const j2 = j * 2;
+        m[j2] += p[j2] * ag;
+        m[j2 + 1] += p[j2 + 1] * ag;
       }
     }
 
     // 限制器防止削波
     const limiterThreshold = 0.95;
+    const compress = 0.1;
     for (let i = 0; i < mixed.length; i++) {
-      if (mixed[i] > limiterThreshold) {
-        mixed[i] = limiterThreshold + (mixed[i] - limiterThreshold) * 0.1;
-      } else if (mixed[i] < -limiterThreshold) {
-        mixed[i] = -limiterThreshold + (mixed[i] + limiterThreshold) * 0.1;
+      const s = mixed[i];
+      if (s > limiterThreshold) {
+        mixed[i] = limiterThreshold + (s - limiterThreshold) * compress;
+      } else if (s < -limiterThreshold) {
+        mixed[i] = -limiterThreshold + (s + limiterThreshold) * compress;
       }
     }
 
@@ -4210,8 +4464,12 @@ export class PhaserProcessor {
     const stages = 6;
     const allpassStates = new Float32Array(stages);
 
+    const phaseInc = TWO_PI * rate / SAMPLE_RATE;
+    let phase = 0;
     for (let i = 0; i < len; i++) {
-      const lfo = 0.5 + 0.5 * Math.sin(TWO_PI * rate * i / SAMPLE_RATE);
+      const lfo = 0.5 + 0.5 * fastSin(phase);
+      phase += phaseInc;
+      if (phase > TWO_PI) phase -= TWO_PI;
       const freq = 200 + lfo * depth * 2000;
       const coeff = (Math.tan(Math.PI * freq / SAMPLE_RATE) - 1) / (Math.tan(Math.PI * freq / SAMPLE_RATE) + 1);
 
@@ -4238,8 +4496,12 @@ export class TremoloProcessor {
     if (depth <= 0) return new Float32Array(input);
     const len = input.length;
     const out = new Float32Array(len);
+    const phaseInc = TWO_PI * rate / SAMPLE_RATE;
+    let phase = 0;
     for (let i = 0; i < len; i++) {
-      const lfo = 0.5 + 0.5 * Math.sin(TWO_PI * rate * i / SAMPLE_RATE);
+      const lfo = 0.5 + 0.5 * fastSin(phase);
+      phase += phaseInc;
+      if (phase > TWO_PI) phase -= TWO_PI;
       const amp = 1 - depth + depth * lfo;
       out[i] = input[i] * amp;
     }
@@ -4256,8 +4518,12 @@ export class RingModulator {
     if (amount <= 0) return new Float32Array(input);
     const len = input.length;
     const out = new Float32Array(len);
+    const phaseInc = TWO_PI * carrierFreq / SAMPLE_RATE;
+    let phase = 0;
     for (let i = 0; i < len; i++) {
-      const carrier = Math.sin(TWO_PI * carrierFreq * i / SAMPLE_RATE);
+      const carrier = fastSin(phase);
+      phase += phaseInc;
+      if (phase > TWO_PI) phase -= TWO_PI;
       out[i] = input[i] * (1 - amount) + (input[i] * carrier) * amount;
     }
     return out;

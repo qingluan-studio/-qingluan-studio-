@@ -9,6 +9,7 @@
  */
 
 import { fft, Complex, TWO_PI } from '../visualization/musicVisualizer.js';
+import { clamp, dbToGain, hannWindow } from '../utils/audioUtils.js';
 
 const SAMPLE_RATE = 44100;
 const FRAME_SIZE = 2048;
@@ -22,22 +23,6 @@ const PRBS_SEED = 0x1a2b3c4d;
 // ═════════════════════════════════════════════════════════════
 // 内部工具函数
 // ═════════════════════════════════════════════════════════════
-
-function clamp(v: number, min: number, max: number): number {
-  return v < min ? min : v > max ? max : v;
-}
-
-function dbToLinear(db: number): number {
-  return Math.pow(10, db / 20);
-}
-
-function hannWindow(size: number): Float32Array {
-  const w = new Float32Array(size);
-  for (let i = 0; i < size; i++) {
-    w[i] = 0.5 - 0.5 * Math.cos((TWO_PI * i) / (size - 1));
-  }
-  return w;
-}
 
 /** DJB2 字符串哈希 -> 32 位无符号整数 */
 function stringHash32(str: string): number {
@@ -483,7 +468,7 @@ export class HumanFeelEnhancer {
 
   addMicBleed(pcm: Float32Array, amount = 0.5): Float32Array {
     const delaySamples = Math.round((0.005 + 0.01 * Math.random()) * this._sampleRate);
-    const attenuation = dbToLinear(-30) * clamp(amount, 0, 1);
+    const attenuation = dbToGain(-30) * clamp(amount, 0, 1);
     const delayed = new Float32Array(pcm.length);
     for (let i = 0; i < pcm.length; i++) {
       delayed[i] = i >= delaySamples ? pcm[i - delaySamples] : 0;
@@ -526,7 +511,7 @@ export class HumanFeelEnhancer {
 
   addConsoleCrosstalk(pcm: Float32Array, amount = 0.5): Float32Array {
     const delaySamples = Math.round(0.0003 * this._sampleRate);
-    const attenuation = dbToLinear(-40) * clamp(amount, 0, 1);
+    const attenuation = dbToGain(-40) * clamp(amount, 0, 1);
     const output = new Float32Array(pcm.length);
     for (let i = 0; i < pcm.length; i++) {
       const bleed = i >= delaySamples ? pcm[i - delaySamples] : 0;

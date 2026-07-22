@@ -4,6 +4,8 @@
 // 将游走轨迹直接转化为音乐序列，模拟人类意识流动的非线性特征。
 // ============================================================
 
+import { clamp, midiToFrequency } from '../utils/audioUtils.js';
+
 const SAMPLE_RATE = 44100;
 
 // ═════════════════════════════════════════════════════════════
@@ -45,10 +47,6 @@ export interface ConceptEdge {
 // ═════════════════════════════════════════════════════════════
 // Part 2: 辅助函数
 // ═════════════════════════════════════════════════════════════
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
-}
 
 export function blendEmotion(a: EmotionVector, b: EmotionVector, ratio: number): EmotionVector {
   const r = clamp(ratio, 0, 1);
@@ -534,10 +532,6 @@ export class StreamComposer {
 // Part 6: PCM 渲染与导出
 // ═════════════════════════════════════════════════════════════
 
-function midiToFreq(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
 function renderNotesToPCM(
   notes: Array<{ midi: number; startTime: number; duration: number; velocity: number; concept: string }>,
   totalSeconds: number
@@ -551,7 +545,7 @@ function renderNotesToPCM(
     const endSample = Math.floor((note.startTime + note.duration) * SAMPLE_RATE);
     if (startSample >= totalSamples) continue;
 
-    const baseFreq = midiToFreq(note.midi);
+    const baseFreq = midiToFrequency(note.midi);
     const amp = (note.velocity / 127) * 0.25;
     const attack = Math.floor(0.03 * SAMPLE_RATE);
     const decay = Math.floor(0.08 * SAMPLE_RATE);
@@ -559,7 +553,7 @@ function renderNotesToPCM(
 
     let prevFreq: number | null = null;
     if (i > 0 && notes[i - 1].concept === 'transition') {
-      prevFreq = midiToFreq(notes[i - 1].midi);
+      prevFreq = midiToFrequency(notes[i - 1].midi);
     }
 
     for (let s = startSample; s < Math.min(endSample, totalSamples); s++) {

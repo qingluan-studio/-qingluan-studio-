@@ -4,6 +4,7 @@
  */
 
 import { fft, computeMagnitudeSpectrum } from '../visualization/musicVisualizer.js';
+import { hannWindow } from '../utils/audioUtils.js';
 
 const FRAME_SIZE = 4096;
 const HOP_SIZE = 2048;
@@ -13,14 +14,6 @@ const F_MIN = 20;
 interface FingerprintParts {
   subFingerprint: Uint8Array;
   globalHash: bigint;
-}
-
-function hannWindow(size: number): Float32Array {
-  const window = new Float32Array(size);
-  for (let i = 0; i < size; i++) {
-    window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (size - 1));
-  }
-  return window;
 }
 
 function calculateZCR(frame: Float32Array): number {

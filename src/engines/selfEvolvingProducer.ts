@@ -55,16 +55,13 @@ import { AnalogArtifactEngine, addStudioFeel } from '../effects/analogArtifacts.
 import { SpatialReverbEngine, applyCathedralReverb, applyStudioReverb } from '../effects/spatialReverb.js';
 import { OriginalityEngine, HumanFeelEnhancer } from './originalityEngine.js';
 import { VocalFoldLab, glottalToAcoustic } from '../synthesis/vocalFoldLab.js';
+import { midiToFrequency } from '../utils/audioUtils.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
 // ═════════════════════════════════════════════════════════════
 
 const SAMPLE_RATE = 44100;
-
-function midiToFreq(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
 
 function mixBuffers(
   a: Float32Array,
@@ -439,7 +436,7 @@ export class MelodyRenderer {
       // 力度映射：旋律起伏带动力度变化
       const vel = baseVelocity * (0.8 + 0.4 * Math.sin(i * 1.3));
 
-      const freq = midiToFreq(midi);
+      const freq = midiToFrequency(midi);
       const result = this.synth.synthesizeNote(freq, dur, vel, waveform as any);
       const pcm = result.pcm;
       const offset = Math.floor(currentTime * this.sampleRate);
@@ -727,7 +724,7 @@ export class SelfEvolvingMusicProducer {
           melodyPCM = nonTraditionalMelodyPCM;
         } else if (useSelfModifyingSynth) {
           const notes = composition.melody.map((midi, i) => ({
-            freq: midiToFreq(midi),
+            freq: midiToFrequency(midi),
             duration: composition.durations[i] || 0.5,
             startTime: composition.durations.slice(0, i).reduce((a, b) => a + b, 0),
           }));
@@ -1251,7 +1248,7 @@ export class SelfEvolvingMusicProducer {
 export default {
   SelfEvolvingMusicProducer,
   MelodyRenderer,
-  midiToFreq,
+  midiToFrequency,
   mixBuffers,
   normalizeBuffer,
   pcmToWav,

@@ -1,10 +1,12 @@
 /**
  * ============================================================
- * 模拟录音痕迹引擎 (Analog Recording Artifact Engine)
+ /** 模拟录音痕迹引擎 (Analog Recording Artifact Engine)
  * 给数字音频添加真实录音棚/模拟设备的痕迹，
  * 让AI音乐听起来像是从真实麦克风录制的。
  * ============================================================
  */
+
+import { clamp, dbToGain } from '../utils/audioUtils.js';
 
 const SAMPLE_RATE: number = 44100;
 
@@ -27,16 +29,6 @@ export interface ArtifactConfig {
 // ============================================================================
 // 内部工具函数
 // ============================================================================
-
-/** dB 转线性增益 */
-function dbToGain(db: number): number {
-  return Math.pow(10.0, db / 20.0);
-}
-
-/** 钳制数值范围 */
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
 
 /** 生成白噪声 */
 function generateWhiteNoise(length: number): Float32Array {
