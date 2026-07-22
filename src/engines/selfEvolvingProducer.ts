@@ -555,7 +555,7 @@ export class SelfEvolvingMusicProducer {
           this.log(`使用非传统引擎: ${currentParams.nonTraditionalEngine}`);
           const key = currentParams.key || 'C';
           const bpm = currentParams.bpm || 120;
-          const barCount = currentParams.barCount || 8;
+          const barCount = currentParams.barCount || 16;
           const style = currentParams.style || 'pop';
           const keyRoot = keyToMidi(key);
           const scale = [0, 2, 4, 5, 7, 9, 11];
@@ -628,7 +628,7 @@ export class SelfEvolvingMusicProducer {
 
         // Step 2: 编曲（伴奏）
         this.log('Step 2: 真人级伴奏编曲 (物理建模 + 人性化)');
-        const barsPerSection = Math.max(4, currentParams.barCount || 8);
+        const barsPerSection = Math.max(4, currentParams.barCount || 16);
         const arrangement = createArrangement(
           currentParams.key || 'C',
           currentParams.bpm || 120,
@@ -979,7 +979,7 @@ export class SelfEvolvingMusicProducer {
       const keys = ['C', 'G', 'Am', 'F', 'D', 'Em'];
       params.key = keys[Math.floor(Math.random() * keys.length)];
       params.emotion = params.emotion === 'happy' ? 'tense' : 'happy';
-      if (params.barCount && params.barCount < 16) params.barCount += 4;
+      if (params.barCount && params.barCount < 32) params.barCount += 4;
     }
 
     if (issues.includes('动态范围不足') || issues.includes('音量过低')) {

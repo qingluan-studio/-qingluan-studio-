@@ -1137,7 +1137,7 @@ app.post('/api/engine/selfmodifying', async (c) => {
 app.post('/api/engine/chemical', async (c) => {
   const body = await c.req.json<{style?: string; keyRoot?: number; scale?: number[]; barCount?: number; bpm?: number; temperature?: number}>();
   try {
-    const result = composeByChemistry({ style: body.style || 'pop', keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 8, bpm: body.bpm || 120, temperature: body.temperature ?? 0.7 });
+    const result = composeByChemistry({ style: body.style || 'pop', keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 16, bpm: body.bpm || 120, temperature: body.temperature ?? 0.7 });
     return c.json({ notes: result.notes, reactionLog: result.reactionLog });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -1147,7 +1147,7 @@ app.post('/api/engine/chemical', async (c) => {
 app.post('/api/engine/topological', async (c) => {
   const body = await c.req.json<{keyRoot?: number; scale?: number[]; barCount?: number; bpm?: number; curvature?: number}>();
   try {
-    const notes = composeTopologicalMelody({ keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 8, bpm: body.bpm || 120, curvature: body.curvature ?? 0.5 });
+    const notes = composeTopologicalMelody({ keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 16, bpm: body.bpm || 120, curvature: body.curvature ?? 0.5 });
     return c.json({ notes });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -1157,7 +1157,7 @@ app.post('/api/engine/topological', async (c) => {
 app.post('/api/engine/cellular', async (c) => {
   const body = await c.req.json<{bpm?: number; keyRoot?: number; scale?: number[]; barCount?: number; seedDensity?: number; generations?: number}>();
   try {
-    const result = composeByCellularAutomata({ bpm: body.bpm || 120, keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 8, seedDensity: body.seedDensity ?? 0.15, generations: body.generations });
+    const result = composeByCellularAutomata({ bpm: body.bpm || 120, keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 16, seedDensity: body.seedDensity ?? 0.15, generations: body.generations });
     return c.json({ notes: result.notes, historyLength: result.history.length });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);

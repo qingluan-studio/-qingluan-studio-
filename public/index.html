@@ -1138,7 +1138,7 @@
         <div class="s-card">
           <h3>🌌 认知涌现音乐引擎</h3>
           <div class="s-form"><label>调性</label><select id="emKey"><option value="C">C大调</option><option value="G">G大调</option><option value="Am">A小调</option><option value="F">F大调</option><option value="D">D大调</option></select></div>
-          <div class="s-form"><label>小节数</label><input type="number" id="emBars" value="8" min="4" max="16"></div>
+          <div class="s-form"><label>小节数</label><input type="number" id="emBars" value="16" min="4" max="128"></div>
           <div class="s-form"><label>BPM</label><input type="number" id="emBpm" value="120" min="40" max="240"></div>
           <div class="s-form"><label>模式</label><select id="emMode"><option value="compose">单次涌现</option><option value="loop">认知闭环</option></select></div>
           <button class="s-btn" onclick="generateEmergence()">🌌 启动涌现引擎</button>
@@ -1562,7 +1562,7 @@
           <div class="s-form"><label>风格</label><select id="ntProdStyle"><option value="pop">流行</option><option value="classical">古典</option><option value="electronic">电子</option><option value="chinese">中国风</option></select></div>
           <div class="s-form"><label>调性</label><select id="ntProdKey"><option value="C">C</option><option value="G">G</option><option value="Am">Am</option><option value="F">F</option></select></div>
           <div class="s-form"><label>BPM</label><input type="number" id="ntProdBpm" value="120" min="40" max="240"></div>
-          <div class="s-form"><label>小节数</label><input type="number" id="ntProdBars" value="8" min="4" max="16"></div>
+          <div class="s-form"><label>小节数</label><input type="number" id="ntProdBars" value="16" min="4" max="128"></div>
           <button class="s-btn" onclick="runNtProduction()">🚀 非传统完整生产</button>
           <div class="s-loading" id="ntProdLoading"><span>非传统生产线运行中...</span></div>
           <div id="ntProdPlayer"></div>
@@ -2436,7 +2436,7 @@ async function runCardProduce(cid) {
   try {
     const r = await fetch(`${API}/api/produce`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ style, key, emotion, barCount: 8, bpm: 120, maxAttempts: 3 })
+      body: JSON.stringify({ style, key, emotion, barCount: 16, bpm: 120, maxAttempts: 3 })
     });
     const d = await r.json();
     if (d.error) { res.textContent = '错误: ' + d.error; return; }

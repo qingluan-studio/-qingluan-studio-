@@ -712,7 +712,7 @@ export class CognitiveEmergenceMusicEngine {
       const keyMap: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
       const root = keyMap[params.key || 'C'] ?? 0;
       const scale = [0, 2, 4, 5, 7, 9, 11];
-      const bars = swarm.swarmCompose(params.barCount || 8, root, scale);
+      const bars = swarm.swarmCompose(params.barCount || 16, root, scale);
       const melody = bars.flat();
       return { melody, swarm };
     }));
@@ -750,7 +750,7 @@ export class CognitiveEmergenceMusicEngine {
 
     // 1. 应用能力矩阵到参数
     const abilityParams = this.abilityManager.applyToParams({
-      barCount: params.barCount || 8,
+      barCount: params.barCount || 16,
       seed: params.seed || Date.now(),
       key: params.key || 'C',
     });
