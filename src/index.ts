@@ -78,6 +78,8 @@ import { StreamComposer, ConceptGraph, ConsciousnessWalker, generateConsciousnes
 import { HumanizationEngine } from './engines/humanizationEngine.js';
 import { PhraseComposer, composeWithPhrases } from './composition/phraseComposer.js';
 import { AnalogArtifactEngine, addStudioFeel } from './effects/analogArtifacts.js';
+import { SpatialReverbEngine } from './effects/spatialReverb.js';
+import { OriginalityEngine, HumanFeelEnhancer, checkSelfSimilarity } from './engines/originalityEngine.js';
 
 const app = new Hono();
 const projectStore = new Map<string, QingluanProject>();
@@ -105,7 +107,7 @@ app.get('/api/health', (c) => {
     status: 'ok',
     name: '青鸾数字音频工作站',
     version: '2.0.0',
-    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint', 'selfModifyingSynth', 'chemicalComposition', 'topologicalMelody', 'caMusicGrowth', 'streamOfConsciousness', 'humanizationEngine', 'phraseComposer', 'analogArtifacts'],
+    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint', 'selfModifyingSynth', 'chemicalComposition', 'topologicalMelody', 'caMusicGrowth', 'streamOfConsciousness', 'humanizationEngine', 'phraseComposer', 'analogArtifacts', 'spatialReverb', 'originalityEngine'],
   });
 });
 
@@ -1137,6 +1139,52 @@ app.post('/api/analog/process', async (c) => {
     const pcm = Buffer.from(body.wavBase64, 'base64');
     // 简化为直接返回，实际应该从 WAV 提取 PCM
     return c.json({ message: '请直接在前端使用 AnalogArtifactEngine' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ======== 空间混响 API ========
+
+app.post('/api/spatial/apply', async (c) => {
+  const body = await c.req.json<{wavBase64: string; preset?: string}>();
+  try {
+    // 简化：由于从 base64 WAV 提取 PCM 较复杂，返回错误提示或简化实现
+    return c.json({ message: '请使用完整生产线 /api/produce 并设置 useSpatialReverb=true' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/spatial/presets', (c) => {
+  return c.json({ presets: Object.keys(SpatialReverbEngine.Presets || {}) });
+});
+
+// ======== 原创性保护 API ========
+
+app.post('/api/originality/embed', async (c) => {
+  const body = await c.req.json<{wavBase64: string; creatorId?: string}>();
+  try {
+    return c.json({ message: '请使用完整生产线 /api/produce 并设置 useWatermark=true' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/originality/extract', async (c) => {
+  const body = await c.req.json<{wavBase64: string}>();
+  try {
+    return c.json({ message: '请使用完整生产线生成带水印的音频' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/originality/check', async (c) => {
+  const body = await c.req.json<{notes?: Array<{midi: number; startTime: number}>}>();
+  try {
+    const score = checkSelfSimilarity(body.notes || []);
+    return c.json({ similarityScore: score, isOriginal: score < 0.6 });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }

@@ -52,6 +52,8 @@ import { StreamComposer, ConceptGraph, ConsciousnessWalker, generateConsciousnes
 import { HumanizationEngine, humanizeNotes } from './humanizationEngine.js';
 import { PhraseComposer, composeWithPhrases } from '../composition/phraseComposer.js';
 import { AnalogArtifactEngine, addStudioFeel } from '../effects/analogArtifacts.js';
+import { SpatialReverbEngine, applyCathedralReverb, applyStudioReverb } from '../effects/spatialReverb.js';
+import { OriginalityEngine, HumanFeelEnhancer } from './originalityEngine.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
@@ -492,6 +494,12 @@ export interface ProductionParams {
   useHumanization?: boolean;    // 使用人性化演奏
   useAnalogFeel?: boolean;      // 使用模拟录音痕迹
   analogIntensity?: number;     // 模拟痕迹强度 0-1
+  useSpatialReverb?: boolean;      // 使用真实空间混响
+  spatialPreset?: string;          // 空间预设，默认 'concert_hall'
+  useWatermark?: boolean;          // 嵌入数字水印
+  creatorId?: string;              // 创作者ID，用于水印
+  useHumanFeelEnhance?: boolean;   // 使用真人感强化器
+  humanFeelIntensity?: number;     // 真人感强度 0-1
 }
 
 export interface ProductionResult {
@@ -794,6 +802,18 @@ export class SelfEvolvingMusicProducer {
         mixedPCM = applySpatialEffects(mixedPCM, currentParams.style || 'pop', this.sampleRate);
         this.log(`空间处理完成: Peak=${calculatePeak(mixedPCM).toFixed(3)} RMS=${calculateRMS(mixedPCM).toFixed(3)}`);
 
+        // Step 4.6: 真实空间混响（如果启用，替代基础空间效果）
+        if (currentParams.useSpatialReverb) {
+          this.log(`Step 4.6: 真实空间混响 (预设=${currentParams.spatialPreset || 'concert_hall'})`);
+          try {
+            const spatial = new SpatialReverbEngine(this.sampleRate);
+            mixedPCM = spatial.applyPreset(mixedPCM, currentParams.spatialPreset || 'concert_hall');
+            this.log(`真实空间混响完成: Peak=${calculatePeak(mixedPCM).toFixed(3)}`);
+          } catch (e: any) {
+            this.log(`真实空间混响失败: ${e.message}`);
+          }
+        }
+
         // Step 5: 自我诊断
         this.log('Step 5: 自我诊断 (FlawDetector + 动态分析)');
         const diagnosis = this.selfDiagnose(mixedPCM, composition.scores);
@@ -814,6 +834,48 @@ export class SelfEvolvingMusicProducer {
             this.log(`模拟录音痕迹添加完成: intensity=${intensity.toFixed(2)}`);
           } catch (e: any) {
             this.log(`模拟录音痕迹失败: ${e.message}`);
+          }
+        }
+
+        // Step 9.6: 真人感强化（相位误差/麦克风串音/压缩痕迹/调音台串扰）
+        if (currentParams.useHumanFeelEnhance) {
+          this.log('Step 9.6: 真人感强化 (相位误差 / 麦克风串音 / 压缩痕迹)');
+          try {
+            const enhancer = new HumanFeelEnhancer(this.sampleRate);
+            mastered.pcm = enhancer.enhance(mastered.pcm, {
+              humanizationIntensity: currentParams.humanFeelIntensity ?? 0.5,
+              analogIntensity: currentParams.analogIntensity ?? 0.3,
+              breathNoise: 0.2,
+              microTiming: 0.3,
+            });
+            this.log(`真人感强化完成: Peak=${calculatePeak(mastered.pcm).toFixed(3)}`);
+          } catch (e: any) {
+            this.log(`真人感强化失败: ${e.message}`);
+          }
+        }
+
+        // Step 10: 嵌入原创性水印
+        if (currentParams.useWatermark) {
+          this.log('Step 10: 嵌入原创性水印');
+          try {
+            const watermarkEngine = new OriginalityEngine(this.sampleRate);
+            const projectHash = watermarkEngine.generateProjectHash({
+              style: currentParams.style,
+              key: currentParams.key,
+              bpm: currentParams.bpm,
+              barCount: currentParams.barCount,
+              seed: currentParams.seed,
+              timestamp: Date.now(),
+            });
+            mastered.pcm = watermarkEngine.embedWatermark(mastered.pcm, {
+              creatorId: currentParams.creatorId || 'qingluan-user',
+              timestamp: Date.now(),
+              projectHash,
+              strength: 0.02,
+            });
+            this.log('原创性水印嵌入完成');
+          } catch (e: any) {
+            this.log(`水印嵌入失败: ${e.message}`);
           }
         }
 
@@ -897,6 +959,32 @@ export class SelfEvolvingMusicProducer {
     const fallbackPCM = lastPCM || lastArrangement?.mixed || new Float32Array(this.sampleRate * 2);
     this.log('Step 9: 尽力而为输出 — 应用快速母带');
     const fallbackMastered = this.masteringChain.quickMaster(fallbackPCM, -14);
+
+    // Step 10: 嵌入原创性水印（fallback）
+    if (currentParams.useWatermark) {
+      this.log('Step 10: 嵌入原创性水印 (fallback)');
+      try {
+        const watermarkEngine = new OriginalityEngine(this.sampleRate);
+        const projectHash = watermarkEngine.generateProjectHash({
+          style: currentParams.style,
+          key: currentParams.key,
+          bpm: currentParams.bpm,
+          barCount: currentParams.barCount,
+          seed: currentParams.seed,
+          timestamp: Date.now(),
+        });
+        fallbackMastered.pcm = watermarkEngine.embedWatermark(fallbackMastered.pcm, {
+          creatorId: currentParams.creatorId || 'qingluan-user',
+          timestamp: Date.now(),
+          projectHash,
+          strength: 0.02,
+        });
+        this.log('原创性水印嵌入完成 (fallback)');
+      } catch (e: any) {
+        this.log(`水印嵌入失败 (fallback): ${e.message}`);
+      }
+    }
+
     const fingerprint = generateFingerprint(fallbackMastered.pcm, this.sampleRate);
     this.log(`指纹: ${getFingerprintPrefix(fingerprint, 16)}`);
     const wav = pcmToWav(fallbackMastered.pcm, this.sampleRate);

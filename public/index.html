@@ -930,6 +930,14 @@
             <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="composeUsePhrase"> 乐句结构</label></div>
             <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="composeUseHumanize"> 人性化演奏</label></div>
             <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="composeUseAnalog"> 模拟录音感</label></div>
+            <div class="s-form"><label>空间混响</label><select id="composeSpatial">
+              <option value="none">不使用</option>
+              <option value="concert_hall">音乐厅</option>
+              <option value="cathedral">大教堂</option>
+              <option value="vocal_booth">人声录音棚</option>
+            </select></div>
+            <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="composeUseWatermark"> 嵌入原创水印</label></div>
+            <div class="s-form" style="margin-bottom:4px;"><label><input type="checkbox" id="composeUseHumanFeel"> 真人感强化</label></div>
           </div>
           <button class="s-btn" onclick="compose()">✨ 生成旋律</button>
           <button class="s-btn-small" onclick="autoArrange()">🎹 自动编曲</button>
@@ -1580,6 +1588,35 @@
           <div class="s-loading" id="ntProdLoading"><span>非传统生产线运行中...</span></div>
           <div id="ntProdPlayer"></div>
           <pre class="s-result" id="ntProdResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+
+        <div class="s-card">
+          <h3>🎧 空间与原创性</h3>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">真实声学空间 + 数字水印 + 真人感强化</p>
+          
+          <div class="s-form"><label>空间混响预设</label><select id="ntSpatialPreset">
+            <option value="none">不使用</option>
+            <option value="intimate_room">亲密录音室</option>
+            <option value="living_room">客厅</option>
+            <option value="concert_hall" selected>音乐厅</option>
+            <option value="cathedral">大教堂</option>
+            <option value="bathroom">浴室</option>
+            <option value="arena">体育馆</option>
+            <option value="forest">森林</option>
+            <option value="cave">洞穴</option>
+            <option value="stage">舞台</option>
+            <option value="vocal_booth">人声录音棚</option>
+          </select></div>
+          
+          <div class="s-form"><label><input type="checkbox" id="ntUseWatermark" onchange="document.getElementById('ntCreatorIdWrap').style.display = this.checked ? 'block' : 'none'"> 嵌入原创性水印</label></div>
+          <div class="s-form" id="ntCreatorIdWrap" style="display:none;"><label>创作者ID</label><input type="text" id="ntCreatorId" value="qingluan-user"></div>
+          
+          <div class="s-form"><label><input type="checkbox" id="ntUseHumanFeel"> 真人感强化（相位误差/麦克风串音/压缩痕迹）</label></div>
+          <div class="s-form"><label>真人感强度</label><input type="range" id="ntHumanFeelSlider" min="0" max="100" value="50"></div>
+          
+          <button class="s-btn" onclick="runSpatialOriginality()">🚀 应用空间与原创性</button>
+          <div class="s-loading" id="ntSpatialLoading"><span>处理中...</span></div>
+          <pre class="s-result" id="ntSpatialResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
         </div>
       </div>
 
@@ -2489,6 +2526,12 @@ async function compose() {
         usePhraseStructure: document.getElementById('composeUsePhrase')?.checked || false,
         useHumanization: document.getElementById('composeUseHumanize')?.checked || false,
         useAnalogFeel: document.getElementById('composeUseAnalog')?.checked || false,
+        useSpatialReverb: document.getElementById('composeSpatial').value !== 'none',
+        spatialPreset: document.getElementById('composeSpatial').value,
+        useWatermark: document.getElementById('composeUseWatermark')?.checked || false,
+        creatorId: 'qingluan-user',
+        useHumanFeelEnhance: document.getElementById('composeUseHumanFeel')?.checked || false,
+        humanFeelIntensity: (+document.getElementById('composeUseHumanFeel')?.checked || false) ? ((+document.getElementById('ntHumanFeelSlider')?.value || 50) / 100) : 0,
       })
     });
     const data = await res.json();
@@ -2519,6 +2562,12 @@ async function fullSong() {
         usePhraseStructure: document.getElementById('composeUsePhrase')?.checked || false,
         useHumanization: document.getElementById('composeUseHumanize')?.checked || false,
         useAnalogFeel: document.getElementById('composeUseAnalog')?.checked || false,
+        useSpatialReverb: document.getElementById('composeSpatial').value !== 'none',
+        spatialPreset: document.getElementById('composeSpatial').value,
+        useWatermark: document.getElementById('composeUseWatermark')?.checked || false,
+        creatorId: 'qingluan-user',
+        useHumanFeelEnhance: document.getElementById('composeUseHumanFeel')?.checked || false,
+        humanFeelIntensity: (+document.getElementById('composeUseHumanFeel')?.checked || false) ? ((+document.getElementById('ntHumanFeelSlider')?.value || 50) / 100) : 0,
       })
     });
     const data = await res.json();
@@ -5567,6 +5616,12 @@ async function runNtProduction() {
       useHumanization: document.getElementById('ntUseHumanize')?.checked || false,
       useAnalogFeel: document.getElementById('ntUseAnalog')?.checked || false,
       analogIntensity: (+document.getElementById('ntAnalogSlider')?.value || 40) / 100,
+      useSpatialReverb: document.getElementById('ntSpatialPreset').value !== 'none',
+      spatialPreset: document.getElementById('ntSpatialPreset').value,
+      useWatermark: document.getElementById('ntUseWatermark')?.checked || false,
+      creatorId: document.getElementById('ntCreatorId')?.value || 'qingluan-user',
+      useHumanFeelEnhance: document.getElementById('ntUseHumanFeel')?.checked || false,
+      humanFeelIntensity: (+document.getElementById('ntHumanFeelSlider')?.value || 50) / 100,
     };
     
     const res = await fetch('/api/produce', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
@@ -5577,6 +5632,23 @@ async function runNtProduction() {
       playerEl.innerHTML = '<audio controls style="width:100%;margin-top:8px;" src="data:audio/wav;base64,' + data.wavBase64 + '"></audio>';
     }
     resultEl.textContent = JSON.stringify(data, null, 2).replace(/wavBase64.*\n/g, '');
+  } catch (e) {
+    resultEl.textContent = '错误: ' + e.message;
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+async function runSpatialOriginality() {
+  const loading = document.getElementById('ntSpatialLoading');
+  const resultEl = document.getElementById('ntSpatialResult');
+  loading.style.display = 'flex';
+  resultEl.textContent = '';
+  
+  try {
+    const res = await fetch('/api/spatial/presets');
+    const data = await res.json();
+    resultEl.textContent = '可用空间预设: ' + (data.presets || []).join(', ');
   } catch (e) {
     resultEl.textContent = '错误: ' + e.message;
   } finally {
