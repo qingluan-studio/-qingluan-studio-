@@ -20,15 +20,12 @@
 
   <!-- 导航栏 -->
   <div class="nav-bar">
-    <button onclick="toggleDrawer()">☰</button>
+    <button class="nav-back" onclick="toggleDrawer()">☰</button>
     <div class="nav-pills">
       <span class="active" onclick="switchNav(this,'chat')">创作</span>
       <span onclick="switchNav(this,'studio')">工作室</span>
-      <span onclick="switchNav(this,'plugin')">插件</span>
-      <span onclick="switchNav(this,'collab')">协作</span>
-      <span onclick="switchNav(this,'project')">项目</span>
     </div>
-    <button onclick="toggleStudio()">⚙</button>
+    <button class="nav-menu" onclick="toggleStudio()">⚙</button>
   </div>
 
   <!-- 遮罩 -->
@@ -128,9 +125,17 @@
     <div class="input-box">
       <input type="text" id="chatInput" placeholder="" onkeydown="if(event.key==='Enter')sendChat()">
       <span class="hint" id="inputHint">发消息或按住说话...</span>
+      <span class="input-model-tag">青鸾 Auto Model</span>
     </div>
     <button class="input-voice" id="voiceBtn" onclick="toggleVoiceInput()" title="语音输入">🎙</button>
     <button class="input-send" onclick="sendChat()">➤</button>
+  </div>
+
+  <!-- 系统底部导航栏 -->
+  <div class="system-nav">
+    <button class="system-nav-btn" onclick="toggleDrawer()">☰</button>
+    <button class="system-nav-btn" onclick="switchNav(document.querySelector('.nav-pills span.active'),'chat')">⌂</button>
+    <button class="system-nav-btn" onclick="history.back()">↩</button>
   </div>
 
   <!-- 工作室面板（隐藏的高级功能） -->

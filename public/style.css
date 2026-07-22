@@ -1,16 +1,17 @@
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   :root {
-    --phone-bg: #fafafa;
+    --phone-bg: #f5f5f0;
     --text: #1a1a1a;
-    --text2: #666;
-    --text3: #999;
+    --text2: #555;
+    --text3: #888;
     --accent: #5b4dff;
     --accent2: #ff6b9d;
     --bubble-user: #5b4dff;
     --bubble-ai: #f0f0f5;
     --card-bg: #fff;
     --border: rgba(0,0,0,0.06);
-    --pink-bg: #f5e6e0;
+    --pink-bg: #f5f5f0;
+    --black-card: #1a1a1a;
   }
 
   body {
@@ -34,7 +35,7 @@
     box-shadow:
       0 25px 60px rgba(0,0,0,0.12),
       0 0 0 8px #fff inset,
-      0 0 0 10px #e8d5cd inset;
+      0 0 0 10px #e8e4dc inset;
     position: relative;
     overflow: hidden;
     display: flex;
@@ -67,31 +68,67 @@
   .status-bar .battery::after { content:''; position:absolute; right:-3px; width:2px; height:5px; background:var(--text); border-radius:0 1px 1px 0; }
   .status-bar .battery i { display:block; height:100%; width:60%; background:var(--text); border-radius:1px; }
 
-  /* 导航栏 */
+  /* 导航栏 - TRAE 风格胶囊 */
   .nav-bar {
-    height: 48px;
+    height: 52px;
     padding: 0 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
     position: relative;
+    background: transparent;
   }
-  .nav-bar button {
+  .nav-back {
     background: none;
     border: none;
-    font-size: 20px;
+    font-size: 22px;
     color: var(--text);
     cursor: pointer;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background 0.2s;
   }
-  .nav-bar button:active { background: rgba(0,0,0,0.05); }
+  .nav-back:active { background: rgba(0,0,0,0.05); }
+  .nav-pills {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    background: rgba(0,0,0,0.06);
+    border-radius: 24px;
+    padding: 3px;
+    gap: 3px;
+  }
+  .nav-pills span {
+    padding: 7px 20px;
+    border-radius: 21px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .nav-pills span.active { background: #fff; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .nav-menu {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--text);
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nav-menu:active { background: rgba(0,0,0,0.05); }
+
   .nav-bar button, .input-plus, .input-voice, .input-send, .drawer-header button, .studio-header button {
     min-height: 44px;
     min-width: 44px;
@@ -100,34 +137,7 @@
   .quick-btn, .func-card button, .s-btn, .s-btn-small, .drawer-footer button {
     touch-action: manipulation;
   }
-  .s-btn-small {
-    min-height: 36px;
-    min-width: 36px;
-  }
-  .nav-title {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 1px;
-  }
-  .nav-pills {
-    display: flex;
-    background: rgba(0,0,0,0.05);
-    border-radius: 20px;
-    padding: 3px;
-    gap: 3px;
-  }
-  .nav-pills span {
-    padding: 5px 16px;
-    border-radius: 17px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text2);
-    cursor: pointer;
-  }
-  .nav-pills span.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .s-btn-small { min-height: 36px; min-width: 36px; }
 
   /* 主内容区 */
   .main {
@@ -157,19 +167,19 @@
     left: 0;
     top: 0;
     bottom: 0;
-    width: 280px;
+    width: 300px;
     background: #fff;
     z-index: 100;
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
     display: flex;
     flex-direction: column;
-    border-radius: 0 20px 20px 0;
-    box-shadow: 4px 0 20px rgba(0,0,0,0.08);
+    border-radius: 0 24px 24px 0;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.1);
   }
   .drawer.open { transform: translateX(0); }
   .drawer-header {
-    padding: 20px 16px 12px;
+    padding: 24px 20px 16px;
     font-size: 20px;
     font-weight: 800;
     display: flex;
@@ -179,16 +189,17 @@
   .drawer-header button {
     background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text2);
   }
-  .drawer-list { flex: 1; overflow-y: auto; padding: 0 12px 12px; }
+  .drawer-list { flex: 1; overflow-y: auto; padding: 0 14px 14px; }
   .session-item {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px;
-    border-radius: 14px;
+    padding: 14px;
+    border-radius: 16px;
     cursor: pointer;
     transition: background 0.15s;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
+    background: #fafafa;
   }
   .session-item:active, .session-item.active { background: rgba(91,77,255,0.08); }
   .session-avatar {
@@ -202,12 +213,12 @@
   .session-preview { font-size: 12px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
   .session-time { font-size: 11px; color: var(--text3); flex-shrink: 0; }
   .drawer-footer {
-    padding: 12px;
+    padding: 14px;
     border-top: 1px solid var(--border);
   }
   .drawer-footer button {
-    width: 100%; padding: 12px; border-radius: 12px; border: none;
-    background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+    width: 100%; padding: 14px; border-radius: 14px; border: none;
+    background: var(--black-card); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
   }
 
   /* 聊天列表 */
@@ -221,26 +232,26 @@
 
   /* 欢迎消息 */
   .welcome {
-    padding: 24px 8px 8px;
+    padding: 32px 8px 16px;
   }
   .welcome h1 {
-    font-size: 36px;
+    font-size: 38px;
     font-weight: 800;
-    line-height: 1.2;
-    letter-spacing: -0.5px;
+    line-height: 1.15;
+    letter-spacing: -0.8px;
   }
   .welcome p {
-    font-size: 36px;
+    font-size: 38px;
     font-weight: 800;
-    line-height: 1.2;
-    margin-top: 4px;
+    line-height: 1.15;
+    margin-top: 6px;
     color: var(--text);
   }
   .welcome .sub {
     font-size: 14px;
     color: var(--text2);
     font-weight: 400;
-    margin-top: 16px;
+    margin-top: 18px;
     line-height: 1.6;
   }
 
@@ -280,22 +291,29 @@
     text-align: right;
   }
 
-  /* 功能卡片（聊天中的可交互卡片） */
+  /* 功能卡片（黑色圆角，中心白色） */
   .func-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 14px;
+    background: var(--black-card);
+    border-radius: 20px;
+    padding: 16px;
     margin-top: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    color: #fff;
+  }
+  .func-card-inner {
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px;
+    color: var(--text);
+    margin-top: 10px;
   }
   .func-card h4 {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
-    margin-bottom: 10px;
+    margin-bottom: 0;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    color: #fff;
   }
   .func-card .form-row {
     display: flex;
@@ -353,46 +371,39 @@
   }
   .func-card .result-mini:empty { display: none; }
 
-  /* 快捷操作网格 */
+  /* 快捷操作网格 - 黑色卡片 */
   .quick-actions {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
     padding: 0 16px 16px;
   }
   .quick-btn {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 6px;
-    padding: 14px 4px;
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    background: var(--card-bg);
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: var(--black-card);
+    color: #fff;
     cursor: pointer;
     transition: transform 0.1s, box-shadow 0.2s;
-    font-size: 11px;
-    color: var(--text);
+    font-size: 13px;
     font-weight: 600;
+    border: none;
   }
-  .quick-btn:active { transform: scale(0.96); }
+  .quick-btn:active { transform: scale(0.97); }
   .quick-btn .icon {
     width: 36px; height: 36px; border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
     font-size: 18px;
+    background: rgba(255,255,255,0.15);
   }
-  .quick-btn:nth-child(1) .icon { background: rgba(91,77,255,0.1); }
-  .quick-btn:nth-child(2) .icon { background: rgba(255,107,157,0.1); }
-  .quick-btn:nth-child(3) .icon { background: rgba(255,180,0,0.1); }
-  .quick-btn:nth-child(4) .icon { background: rgba(0,200,150,0.1); }
-  .quick-btn:nth-child(5) .icon { background: rgba(0,150,255,0.1); }
-  .quick-btn:nth-child(6) .icon { background: rgba(150,80,255,0.1); }
-  .quick-btn:nth-child(7) .icon { background: rgba(255,100,80,0.1); }
-  .quick-btn:nth-child(8) .icon { background: rgba(80,180,255,0.1); }
 
-  /* 底部输入栏 */
+  /* 底部输入栏 - TRAE 风格 */
   .input-bar {
-    padding: 10px 16px 24px;
+    padding: 10px 16px 28px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -403,31 +414,57 @@
   .input-plus {
     width: 32px; height: 32px; border-radius: 50%;
     border: 1.5px solid var(--border);
-    background: none; font-size: 18px; color: var(--text2);
+    background: #fff; font-size: 18px; color: var(--text2);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
+    flex-shrink: 0;
   }
   .input-box {
     flex: 1;
     position: relative;
+    background: #ebebe6;
+    border-radius: 22px;
+    display: flex;
+    align-items: center;
+    padding: 4px 6px 4px 14px;
+    gap: 6px;
   }
   .input-box input {
-    width: 100%; padding: 10px 14px; border-radius: 20px;
-    border: 1.5px solid var(--border); background: #fff;
-    font-size: 14px; outline: none; font-family: inherit;
+    flex: 1;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+    color: var(--text);
   }
   .input-box .hint {
     position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
     color: var(--text3); font-size: 14px; pointer-events: none;
   }
+  .input-model-tag {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    border-radius: 14px;
+    background: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text2);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
   .input-voice {
-    width: 36px; height: 36px; border-radius: 50%;
-    border: none; background: #f0f0f5; font-size: 16px;
+    width: 34px; height: 34px; border-radius: 50%;
+    border: none; background: #fff; font-size: 16px;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
   .input-send {
     width: 36px; height: 36px; border-radius: 50%;
     border: none; background: var(--accent); color: #fff;
     font-size: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    flex-shrink: 0;
   }
   .input-send:active { opacity: 0.85; }
 
@@ -508,6 +545,30 @@
     border-top: 1px solid var(--border);
   }
 
+  /* 系统底部导航栏 */
+  .system-nav {
+    height: 44px;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .system-nav-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: var(--text2);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
   /* 工作室面板（隐藏的高级功能） */
   .studio {
     position: absolute;
@@ -556,9 +617,9 @@
     transition: all 0.2s;
   }
   .studio-tab.active {
-    background: var(--accent);
+    background: var(--black-card);
     color: #fff;
-    border-color: var(--accent);
+    border-color: var(--black-card);
   }
   .studio-body {
     flex: 1;
@@ -572,16 +633,23 @@
 
   /* 工作室卡片 */
   .s-card {
+    background: var(--black-card);
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 12px;
+    color: #fff;
+  }
+  .s-card-inner {
     background: #fff;
-    border: 1px solid var(--border);
     border-radius: 14px;
     padding: 14px;
-    margin-bottom: 12px;
+    margin-top: 10px;
+    color: var(--text);
   }
   .s-card h3 {
     font-size: 14px;
-    color: var(--accent);
-    margin-bottom: 10px;
+    color: #fff;
+    margin-bottom: 0;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -601,7 +669,7 @@
   .s-btn:active { opacity: 0.9; }
   .s-btn-small {
     padding: 6px 12px; font-size: 11px; width: auto; display: inline-block;
-    margin: 4px 4px 0 0; background: rgba(91,77,255,0.1); color: var(--accent);
+    margin: 4px 4px 0 0; background: rgba(255,255,255,0.15); color: #fff;
     border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
   }
   .s-result {
@@ -673,14 +741,14 @@
   @media (max-width: 480px) {
     .viz-grid { grid-template-columns: 1fr; }
     .viz-grid canvas { height: 130px; }
-    .func-card { padding: 10px; }
+    .func-card { padding: 12px; }
     .func-card h4 { font-size: 13px; }
     .msg-bubble { font-size: 13px; padding: 8px 12px; }
     .welcome h1, .welcome p { font-size: 28px; }
-    .s-card { padding: 10px; }
+    .s-card { padding: 12px; }
     .chat-list { padding: 10px; }
     .quick-actions { padding: 0 10px 10px; gap: 8px; }
-    .quick-btn { padding: 10px 2px; font-size: 10px; }
+    .quick-btn { padding: 12px 14px; font-size: 12px; }
     .input-bar { padding: 8px 10px 20px; }
     .studio-body { padding: 8px; }
   }
@@ -725,7 +793,7 @@
   /* 教育面板 */
   .edu-tabs { display: flex; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
   .edu-tabs span { padding: 6px 14px; border-radius: 14px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; background: rgba(0,0,0,0.04); }
-  .edu-tabs span.active { background: var(--accent); color: #fff; }
+  .edu-tabs span.active { background: var(--black-card); color: #fff; }
   .edu-section { display: none; padding: 12px 16px; }
   .edu-section.active { display: block; }
   .edu-gamebar { display: flex; gap: 16px; margin-bottom: 10px; font-size: 13px; color: var(--text2); }
