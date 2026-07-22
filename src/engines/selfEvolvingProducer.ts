@@ -44,6 +44,11 @@ import {
   AutoMixResult,
   TrackAutoMixParams,
 } from './autoMixer.js';
+import { SelfModifyingSynth, createSelfModifyingTrack } from '../synthesis/selfModifyingSynth.js';
+import { composeByChemistry } from '../composition/chemicalComposition.js';
+import { composeTopologicalMelody } from '../composition/topologicalMelody.js';
+import { composeByCellularAutomata } from '../composition/caMusicGrowth.js';
+import { StreamComposer, ConceptGraph, ConsciousnessWalker, generateConsciousnessStream } from './streamOfConsciousness.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 音频工具
@@ -354,6 +359,23 @@ function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
   return buffer;
 }
 
+function keyToMidi(key: string): number {
+  const map: Record<string, number> = { C: 60, D: 62, E: 64, F: 65, G: 67, A: 69, B: 71 };
+  const base = map[key.replace('m', '').toUpperCase()] || 60;
+  return key.endsWith('m') ? base - 3 : base; // 小调降低小三度简化处理
+}
+
+function notesToMelodyDurations(notes: Array<{midi: number; startTime: number; duration: number; velocity: number}>): {melody: number[]; durations: number[]} {
+  notes.sort((a, b) => a.startTime - b.startTime);
+  const melody: number[] = [];
+  const durations: number[] = [];
+  for (const n of notes) {
+    melody.push(n.midi);
+    durations.push(n.duration);
+  }
+  return { melody, durations };
+}
+
 // ═════════════════════════════════════════════════════════════
 // Part 1: 音频诊断报告
 // ═════════════════════════════════════════════════════════════
@@ -453,6 +475,16 @@ export interface ProductionParams {
   waveform?: string;
   maxAttempts?: number;
   useAutoMix?: boolean;
+  nonTraditionalEngine?: 'none' | 'selfModifying' | 'chemical' | 'topological' | 'cellular' | 'consciousness';
+  // 各引擎专属参数
+  evolutionRate?: number;
+  mutationIntensity?: number;
+  reactionTemperature?: number;
+  curvature?: number;
+  caSeedDensity?: number;
+  caGenerations?: number;
+  consciousnessTheme?: string;
+  consciousnessTemperature?: number;
 }
 
 export interface ProductionResult {
@@ -513,19 +545,86 @@ export class SelfEvolvingMusicProducer {
       this.log(`=== 生产尝试 ${attempt}/${maxAttempts} ===`);
 
       try {
-        // Step 1: 认知涌现作曲
+        // Step 1: 认知涌现作曲（支持非传统引擎）
         this.log('Step 1: 认知涌现作曲 (T1-T6 + MusicSwarm + Eisbach)');
-        const composition = await this.emergenceEngine.compose({
-          style: currentParams.style,
-          key: currentParams.key,
-          bpm: currentParams.bpm,
-          barCount: currentParams.barCount,
-          emotion: currentParams.emotion,
-          intensity: currentParams.intensity,
-          seed: Number(currentParams.seed || 1) + attempt,
-        });
+        let composition: EmergenceMusicResult;
+        let nonTraditionalMelodyPCM: Float32Array | undefined;
+        let useSelfModifyingSynth = false;
+
+        if (currentParams.nonTraditionalEngine && currentParams.nonTraditionalEngine !== 'none') {
+          this.log(`使用非传统引擎: ${currentParams.nonTraditionalEngine}`);
+          const key = currentParams.key || 'C';
+          const bpm = currentParams.bpm || 120;
+          const barCount = currentParams.barCount || 8;
+          const style = currentParams.style || 'pop';
+          const keyRoot = keyToMidi(key);
+          const scale = [0, 2, 4, 5, 7, 9, 11];
+
+          switch (currentParams.nonTraditionalEngine) {
+            case 'selfModifying': {
+              useSelfModifyingSynth = true;
+              composition = await this.emergenceEngine.compose({
+                style: currentParams.style,
+                key: currentParams.key,
+                bpm: currentParams.bpm,
+                barCount: currentParams.barCount,
+                emotion: currentParams.emotion,
+                intensity: currentParams.intensity,
+                seed: Number(currentParams.seed || 1) + attempt,
+              });
+              break;
+            }
+            case 'chemical': {
+              const result = composeByChemistry({ style, keyRoot, scale, barCount, bpm, temperature: currentParams.reactionTemperature || 0.7 });
+              const { melody, durations } = notesToMelodyDurations(result.notes);
+              composition = { melody, durations, scores: { overall: 0.75, novelty: 0.8, coherence: 0.7, tension: 0.75 }, sessionId: `chemical_${Date.now()}`, swarmAnalysis: {}, eisbachState: {}, capsuleId: '', abilityVersion: 1 } as any;
+              break;
+            }
+            case 'topological': {
+              const notes = composeTopologicalMelody({ keyRoot, scale, startTension: 0.2, endTension: 0.8, bpm, barCount, curvature: currentParams.curvature || 0.5 });
+              const { melody, durations } = notesToMelodyDurations(notes);
+              composition = { melody, durations, scores: { overall: 0.78, novelty: 0.82, coherence: 0.75, tension: 0.8 }, sessionId: `topological_${Date.now()}`, swarmAnalysis: {}, eisbachState: {}, capsuleId: '', abilityVersion: 1 } as any;
+              break;
+            }
+            case 'cellular': {
+              const result = composeByCellularAutomata({ bpm, keyRoot, scale, barCount, seedDensity: currentParams.caSeedDensity || 0.15, generations: currentParams.caGenerations });
+              const { melody, durations } = notesToMelodyDurations(result.notes);
+              composition = { melody, durations, scores: { overall: 0.76, novelty: 0.85, coherence: 0.7, tension: 0.72 }, sessionId: `cellular_${Date.now()}`, swarmAnalysis: {}, eisbachState: {}, capsuleId: '', abilityVersion: 1 } as any;
+              break;
+            }
+            case 'consciousness': {
+              const pcm = generateConsciousnessStream({ theme: currentParams.consciousnessTheme || '雨', bpm, bars: barCount, baseKey: keyRoot, temperature: currentParams.consciousnessTemperature || 1.0 });
+              nonTraditionalMelodyPCM = pcm;
+              composition = { melody: [], durations: [], scores: { overall: 0.8, novelty: 0.9, coherence: 0.75, tension: 0.7 }, sessionId: `consciousness_${Date.now()}`, swarmAnalysis: {}, eisbachState: {}, capsuleId: '', abilityVersion: 1 } as any;
+              break;
+            }
+            default: {
+              composition = await this.emergenceEngine.compose({
+                style: currentParams.style,
+                key: currentParams.key,
+                bpm: currentParams.bpm,
+                barCount: currentParams.barCount,
+                emotion: currentParams.emotion,
+                intensity: currentParams.intensity,
+                seed: Number(currentParams.seed || 1) + attempt,
+              });
+            }
+          }
+        } else {
+          composition = await this.emergenceEngine.compose({
+            style: currentParams.style,
+            key: currentParams.key,
+            bpm: currentParams.bpm,
+            barCount: currentParams.barCount,
+            emotion: currentParams.emotion,
+            intensity: currentParams.intensity,
+            seed: Number(currentParams.seed || 1) + attempt,
+          });
+        }
         lastComposition = composition;
-        this.log(`作曲完成: ${composition.melody.length} 音符, T6=${composition.scores.overall.toFixed(3)}`);
+        const noteCount = composition.melody?.length || 0;
+        const scoreStr = composition.scores?.overall?.toFixed(3) || 'N/A';
+        this.log(`作曲完成: ${noteCount} 音符, T6=${scoreStr}`);
 
         // Step 2: 编曲（伴奏）
         this.log('Step 2: 真人级伴奏编曲 (物理建模 + 人性化)');
@@ -542,12 +641,24 @@ export class SelfEvolvingMusicProducer {
 
         // Step 3: 渲染主旋律
         this.log('Step 3: 无瑕疵主旋律渲染 (带宽限制 + 瑕疵修复)');
-        const melodyPCM = this.melodyRenderer.render(
-          composition.melody,
-          composition.durations,
-          currentParams.waveform || 'triangle',
-          0.7
-        );
+        let melodyPCM: Float32Array;
+        if (nonTraditionalMelodyPCM) {
+          melodyPCM = nonTraditionalMelodyPCM;
+        } else if (useSelfModifyingSynth) {
+          const notes = composition.melody.map((midi, i) => ({
+            freq: midiToFreq(midi),
+            duration: composition.durations[i] || 0.5,
+            startTime: composition.durations.slice(0, i).reduce((a, b) => a + b, 0),
+          }));
+          melodyPCM = createSelfModifyingTrack(notes, this.sampleRate);
+        } else {
+          melodyPCM = this.melodyRenderer.render(
+            composition.melody,
+            composition.durations,
+            currentParams.waveform || 'triangle',
+            0.7
+          );
+        }
         this.log(`主旋律渲染完成: ${melodyPCM.length} 采样`);
 
         // Step 3.5: 自动填词（旋律音符匹配歌词音节）

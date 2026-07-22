@@ -912,6 +912,7 @@
       <div class="studio-tab" data-sp="s-collab">协作</div>
       <div class="studio-tab" data-sp="s-project">项目</div>
       <div class="studio-tab" data-sp="s-edu">教育</div>
+      <div class="studio-tab" data-sp="s-nontraditional">🌀 非传统</div>
     </div>
     <div class="studio-body">
 
@@ -1473,6 +1474,99 @@
             <button class="s-btn-small" onclick="eduLoadLeaderboard()">刷新</button>
             <div id="eduLeaderboard" style="margin-top:8px;font-size:13px;"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- 非传统引擎 -->
+      <div class="studio-panel" id="s-nontraditional">
+        <div class="s-card">
+          <h3>🌀 五大非传统音乐引擎</h3>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">真正非传统的作曲方法：自修改合成、化学反应、拓扑流形、细胞自动机、意识流关联</p>
+          <div class="s-form"><label>选择引擎</label><select id="ntEngine" onchange="toggleNtPanel()">
+            <option value="selfmodifying">🔄 自修改合成器</option>
+            <option value="chemical">⚗️ 化学反应式编曲</option>
+            <option value="topological">🌐 拓扑旋律流形</option>
+            <option value="cellular">🧬 细胞自动机音乐生长</option>
+            <option value="consciousness">🌊 意识流关联引擎</option>
+          </select></div>
+          
+          <!-- 自修改合成器参数 -->
+          <div id="ntSelfModifying">
+            <div class="s-form"><label>基础频率 (Hz)</label><input type="number" id="smFreq" value="440" min="50" max="2000"></div>
+            <div class="s-form"><label>时长 (秒)</label><input type="number" id="smDuration" value="3" min="1" max="10" step="0.5"></div>
+            <div class="s-form"><label>演化速率 (次/秒)</label><input type="number" id="smRate" value="4" min="1" max="20"></div>
+            <div class="s-form"><label>突变强度</label><input type="number" id="smIntensity" value="0.3" min="0" max="1" step="0.1"></div>
+          </div>
+          
+          <!-- 化学反应参数 -->
+          <div id="ntChemical" style="display:none">
+            <div class="s-form"><label>风格</label><select id="chemStyle"><option value="pop">流行</option><option value="jazz">爵士</option><option value="classical">古典</option><option value="electronic">电子</option></select></div>
+            <div class="s-form"><label>调性</label><select id="chemKey"><option value="C">C</option><option value="G">G</option><option value="Am">Am</option><option value="F">F</option></select></div>
+            <div class="s-form"><label>小节数</label><input type="number" id="chemBars" value="8" min="4" max="16"></div>
+            <div class="s-form"><label>BPM</label><input type="number" id="chemBpm" value="120" min="40" max="240"></div>
+            <div class="s-form"><label>反应温度</label><input type="number" id="chemTemp" value="0.7" min="0.1" max="2" step="0.1"></div>
+          </div>
+          
+          <!-- 拓扑旋律参数 -->
+          <div id="ntTopological" style="display:none">
+            <div class="s-form"><label>调性</label><select id="topoKey"><option value="C">C大调</option><option value="Am">A小调</option><option value="G">G大调</option><option value="F">F大调</option></select></div>
+            <div class="s-form"><label>小节数</label><input type="number" id="topoBars" value="8" min="4" max="16"></div>
+            <div class="s-form"><label>BPM</label><input type="number" id="topoBpm" value="100" min="40" max="240"></div>
+            <div class="s-form"><label>流形曲率</label><input type="number" id="topoCurve" value="0.5" min="0" max="2" step="0.1"></div>
+          </div>
+          
+          <!-- 细胞自动机参数 -->
+          <div id="ntCellular" style="display:none">
+            <div class="s-form"><label>调性</label><select id="caKey"><option value="C">C</option><option value="G">G</option><option value="Am">Am</option><option value="F">F</option></select></div>
+            <div class="s-form"><label>小节数</label><input type="number" id="caBars" value="8" min="4" max="16"></div>
+            <div class="s-form"><label>BPM</label><input type="number" id="caBpm" value="110" min="40" max="240"></div>
+            <div class="s-form"><label>种子密度</label><input type="number" id="caSeed" value="0.15" min="0.05" max="0.5" step="0.05"></div>
+            <div class="s-form"><label>演化代数</label><input type="number" id="caGen" value="32" min="8" max="128"></div>
+          </div>
+          
+          <!-- 意识流参数 -->
+          <div id="ntConsciousness" style="display:none">
+            <div class="s-form"><label>起始主题</label><select id="scTheme">
+              <option value="雨">雨</option>
+              <option value="大海">大海</option>
+              <option value="风">风</option>
+              <option value="蓝色">蓝色</option>
+              <option value="离别">离别</option>
+              <option value="喜悦">喜悦</option>
+              <option value="孤独">孤独</option>
+              <option value="梦境">梦境</option>
+              <option value="故乡">故乡</option>
+              <option value="火焰">火焰</option>
+            </select></div>
+            <div class="s-form"><label>BPM</label><input type="number" id="scBpm" value="90" min="40" max="240"></div>
+            <div class="s-form"><label>小节数</label><input type="number" id="scBars" value="8" min="4" max="16"></div>
+            <div class="s-form"><label>随机温度</label><input type="number" id="scTemp" value="1.0" min="0.1" max="3" step="0.1"></div>
+          </div>
+          
+          <button class="s-btn" onclick="runNonTraditional()">🚀 启动非传统引擎</button>
+          <div class="s-loading" id="ntLoading"><span>非传统引擎运行中...</span></div>
+          <div id="ntPlayer"></div>
+          <pre class="s-result" id="ntResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
+        </div>
+        
+        <div class="s-card">
+          <h3>🔮 非传统生产线</h3>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">将非传统引擎嵌入完整生产流水线，生成带母带/歌词/指纹的完整歌曲</p>
+          <div class="s-form"><label>引擎</label><select id="ntProdEngine">
+            <option value="selfModifying">自修改合成器</option>
+            <option value="chemical">化学反应式编曲</option>
+            <option value="topological">拓扑旋律流形</option>
+            <option value="cellular">细胞自动机音乐生长</option>
+            <option value="consciousness">意识流关联引擎</option>
+          </select></div>
+          <div class="s-form"><label>风格</label><select id="ntProdStyle"><option value="pop">流行</option><option value="classical">古典</option><option value="electronic">电子</option><option value="chinese">中国风</option></select></div>
+          <div class="s-form"><label>调性</label><select id="ntProdKey"><option value="C">C</option><option value="G">G</option><option value="Am">Am</option><option value="F">F</option></select></div>
+          <div class="s-form"><label>BPM</label><input type="number" id="ntProdBpm" value="120" min="40" max="240"></div>
+          <div class="s-form"><label>小节数</label><input type="number" id="ntProdBars" value="8" min="4" max="16"></div>
+          <button class="s-btn" onclick="runNtProduction()">🚀 非传统完整生产</button>
+          <div class="s-loading" id="ntProdLoading"><span>非传统生产线运行中...</span></div>
+          <div id="ntProdPlayer"></div>
+          <pre class="s-result" id="ntProdResult" style="white-space:pre-wrap;font-family:inherit;"></pre>
         </div>
       </div>
 
@@ -5373,6 +5467,99 @@ function eduGameDrawSpectrum() {
 
 /* 初始化虚拟钢琴 */
 eduBuildPiano();
+
+// 非传统引擎面板切换
+function toggleNtPanel() {
+  const engine = document.getElementById('ntEngine').value;
+  const map = { selfmodifying: 'ntSelfModifying', chemical: 'ntChemical', topological: 'ntTopological', cellular: 'ntCellular', consciousness: 'ntConsciousness' };
+  ['ntSelfModifying','ntChemical','ntTopological','ntCellular','ntConsciousness'].forEach(id => {
+    document.getElementById(id).style.display = id === map[engine] ? 'block' : 'none';
+  });
+}
+
+// 运行单个非传统引擎
+async function runNonTraditional() {
+  const engine = document.getElementById('ntEngine').value;
+  const loading = document.getElementById('ntLoading');
+  const resultEl = document.getElementById('ntResult');
+  const playerEl = document.getElementById('ntPlayer');
+  loading.style.display = 'flex';
+  resultEl.textContent = '';
+  playerEl.innerHTML = '';
+  
+  try {
+    let endpoint = '/api/engine/' + engine;
+    let body = {};
+    
+    if (engine === 'selfmodifying') {
+      body = { freq: +document.getElementById('smFreq').value, duration: +document.getElementById('smDuration').value, evolutionRate: +document.getElementById('smRate').value, mutationIntensity: +document.getElementById('smIntensity').value };
+    } else if (engine === 'chemical') {
+      const key = document.getElementById('chemKey').value;
+      const keyMap = {C:60,G:67,Am:69,F:65}; // 简化映射
+      body = { style: document.getElementById('chemStyle').value, keyRoot: keyMap[key]||60, barCount: +document.getElementById('chemBars').value, bpm: +document.getElementById('chemBpm').value, temperature: +document.getElementById('chemTemp').value };
+    } else if (engine === 'topological') {
+      const key = document.getElementById('topoKey').value;
+      const keyMap = {C:60,Am:69,G:67,F:65};
+      body = { keyRoot: keyMap[key]||60, barCount: +document.getElementById('topoBars').value, bpm: +document.getElementById('topoBpm').value, curvature: +document.getElementById('topoCurve').value };
+    } else if (engine === 'cellular') {
+      const key = document.getElementById('caKey').value;
+      const keyMap = {C:60,G:67,Am:69,F:65};
+      body = { keyRoot: keyMap[key]||60, barCount: +document.getElementById('caBars').value, bpm: +document.getElementById('caBpm').value, seedDensity: +document.getElementById('caSeed').value, generations: +document.getElementById('caGen').value };
+    } else if (engine === 'consciousness') {
+      body = { theme: document.getElementById('scTheme').value, bpm: +document.getElementById('scBpm').value, bars: +document.getElementById('scBars').value, temperature: +document.getElementById('scTemp').value };
+    }
+    
+    const res = await fetch(endpoint, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    if (data.wavBase64) {
+      playerEl.innerHTML = '<audio controls style="width:100%;margin-top:8px;" src="data:audio/wav;base64,' + data.wavBase64 + '"></audio>';
+    }
+    resultEl.textContent = JSON.stringify(data, null, 2).replace(/wavBase64.*\n/g, '');
+  } catch (e) {
+    resultEl.textContent = '错误: ' + e.message;
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+// 非传统生产线（调用 /api/produce）
+async function runNtProduction() {
+  const engine = document.getElementById('ntProdEngine').value;
+  const loading = document.getElementById('ntProdLoading');
+  const resultEl = document.getElementById('ntProdResult');
+  const playerEl = document.getElementById('ntProdPlayer');
+  loading.style.display = 'flex';
+  resultEl.textContent = '';
+  playerEl.innerHTML = '';
+  
+  try {
+    const key = document.getElementById('ntProdKey').value;
+    const body = {
+      style: document.getElementById('ntProdStyle').value,
+      key: key,
+      bpm: +document.getElementById('ntProdBpm').value,
+      barCount: +document.getElementById('ntProdBars').value,
+      nonTraditionalEngine: engine,
+      emotion: 'happy',
+      useAutoMix: true,
+    };
+    
+    const res = await fetch('/api/produce', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    if (data.wavBase64) {
+      playerEl.innerHTML = '<audio controls style="width:100%;margin-top:8px;" src="data:audio/wav;base64,' + data.wavBase64 + '"></audio>';
+    }
+    resultEl.textContent = JSON.stringify(data, null, 2).replace(/wavBase64.*\n/g, '');
+  } catch (e) {
+    resultEl.textContent = '错误: ' + e.message;
+  } finally {
+    loading.style.display = 'none';
+  }
+}
 </script>
 
 </body>

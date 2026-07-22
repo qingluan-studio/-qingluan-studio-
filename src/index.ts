@@ -70,6 +70,11 @@ import {
   PluginCodePayload,
 } from './plugin/pluginSystem.js';
 import type { ScaleType, ChordType } from './engines/musicTheory.js';
+import { SelfModifyingSynth, createSelfModifyingTrack } from './synthesis/selfModifyingSynth.js';
+import { composeByChemistry } from './composition/chemicalComposition.js';
+import { composeTopologicalMelody } from './composition/topologicalMelody.js';
+import { composeByCellularAutomata } from './composition/caMusicGrowth.js';
+import { StreamComposer, ConceptGraph, ConsciousnessWalker, generateConsciousnessStream } from './engines/streamOfConsciousness.js';
 
 const app = new Hono();
 const projectStore = new Map<string, QingluanProject>();
@@ -97,7 +102,7 @@ app.get('/api/health', (c) => {
     status: 'ok',
     name: '青鸾数字音频工作站',
     version: '2.0.0',
-    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint'],
+    modules: ['musicTheory', 'aiComposer', 'vocalSynthesis', 'realisticVoice', 'audioEffects', 'visualization', 'cognitiveEmergenceMusic', 'selfEvolvingProducer', 'audioFingerprint', 'selfModifyingSynth', 'chemicalComposition', 'topologicalMelody', 'caMusicGrowth', 'streamOfConsciousness'],
   });
 });
 
@@ -1094,6 +1099,80 @@ app.post('/api/produce', async (c) => {
 
 app.get('/api/produce/status', (c) => {
   return c.json(producer.getEvolutionReport());
+});
+
+// ======== 非传统引擎独立 API ========
+
+function pcmToWav(pcm: Float32Array, sampleRate: number): ArrayBuffer {
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const dataSize = pcm.length * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeString = (offset: number, str: string) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+  writeString(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeString(8, 'WAVE'); writeString(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * bytesPerSample, true); view.setUint16(32, bytesPerSample, true); view.setUint16(34, bitsPerSample, true); writeString(36, 'data'); view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let i = 0; i < pcm.length; i++) { const s = Math.max(-1, Math.min(1, pcm[i])); view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true); offset += 2; }
+  return buffer;
+}
+
+app.post('/api/engine/selfmodifying', async (c) => {
+  const body = await c.req.json<{freq?: number; duration?: number; evolutionRate?: number; mutationIntensity?: number; notes?: Array<{freq: number; duration: number; startTime: number}>}>();
+  try {
+    if (body.notes && body.notes.length > 0) {
+      const pcm = createSelfModifyingTrack(body.notes, 22050);
+      const wav = pcmToWav(pcm, 22050);
+      return c.json({ wavBase64: Buffer.from(wav).toString('base64'), duration: pcm.length / 22050 });
+    } else {
+      const synth = new SelfModifyingSynth(22050);
+      const pcm = synth.generate({ baseFreq: body.freq || 440, duration: body.duration || 2, evolutionRate: body.evolutionRate, mutationIntensity: body.mutationIntensity });
+      const wav = pcmToWav(pcm, 22050);
+      return c.json({ wavBase64: Buffer.from(wav).toString('base64'), history: synth.getEvolutionHistory(), duration: pcm.length / 22050 });
+    }
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/engine/chemical', async (c) => {
+  const body = await c.req.json<{style?: string; keyRoot?: number; scale?: number[]; barCount?: number; bpm?: number; temperature?: number}>();
+  try {
+    const result = composeByChemistry({ style: body.style || 'pop', keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 8, bpm: body.bpm || 120, temperature: body.temperature ?? 0.7 });
+    return c.json({ notes: result.notes, reactionLog: result.reactionLog });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/engine/topological', async (c) => {
+  const body = await c.req.json<{keyRoot?: number; scale?: number[]; barCount?: number; bpm?: number; curvature?: number}>();
+  try {
+    const notes = composeTopologicalMelody({ keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 8, bpm: body.bpm || 120, curvature: body.curvature ?? 0.5 });
+    return c.json({ notes });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/engine/cellular', async (c) => {
+  const body = await c.req.json<{bpm?: number; keyRoot?: number; scale?: number[]; barCount?: number; seedDensity?: number; generations?: number}>();
+  try {
+    const result = composeByCellularAutomata({ bpm: body.bpm || 120, keyRoot: body.keyRoot || 60, scale: body.scale || [0,2,4,5,7,9,11], barCount: body.barCount || 8, seedDensity: body.seedDensity ?? 0.15, generations: body.generations });
+    return c.json({ notes: result.notes, historyLength: result.history.length });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/engine/consciousness', async (c) => {
+  const body = await c.req.json<{theme?: string; bpm?: number; bars?: number; baseKey?: number; temperature?: number}>();
+  try {
+    const pcm = generateConsciousnessStream({ theme: body.theme || '雨', bpm: body.bpm || 90, bars: body.bars || 8, baseKey: body.baseKey || 60, temperature: body.temperature ?? 1.0 });
+    const wav = pcmToWav(pcm, 22050);
+    return c.json({ wavBase64: Buffer.from(wav).toString('base64'), duration: pcm.length / 22050 });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
 });
 
 // ======== 视频配乐 API ========
