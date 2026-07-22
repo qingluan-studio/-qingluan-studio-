@@ -19,7 +19,7 @@ import {
   AgentOrchestrator,
   SimpleAgent,
   InvariantScores,
-} from './cognitiveEngine';
+} from './cognitiveEngine.js';
 
 // ═════════════════════════════════════════════════════════════
 // Part 0: 公共工具
