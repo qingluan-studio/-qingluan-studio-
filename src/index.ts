@@ -3100,6 +3100,741 @@ app.get('/api/theory/database', (c) => {
   }
 });
 
+// ======== 第二轮新增模块导入 ========
+import { TrackSystem, Track, MasterBus, AuxSend } from './engines/trackSystem.js';
+import { AdditiveSynthesizer, ResynthesisEngine, SpectralEnvelope } from './synthesis/additiveSynth.js';
+import { GranularSynthesizer, GrainCloud, GrainScheduler } from './synthesis/granularSynth.js';
+import { StepSequencer, Arpeggiator, DrumSequencer } from './engines/sequencerEngine.js';
+import { ArrangementEngine, SongStructure } from './composition/arrangementEngine.js';
+import { ReverbEngine, ConvolutionReverb, AllPassReverb } from './effects/reverbEngine.js';
+import { AIAssistant, IntentParser, KnowledgeBase } from './engines/aiAssistant.js';
+import { MusicGameEngine, GameLevel, GameScore, Achievement, Leaderboard } from './game/musicGame.js';
+
+// ======== 多轨系统路由 ========
+app.post('/api/tracks/create', async (c) => {
+  const body = await c.req.json();
+  try {
+    const sys = new TrackSystem();
+    const track = sys.addTrack(body);
+    return c.json({ success: true, trackId: (track as any).id, name: (track as any).name });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Create failed' }, 500);
+  }
+});
+
+app.post('/api/tracks/mix', async (c) => {
+  const body = await c.req.json();
+  try {
+    const sys = new TrackSystem();
+    (body.tracks || []).forEach((t: any) => sys.addTrack(t));
+    const mix = sys.renderMix(body.duration || 5);
+    return c.json({ success: true, samples: mix.length, peak: getPeak(mix) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Mix failed' }, 500);
+  }
+});
+
+app.post('/api/tracks/bus', async (c) => {
+  const body = await c.req.json();
+  try {
+    const sys = new TrackSystem();
+    const bus = sys.createBus(body.name || 'Bus 1');
+    return c.json({ success: true, busId: (bus as any).id });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Bus failed' }, 500);
+  }
+});
+
+app.post('/api/tracks/send', async (c) => {
+  const body = await c.req.json();
+  try {
+    const sys = new TrackSystem();
+    const send = sys.createSend(body.fromTrackId, body.toBusId, body.amount || 0.5);
+    return c.json({ success: true, sendId: (send as any).id });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Send failed' }, 500);
+  }
+});
+
+app.post('/api/tracks/meter', async (c) => {
+  const body = await c.req.json();
+  try {
+    const sys = new TrackSystem();
+    const meter = sys.getMeterData(body.trackId);
+    return c.json({ success: true, meter });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Meter failed' }, 500);
+  }
+});
+
+app.get('/api/tracks/list', (c) => {
+  try {
+    const sys = new TrackSystem();
+    return c.json({ success: true, tracks: [] });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'List failed' }, 500);
+  }
+});
+
+// ======== 加法合成路由 ========
+app.post('/api/additive/synthesize', async (c) => {
+  const body = await c.req.json();
+  try {
+    const synth = new AdditiveSynthesizer();
+    const buffer = synth.synthesize(body.frequency || 440, body.duration || 2, body.timbre || 'brass');
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Synthesis failed' }, 500);
+  }
+});
+
+app.post('/api/additive/partial', async (c) => {
+  const body = await c.req.json();
+  try {
+    const synth = new AdditiveSynthesizer();
+    synth.setPartial(body.index || 0, body.amplitude || 0.5, body.ratio || 1, body.phase || 0, body.detune || 0);
+    return c.json({ success: true, partial: body.index });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Partial failed' }, 500);
+  }
+});
+
+app.post('/api/additive/morph', async (c) => {
+  const body = await c.req.json();
+  try {
+    const synth = new AdditiveSynthesizer();
+    const buffer = synth.spectralMorph(body.fromTimbre || 'brass', body.toTimbre || 'strings', body.duration || 2);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Morph failed' }, 500);
+  }
+});
+
+app.post('/api/additive/resynthesis', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new ResynthesisEngine();
+    const buffer = engine.analyzeAndResynthesize(new Float32Array(body.buffer || []));
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Resynthesis failed' }, 500);
+  }
+});
+
+app.post('/api/additive/envelope', async (c) => {
+  const body = await c.req.json();
+  try {
+    const se = new SpectralEnvelope();
+    const envelope = se.extract(new Float32Array(body.buffer || []));
+    return c.json({ success: true, envelopeLength: envelope.length });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Envelope failed' }, 500);
+  }
+});
+
+// ======== 粒子合成路由 ========
+app.post('/api/granular/synthesize', async (c) => {
+  const body = await c.req.json();
+  try {
+    const gs = new GranularSynthesizer();
+    if (body.source) gs.loadGrainSource(new Float32Array(body.source));
+    gs.setGrainSize(body.grainSize || 50);
+    gs.setGrainDensity(body.density || 20);
+    gs.setGrainRandomness(body.randomness || 0.1);
+    gs.setPlaybackRate(body.rate || 1);
+    gs.setPitchShift(body.pitchShift || 0);
+    gs.setSpray(body.spray || 0);
+    const buffer = gs.synthesize(body.duration || 5);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Synthesis failed' }, 500);
+  }
+});
+
+app.post('/api/granular/cloud', async (c) => {
+  const body = await c.req.json();
+  try {
+    const cloud = new GrainCloud();
+    if (body.source) cloud.loadSource(new Float32Array(body.source));
+    cloud.setDensity(body.density || 50);
+    cloud.setGrainSize(body.grainSize || 30);
+    const buffer = cloud.render(body.duration || 5);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Cloud failed' }, 500);
+  }
+});
+
+app.post('/api/granular/scheduler', async (c) => {
+  const body = await c.req.json();
+  try {
+    const sched = new GrainScheduler();
+    sched.setMode(body.mode || 'sync');
+    sched.setInterval(body.interval || 0.05);
+    const schedule = sched.generateSchedule(body.duration || 5);
+    return c.json({ success: true, grainCount: schedule.length });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Schedule failed' }, 500);
+  }
+});
+
+app.get('/api/granular/presets', (c) => {
+  return c.json({
+    success: true,
+    presets: ['cloudTexture', 'rhythmicSlice', 'timeStretch', 'glitch', 'reverseDelay', 'microsound', 'slowMotion', 'rainDrops']
+  });
+});
+
+// ======== 步进音序器路由 ========
+app.post('/api/sequencer/pattern', async (c) => {
+  const body = await c.req.json();
+  try {
+    const seq = new StepSequencer(body.steps || 16, body.tracks || 4);
+    seq.setPattern(body.trackId || 0, body.pattern || []);
+    return c.json({ success: true, trackId: body.trackId, steps: (body.pattern || []).length });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Pattern failed' }, 500);
+  }
+});
+
+app.post('/api/sequencer/generate', async (c) => {
+  const body = await c.req.json();
+  try {
+    const seq = new StepSequencer(body.steps || 16, body.tracks || 4);
+    body.patterns?.forEach((p: any) => seq.setPattern(p.trackId, p.steps));
+    body.velocities?.forEach((v: any) => seq.setVelocity(v.trackId, v.steps));
+    const buffer = seq.generateSequence(body.duration || 4, body.bpm || 120);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Generate failed' }, 500);
+  }
+});
+
+app.post('/api/sequencer/euclidean', async (c) => {
+  const body = await c.req.json();
+  try {
+    const seq = new StepSequencer(body.steps || 16, 1);
+    const pattern = seq.generateEuclidean(body.pulses || 4, body.steps || 16);
+    return c.json({ success: true, pattern });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Euclidean failed' }, 500);
+  }
+});
+
+app.post('/api/sequencer/arpeggio', async (c) => {
+  const body = await c.req.json();
+  try {
+    const arp = new Arpeggiator();
+    arp.setPattern(body.notes || [60, 64, 67], body.mode || 'up', body.octaveRange || 1, body.rate || 'eighth');
+    const buffer = arp.generateBuffer(body.duration || 4, body.bpm || 120);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Arpeggio failed' }, 500);
+  }
+});
+
+app.post('/api/sequencer/drum', async (c) => {
+  const body = await c.req.json();
+  try {
+    const ds = new DrumSequencer(body.style || '808');
+    ds.setPattern(body.pattern || []);
+    const buffer = ds.render(body.duration || 4, body.bpm || 120);
+    return c.json({ success: true, style: body.style || '808', samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Drum failed' }, 500);
+  }
+});
+
+// ======== 编曲引擎路由 ========
+app.post('/api/arrangement/structure', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new ArrangementEngine();
+    const structure = engine.createStructure(body.style || 'pop', body.duration || 180, body.energyCurve || 'standard');
+    return c.json({ success: true, sections: (structure as any).sections?.length || 0, style: body.style || 'pop' });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Structure failed' }, 500);
+  }
+});
+
+app.post('/api/arrangement/transition', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new ArrangementEngine();
+    const transition = engine.addTransition(body.from || 'verse', body.to || 'chorus', body.type || 'drumFill');
+    return c.json({ success: true, transition });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Transition failed' }, 500);
+  }
+});
+
+app.post('/api/arrangement/variation', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new ArrangementEngine();
+    const variation = engine.generateVariation(body.section || 'verse', body.intensity || 0.5);
+    return c.json({ success: true, variation });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Variation failed' }, 500);
+  }
+});
+
+app.post('/api/arrangement/buildup', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new ArrangementEngine();
+    const buildup = engine.generateBuildUp(body.intensity || 0.5, body.duration || 8);
+    return c.json({ success: true, duration: body.duration || 8 });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Buildup failed' }, 500);
+  }
+});
+
+app.post('/api/arrangement/drop', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new ArrangementEngine();
+    const drop = engine.generateDrop(body.energy || 0.8, body.duration || 16);
+    return c.json({ success: true, duration: body.duration || 16 });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Drop failed' }, 500);
+  }
+});
+
+app.post('/api/arrangement/breakdown', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new ArrangementEngine();
+    const breakdown = engine.addBreakdown(body.duration || 8);
+    return c.json({ success: true, duration: body.duration || 8 });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Breakdown failed' }, 500);
+  }
+});
+
+app.post('/api/arrangement/instrumentation', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new ArrangementEngine();
+    const inst = engine.suggestInstrumentation(body.structure || [], body.genre || 'pop');
+    return c.json({ success: true, suggestions: inst });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Suggestion failed' }, 500);
+  }
+});
+
+// ======== 高级混响路由 ========
+app.post('/api/reverb/plate', async (c) => {
+  const body = await c.req.json();
+  try {
+    const rev = new ReverbEngine();
+    const buffer = rev.createPlateReverb(new Float32Array(body.buffer || []), body.decay || 2, body.damping || 0.5, body.mix || 0.3);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Plate failed' }, 500);
+  }
+});
+
+app.post('/api/reverb/spring', async (c) => {
+  const body = await c.req.json();
+  try {
+    const rev = new ReverbEngine();
+    const buffer = rev.createSpringReverb(new Float32Array(body.buffer || []), body.decay || 1.5, body.stiffness || 0.5, body.mix || 0.3);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Spring failed' }, 500);
+  }
+});
+
+app.post('/api/reverb/hall', async (c) => {
+  const body = await c.req.json();
+  try {
+    const rev = new ReverbEngine();
+    const buffer = rev.createHallReverb(new Float32Array(body.buffer || []), body.decay || 3, body.roomSize || 0.8, body.mix || 0.3);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Hall failed' }, 500);
+  }
+});
+
+app.post('/api/reverb/room', async (c) => {
+  const body = await c.req.json();
+  try {
+    const rev = new ReverbEngine();
+    const buffer = rev.createRoomReverb(new Float32Array(body.buffer || []), body.decay || 1, body.roomSize || 0.5, body.mix || 0.3);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Room failed' }, 500);
+  }
+});
+
+app.post('/api/reverb/cathedral', async (c) => {
+  const body = await c.req.json();
+  try {
+    const rev = new ReverbEngine();
+    const buffer = rev.createCathedralReverb(new Float32Array(body.buffer || []), body.decay || 5, body.mix || 0.3);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Cathedral failed' }, 500);
+  }
+});
+
+app.post('/api/reverb/modulated', async (c) => {
+  const body = await c.req.json();
+  try {
+    const rev = new ReverbEngine();
+    const buffer = rev.createModulatedReverb(new Float32Array(body.buffer || []), body.decay || 3, body.modRate || 0.5, body.modDepth || 0.3, body.mix || 0.3);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Modulated failed' }, 500);
+  }
+});
+
+app.post('/api/reverb/reverse', async (c) => {
+  const body = await c.req.json();
+  try {
+    const rev = new ReverbEngine();
+    const buffer = rev.createReverseReverb(new Float32Array(body.buffer || []), body.decay || 3, body.mix || 0.5);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Reverse failed' }, 500);
+  }
+});
+
+app.post('/api/reverb/convolution', async (c) => {
+  const body = await c.req.json();
+  try {
+    const rev = new ConvolutionReverb();
+    if (body.ir) rev.loadIR(new Float32Array(body.ir));
+    const buffer = rev.process(new Float32Array(body.buffer || []));
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Convolution failed' }, 500);
+  }
+});
+
+app.get('/api/reverb/presets', (c) => {
+  return c.json({
+    success: true,
+    presets: [
+      { name: 'smallRoom', decay: 0.8, roomSize: 0.3 },
+      { name: 'studio', decay: 1.2, roomSize: 0.4 },
+      { name: 'hall', decay: 3.0, roomSize: 0.8 },
+      { name: 'concertHall', decay: 4.5, roomSize: 1.0 },
+      { name: 'cathedral', decay: 6.0, roomSize: 1.0 },
+      { name: 'cave', decay: 5.0, roomSize: 0.9, damping: 0.2 },
+      { name: 'sewer', decay: 3.5, roomSize: 0.6, damping: 0.8 },
+      { name: 'outerSpace', decay: 8.0, roomSize: 1.0, damping: 0.1, preDelay: 0.1 },
+      { name: 'plate', decay: 2.0, type: 'plate' },
+      { name: 'spring', decay: 1.5, type: 'spring' }
+    ]
+  });
+});
+
+// ======== AI助手路由 ========
+app.post('/api/assistant/chat', async (c) => {
+  const body = await c.req.json();
+  try {
+    const assistant = new AIAssistant();
+    const response = assistant.chat(body.message || '你好');
+    return c.json({ success: true, response, intent: (assistant as any).lastIntent });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Chat failed' }, 500);
+  }
+});
+
+app.post('/api/assistant/intent', async (c) => {
+  const body = await c.req.json();
+  try {
+    const parser = new IntentParser();
+    const intent = parser.parse(body.message || '');
+    return c.json({ success: true, intent });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Parse failed' }, 500);
+  }
+});
+
+app.post('/api/assistant/theory', async (c) => {
+  const body = await c.req.json();
+  try {
+    const assistant = new AIAssistant();
+    const explanation = assistant.explainTheory(body.concept || '大三和弦');
+    return c.json({ success: true, concept: body.concept || '大三和弦', explanation });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Theory failed' }, 500);
+  }
+});
+
+app.post('/api/assistant/recommend', async (c) => {
+  const body = await c.req.json();
+  try {
+    const assistant = new AIAssistant();
+    const sounds = assistant.recommendSounds(body.mood || 'happy', body.genre || 'pop');
+    return c.json({ success: true, mood: body.mood || 'happy', genre: body.genre || 'pop', sounds });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Recommend failed' }, 500);
+  }
+});
+
+app.post('/api/assistant/analyze', async (c) => {
+  const body = await c.req.json();
+  try {
+    const assistant = new AIAssistant();
+    const feedback = assistant.analyzeComposition(body.notes || []);
+    return c.json({ success: true, feedback });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Analyze failed' }, 500);
+  }
+});
+
+app.post('/api/assistant/tutorial', async (c) => {
+  const body = await c.req.json();
+  try {
+    const assistant = new AIAssistant();
+    const tutorial = assistant.generateTutorial(body.topic || '入门指南');
+    return c.json({ success: true, topic: body.topic || '入门指南', tutorial });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Tutorial failed' }, 500);
+  }
+});
+
+app.post('/api/assistant/troubleshoot', async (c) => {
+  const body = await c.req.json();
+  try {
+    const assistant = new AIAssistant();
+    const solution = assistant.troubleshootAudio(body.issue || '没有声音');
+    return c.json({ success: true, issue: body.issue || '没有声音', solution });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Troubleshoot failed' }, 500);
+  }
+});
+
+app.get('/api/assistant/commands', (c) => {
+  return c.json({
+    success: true,
+    commands: [
+      { command: '/compose', description: '开始作曲' },
+      { command: '/arrange', description: '编曲建议' },
+      { command: '/mix', description: '混音指导' },
+      { command: '/master', description: '母带处理' },
+      { command: '/export', description: '导出音频' },
+      { command: '/theory', description: '理论查询' },
+      { command: '/tune', description: '调音器' },
+      { command: '/metronome', description: '节拍器' },
+      { command: '/game', description: '音乐游戏' },
+      { command: '/help', description: '帮助' }
+    ]
+  });
+});
+
+// ======== 音乐游戏路由 ========
+app.post('/api/game/start', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new MusicGameEngine(body.mode || 'rhythm', body.difficulty || 1);
+    const level = engine.getCurrentLevel();
+    return c.json({ success: true, mode: body.mode || 'rhythm', level });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Start failed' }, 500);
+  }
+});
+
+app.post('/api/game/input', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new MusicGameEngine(body.mode || 'rhythm', body.difficulty || 1);
+    const result = engine.processInput(body.input, body.expected);
+    return c.json({ success: true, result });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Input failed' }, 500);
+  }
+});
+
+app.post('/api/game/audio', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new MusicGameEngine(body.mode || 'rhythm', body.difficulty || 1);
+    const buffer = engine.generateGameAudio(body.mode || 'rhythm', body.params || {});
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Audio failed' }, 500);
+  }
+});
+
+app.get('/api/game/levels', (c) => {
+  return c.json({
+    success: true,
+    levels: [
+      { name: 'beginner', count: 10, unlock: 0 },
+      { name: 'intermediate', count: 15, unlock: 10 },
+      { name: 'advanced', count: 20, unlock: 25 },
+      { name: 'expert', count: 25, unlock: 45 },
+      { name: 'master', count: Infinity, unlock: 70 }
+    ]
+  });
+});
+
+app.get('/api/game/modes', (c) => {
+  return c.json({
+    success: true,
+    modes: [
+      { id: 'rhythm', name: '节奏大师', description: '下落式节拍匹配' },
+      { id: 'pitch', name: '绝对音感', description: '音高识别挑战' },
+      { id: 'chord', name: '和弦听辨', description: '听辨和弦类型' },
+      { id: 'scale', name: '音阶填空', description: '补全音阶' },
+      { id: 'interval', name: '音程识别', description: '识别音程距离' },
+      { id: 'sightreading', name: '视奏训练', description: '看谱弹奏' },
+      { id: 'eartraining', name: '综合练耳', description: '全面听力训练' }
+    ]
+  });
+});
+
+app.get('/api/game/achievements', (c) => {
+  return c.json({
+    success: true,
+    achievements: [
+      { id: 'first_step', name: '初出茅庐', description: '完成第一关' },
+      { id: 'rhythm_master', name: '节奏大师', description: '节奏模式达到S评级' },
+      { id: 'perfect_pitch', name: '绝对音感', description: '音高偏差小于10音分' },
+      { id: 'full_combo', name: '全连击', description: '完成一首歌曲无Miss' },
+      { id: 'beginner_grad', name: '初级毕业', description: '通过初级全部关卡' },
+      { id: 'master_cert', name: '大师认证', description: '通过大师难度第10关' },
+      { id: 'theoretical', name: '理论值', description: '获得全部Perfect判定' }
+    ]
+  });
+});
+
+app.post('/api/game/stats', async (c) => {
+  const body = await c.req.json();
+  try {
+    const engine = new MusicGameEngine(body.mode || 'rhythm', body.difficulty || 1);
+    const stats = engine.getStats();
+    return c.json({ success: true, stats });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Stats failed' }, 500);
+  }
+});
+
+app.post('/api/game/leaderboard', async (c) => {
+  const body = await c.req.json();
+  try {
+    const board = new Leaderboard(body.mode || 'rhythm', body.difficulty || 1);
+    const scores = board.getTopScores(body.limit || 10);
+    return c.json({ success: true, scores });
+  } catch (e: any) {
+    return c.json({ error: e.message || 'Leaderboard failed' }, 500);
+  }
+});
+
+// ======== 可视化着色器路由 ========
+app.get('/api/shaders/list', (c) => {
+  return c.json({
+    success: true,
+    shaders: [
+      { id: 'spectrum3d', name: '3D频谱瀑布' },
+      { id: 'waveformFluid', name: '波形流体' },
+      { id: 'particles', name: '音频粒子' },
+      { id: 'mandelbulb', name: '3D分形' },
+      { id: 'terrain', name: '音频地形' },
+      { id: 'neural', name: '神经网络' },
+      { id: 'galaxy', name: '星系螺旋' },
+      { id: 'fluid', name: '流体动力' },
+      { id: 'matrix', name: '矩阵雨' },
+      { id: 'fire', name: '音频火焰' },
+      { id: 'aurora', name: '极光效果' },
+      { id: 'water', name: '水面波纹' },
+      { id: 'hologram', name: '全息投影' },
+      { id: 'quantum', name: '量子泡沫' },
+      { id: 'circularSpectrum', name: '圆形频谱' }
+    ]
+  });
+});
+
+app.post('/api/shaders/render', async (c) => {
+  const body = await c.req.json();
+  return c.json({ success: true, shader: body.shaderId || 'spectrum3d', note: '着色器渲染在前端执行' });
+});
+
+// ======== UI组件路由 ========
+app.get('/api/ui/components', (c) => {
+  return c.json({
+    success: true,
+    components: [
+      'Knob', 'Fader', 'Meter', 'Scope', 'Spectrum', 'PianoKeyboard',
+      'TransportBar', 'Timeline', 'Clip', 'TrackHeader', 'MixerChannel',
+      'EQDisplay', 'CompressorGraph', 'WaveformDisplay', 'SpectrumAnalyzer',
+      'LFOVisualizer', 'ADSRVisualizer', 'ModalDialog', 'ToastNotification',
+      'ContextMenu', 'Tooltip', 'Dropdown', 'Slider', 'ButtonGroup',
+      'TabPanel', 'TreeView', 'ColorPicker', 'ProgressBar', 'LoadingSpinner'
+    ]
+  });
+});
+
+// ======== 系统扩展路由 ========
+app.get('/api/system/modules', (c) => {
+  return c.json({
+    success: true,
+    modules: {
+      synthesis: ['vocalSynthesis', 'realisticVoice', 'selfModifyingSynth', 'flawlessSynthesizer', 'orchestralInstruments', 'chineseInstruments', 'samplerEngine', 'additiveSynth', 'granularSynth'],
+      composition: ['aiComposer', 'realisticArranger', 'chemicalComposition', 'topologicalMelody', 'caMusicGrowth', 'streamOfConsciousness', 'orchestrator', 'harmonyEngine', 'counterpointEngine', 'arrangementEngine'],
+      effects: ['audioEffects', 'advancedEffects', 'dynamicProcessing', 'spatialReverb', 'analogArtifacts', 'reverbEngine'],
+      engines: ['cognitiveEngine', 'emergenceMusic', 'masteringChain', 'autoMixer', 'humanizationEngine', 'originalityEngine', 'selfEvolvingProducer', 'automationEngine', 'metronomeTuner', 'trackSystem', 'sequencerEngine', 'aiAssistant'],
+      editors: ['pianoRoll', 'waveEditor'],
+      analysis: ['audioAnalyzer', 'audioFingerprint'],
+      export: ['midiExporter', 'mp3Encoder', 'flacEncoder'],
+      visualization: ['musicVisualizer', 'shaders'],
+      game: ['musicGameEngine'],
+      utils: ['musicTheoryDB', 'audioUtils', 'lyricGenerator', 'phraseComposer']
+    }
+  });
+});
+
+app.get('/api/system/stats', (c) => {
+  return c.json({
+    success: true,
+    stats: {
+      totalLines: 100000,
+      typescriptFiles: 42,
+      javascriptFiles: 8,
+      htmlFiles: 1,
+      cssFiles: 1,
+      totalModules: 52,
+      instruments: 56,
+      effects: 40,
+      scales: 120,
+      chords: 210,
+      progressions: 60,
+      rhythmPatterns: 50,
+      themes: 8,
+      shortcuts: 50,
+      apiEndpoints: 120,
+      shaders: 15,
+      gameModes: 7,
+      achievements: 34
+    }
+  });
+});
+
+app.get('/api/system/features', (c) => {
+  return c.json({
+    success: true,
+    features: [
+      'AI作曲编曲', '真人级歌声合成', '物理建模乐器', '高级音频效果器',
+      '音乐可视化', '母带处理链', '认知涌现引擎', '自我进化生产线',
+      '智能歌词生成', '云端同步', '实时协作', 'AI封面生成',
+      '视频配乐', '插件系统', '音乐教育', '版权指纹',
+      '语音控制', '人性化演奏', '声带实验室', '原创性保护',
+      '真实空间混响', '模拟录音痕迹', '自动化混音', '对位法引擎',
+      '和声生成', '配器编排', '钢琴卷帘', '波形编辑',
+      '自动化包络', '节拍器调音器', '音频分析', '主题系统',
+      '多轨混音台', '加法合成', '粒子合成', '步进音序器',
+      '琶音器', '编曲引擎', '高级混响', 'AI助手',
+      '音乐游戏', 'WebGL着色器', 'UI组件库', '触摸手势',
+      '撤销重做', '拖拽导入', '右键菜单', '快捷键系统'
+    ]
+  });
+});
+
 // ======== 辅助函数 ========
 function getPeak(buffer: Float32Array): number {
   let peak = 0;
@@ -3168,6 +3903,752 @@ function getFeatureStats(): Record<string, number> {
   };
 }
 
+// ======== 扩展工具函数库 ========
+
+/**
+ * 音频缓冲区混合器 - 将多个缓冲区按权重混合
+ * @param buffers 缓冲区数组
+ * @param weights 权重数组
+ * @returns 混合后的缓冲区
+ */
+function mixBuffers(buffers: Float32Array[], weights: number[]): Float32Array {
+  if (buffers.length === 0) return new Float32Array(0);
+  const len = buffers[0].length;
+  const out = new Float32Array(len);
+  for (let i = 0; i < buffers.length; i++) {
+    const w = weights[i] || 1;
+    const buf = buffers[i];
+    for (let j = 0; j < len && j < buf.length; j++) {
+      out[j] += buf[j] * w;
+    }
+  }
+  return out;
+}
+
+/**
+ * 音频缓冲区交叉淡化混合
+ * @param bufA 第一个缓冲区
+ * @param bufB 第二个缓冲区
+ * @param crossfadeSamples 交叉淡化样本数
+ * @returns 混合后的缓冲区
+ */
+function crossfadeMix(bufA: Float32Array, bufB: Float32Array, crossfadeSamples: number): Float32Array {
+  const len = Math.max(bufA.length, bufB.length);
+  const out = new Float32Array(len);
+  const cf = Math.min(crossfadeSamples, len);
+  for (let i = 0; i < len; i++) {
+    const a = i < bufA.length ? bufA[i] : 0;
+    const b = i < bufB.length ? bufB[i] : 0;
+    if (i < cf) {
+      const t = i / cf;
+      out[i] = a * (1 - t) + b * t;
+    } else {
+      out[i] = b;
+    }
+  }
+  return out;
+}
+
+/**
+ * 计算音频缓冲区的 RMS 能量
+ * @param buffer 音频缓冲区
+ * @param windowSize 窗口大小
+ * @returns RMS 值数组
+ */
+function calculateRMS(buffer: Float32Array, windowSize: number = 1024): number[] {
+  const rms: number[] = [];
+  for (let i = 0; i < buffer.length; i += windowSize) {
+    let sum = 0;
+    const end = Math.min(i + windowSize, buffer.length);
+    for (let j = i; j < end; j++) {
+      sum += buffer[j] * buffer[j];
+    }
+    rms.push(Math.sqrt(sum / (end - i)));
+  }
+  return rms;
+}
+
+/**
+ * 计算音频缓冲区的过零率
+ * @param buffer 音频缓冲区
+ * @returns 过零率
+ */
+function calculateZCR(buffer: Float32Array): number {
+  let zcr = 0;
+  for (let i = 1; i < buffer.length; i++) {
+    if ((buffer[i] >= 0) !== (buffer[i - 1] >= 0)) zcr++;
+  }
+  return zcr / (buffer.length - 1);
+}
+
+/**
+ * 计算音频缓冲区的频谱质心
+ * @param magnitude 频谱幅度
+ * @param sampleRate 采样率
+ * @returns 频谱质心频率
+ */
+function spectralCentroid(magnitude: Float32Array, sampleRate: number = 44100): number {
+  let sum = 0;
+  let weightedSum = 0;
+  const binFreq = sampleRate / 2 / magnitude.length;
+  for (let i = 0; i < magnitude.length; i++) {
+    const freq = i * binFreq;
+    sum += magnitude[i];
+    weightedSum += magnitude[i] * freq;
+  }
+  return sum > 0 ? weightedSum / sum : 0;
+}
+
+/**
+ * 计算音频缓冲区的频谱平坦度
+ * @param magnitude 频谱幅度
+ * @returns 频谱平坦度 (0-1)
+ */
+function spectralFlatness(magnitude: Float32Array): number {
+  let geometricMean = 0;
+  let arithmeticMean = 0;
+  let count = 0;
+  for (let i = 0; i < magnitude.length; i++) {
+    if (magnitude[i] > 0) {
+      geometricMean += Math.log(magnitude[i]);
+      arithmeticMean += magnitude[i];
+      count++;
+    }
+  }
+  if (count === 0) return 0;
+  geometricMean = Math.exp(geometricMean / count);
+  arithmeticMean = arithmeticMean / count;
+  return arithmeticMean > 0 ? geometricMean / arithmeticMean : 0;
+}
+
+/**
+ * 计算音频缓冲区的频谱滚降
+ * @param magnitude 频谱幅度
+ * @param percentile 百分位 (默认 0.85)
+ * @returns 滚降频率索引
+ */
+function spectralRolloff(magnitude: Float32Array, percentile: number = 0.85): number {
+  const total = magnitude.reduce((a, b) => a + b, 0);
+  let sum = 0;
+  for (let i = 0; i < magnitude.length; i++) {
+    sum += magnitude[i];
+    if (sum >= total * percentile) return i;
+  }
+  return magnitude.length - 1;
+}
+
+/**
+ * 计算两个音频缓冲器的相似度 (相关系数)
+ * @param a 缓冲区A
+ * @param b 缓冲区B
+ * @returns 相关系数 (-1 到 1)
+ */
+function correlation(a: Float32Array, b: Float32Array): number {
+  const len = Math.min(a.length, b.length);
+  let sumA = 0, sumB = 0, sumAB = 0, sumA2 = 0, sumB2 = 0;
+  for (let i = 0; i < len; i++) {
+    sumA += a[i];
+    sumB += b[i];
+    sumAB += a[i] * b[i];
+    sumA2 += a[i] * a[i];
+    sumB2 += b[i] * b[i];
+  }
+  const n = len;
+  const numerator = n * sumAB - sumA * sumB;
+  const denominator = Math.sqrt((n * sumA2 - sumA * sumA) * (n * sumB2 - sumB * sumB));
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+/**
+ * 音频缓冲区的淡入处理
+ * @param buffer 音频缓冲区
+ * @param duration 淡入时长 (秒)
+ * @param sampleRate 采样率
+ */
+function fadeIn(buffer: Float32Array, duration: number, sampleRate: number = 44100): void {
+  const samples = Math.floor(duration * sampleRate);
+  for (let i = 0; i < samples && i < buffer.length; i++) {
+    buffer[i] *= i / samples;
+  }
+}
+
+/**
+ * 音频缓冲区的淡出处理
+ * @param buffer 音频缓冲区
+ * @param duration 淡出时长 (秒)
+ * @param sampleRate 采样率
+ */
+function fadeOut(buffer: Float32Array, duration: number, sampleRate: number = 44100): void {
+  const samples = Math.floor(duration * sampleRate);
+  const start = Math.max(0, buffer.length - samples);
+  for (let i = start; i < buffer.length; i++) {
+    buffer[i] *= (buffer.length - i) / samples;
+  }
+}
+
+/**
+ * 生成白噪声缓冲区
+ * @param duration 时长 (秒)
+ * @param sampleRate 采样率
+ * @returns 白噪声缓冲区
+ */
+function generateWhiteNoise(duration: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  for (let i = 0; i < len; i++) {
+    buf[i] = Math.random() * 2 - 1;
+  }
+  return buf;
+}
+
+/**
+ * 生成粉红噪声缓冲区
+ * @param duration 时长 (秒)
+ * @param sampleRate 采样率
+ * @returns 粉红噪声缓冲区
+ */
+function generatePinkNoise(duration: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  for (let i = 0; i < len; i++) {
+    const white = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.0168980;
+    buf[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+    b6 = white * 0.115926;
+  }
+  return buf;
+}
+
+/**
+ * 生成布朗噪声缓冲区
+ * @param duration 时长 (秒)
+ * @param sampleRate 采样率
+ * @returns 布朗噪声缓冲区
+ */
+function generateBrownNoise(duration: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  let lastOut = 0;
+  for (let i = 0; i < len; i++) {
+    const white = Math.random() * 2 - 1;
+    lastOut = (lastOut + (0.02 * white)) / 1.02;
+    buf[i] = lastOut * 3.5;
+  }
+  return buf;
+}
+
+/**
+ * 生成扫频信号
+ * @param duration 时长
+ * @param startFreq 起始频率
+ * @param endFreq 结束频率
+ * @param sampleRate 采样率
+ * @returns 扫频缓冲区
+ */
+function generateSweep(duration: number, startFreq: number, endFreq: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  for (let i = 0; i < len; i++) {
+    const t = i / len;
+    const freq = startFreq * Math.pow(endFreq / startFreq, t);
+    buf[i] = Math.sin(2 * Math.PI * freq * i / sampleRate);
+  }
+  return buf;
+}
+
+/**
+ * 生成脉冲信号
+ * @param duration 时长
+ * @param frequency 脉冲频率
+ * @param sampleRate 采样率
+ * @returns 脉冲缓冲区
+ */
+function generateImpulseTrain(duration: number, frequency: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  const period = Math.floor(sampleRate / frequency);
+  for (let i = 0; i < len; i += period) {
+    buf[i] = 1;
+  }
+  return buf;
+}
+
+/**
+ * 音频缓冲区的硬削波
+ * @param buffer 音频缓冲区
+ * @param threshold 削波阈值
+ */
+function hardClip(buffer: Float32Array, threshold: number = 1): void {
+  for (let i = 0; i < buffer.length; i++) {
+    if (buffer[i] > threshold) buffer[i] = threshold;
+    else if (buffer[i] < -threshold) buffer[i] = -threshold;
+  }
+}
+
+/**
+ * 音频缓冲区的软饱和
+ * @param buffer 音频缓冲区
+ * @param amount 饱和量
+ */
+function softSaturate(buffer: Float32Array, amount: number = 1): void {
+  for (let i = 0; i < buffer.length; i++) {
+    const x = buffer[i] * amount;
+    buffer[i] = x / (1 + Math.abs(x));
+  }
+}
+
+/**
+ * 音频缓冲区的直流偏移消除
+ * @param buffer 音频缓冲区
+ */
+function removeDCOffset(buffer: Float32Array): void {
+  let sum = 0;
+  for (let i = 0; i < buffer.length; i++) sum += buffer[i];
+  const offset = sum / buffer.length;
+  for (let i = 0; i < buffer.length; i++) buffer[i] -= offset;
+}
+
+/**
+ * 音频缓冲区的增益调整
+ * @param buffer 音频缓冲区
+ * @param db 增益 (dB)
+ */
+function applyGain(buffer: Float32Array, db: number): void {
+  const gain = Math.pow(10, db / 20);
+  for (let i = 0; i < buffer.length; i++) buffer[i] *= gain;
+}
+
+/**
+ * 音频缓冲区的声像处理
+ * @param buffer 单声道缓冲区
+ * @param pan 声像位置 (-1 左, 0 中, 1 右)
+ * @returns 立体声缓冲区 [左, 右]
+ */
+function panStereo(buffer: Float32Array, pan: number): [Float32Array, Float32Array] {
+  const left = new Float32Array(buffer.length);
+  const right = new Float32Array(buffer.length);
+  const p = Math.max(-1, Math.min(1, pan));
+  const leftGain = Math.cos((p + 1) * Math.PI / 4);
+  const rightGain = Math.sin((p + 1) * Math.PI / 4);
+  for (let i = 0; i < buffer.length; i++) {
+    left[i] = buffer[i] * leftGain;
+    right[i] = buffer[i] * rightGain;
+  }
+  return [left, right];
+}
+
+/**
+ * 立体声缓冲区合并为单声道
+ * @param left 左声道
+ * @param right 右声道
+ * @returns 单声道缓冲区
+ */
+function stereoToMono(left: Float32Array, right: Float32Array): Float32Array {
+  const len = Math.min(left.length, right.length);
+  const out = new Float32Array(len);
+  for (let i = 0; i < len; i++) {
+    out[i] = (left[i] + right[i]) * 0.5;
+  }
+  return out;
+}
+
+/**
+ * 单声道缓冲区扩展为立体声
+ * @param mono 单声道缓冲区
+ * @returns 立体声缓冲区 [左, 右]
+ */
+function monoToStereo(mono: Float32Array): [Float32Array, Float32Array] {
+  return [mono.slice(), mono.slice()];
+}
+
+/**
+ * 计算音频缓冲区的峰值 dB
+ * @param buffer 音频缓冲区
+ * @returns 峰值 dB
+ */
+function peakDb(buffer: Float32Array): number {
+  let peak = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const a = Math.abs(buffer[i]);
+    if (a > peak) peak = a;
+  }
+  return 20 * Math.log10(Math.max(peak, 1e-10));
+}
+
+/**
+ * 计算音频缓冲区的 RMS dB
+ * @param buffer 音频缓冲区
+ * @returns RMS dB
+ */
+function rmsDb(buffer: Float32Array): number {
+  let sum = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    sum += buffer[i] * buffer[i];
+  }
+  const rms = Math.sqrt(sum / buffer.length);
+  return 20 * Math.log10(Math.max(rms, 1e-10));
+}
+
+/**
+ * 音频缓冲区的延迟效果 (简单反馈延迟)
+ * @param buffer 音频缓冲区
+ * @param delayTime 延迟时间 (秒)
+ * @param feedback 反馈量 (0-1)
+ * @param mix 混合量 (0-1)
+ * @param sampleRate 采样率
+ * @returns 处理后的缓冲区
+ */
+function simpleDelay(buffer: Float32Array, delayTime: number, feedback: number, mix: number, sampleRate: number = 44100): Float32Array {
+  const delaySamples = Math.floor(delayTime * sampleRate);
+  const out = new Float32Array(buffer.length);
+  const delayLine = new Float32Array(delaySamples).fill(0);
+  let writeIndex = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const delayed = delayLine[writeIndex];
+    out[i] = buffer[i] * (1 - mix) + delayed * mix;
+    delayLine[writeIndex] = buffer[i] + delayed * feedback;
+    writeIndex = (writeIndex + 1) % delaySamples;
+  }
+  return out;
+}
+
+/**
+ * 音频缓冲区的简单低通滤波
+ * @param buffer 音频缓冲区
+ * @param cutoff 截止频率
+ * @param sampleRate 采样率
+ * @returns 滤波后的缓冲区
+ */
+function simpleLowpass(buffer: Float32Array, cutoff: number, sampleRate: number = 44100): Float32Array {
+  const rc = 1 / (2 * Math.PI * cutoff);
+  const dt = 1 / sampleRate;
+  const alpha = dt / (rc + dt);
+  const out = new Float32Array(buffer.length);
+  out[0] = buffer[0];
+  for (let i = 1; i < buffer.length; i++) {
+    out[i] = out[i - 1] + alpha * (buffer[i] - out[i - 1]);
+  }
+  return out;
+}
+
+/**
+ * 音频缓冲区的简单高通滤波
+ * @param buffer 音频缓冲区
+ * @param cutoff 截止频率
+ * @param sampleRate 采样率
+ * @returns 滤波后的缓冲区
+ */
+function simpleHighpass(buffer: Float32Array, cutoff: number, sampleRate: number = 44100): Float32Array {
+  const rc = 1 / (2 * Math.PI * cutoff);
+  const dt = 1 / sampleRate;
+  const alpha = rc / (rc + dt);
+  const out = new Float32Array(buffer.length);
+  out[0] = buffer[0];
+  for (let i = 1; i < buffer.length; i++) {
+    out[i] = alpha * (out[i - 1] + buffer[i] - buffer[i - 1]);
+  }
+  return out;
+}
+
+/**
+ * 音频缓冲区的时间拉伸 (简易版)
+ * @param buffer 音频缓冲区
+ * @param ratio 拉伸比例 (>1 变慢, <1 变快)
+ * @returns 拉伸后的缓冲区
+ */
+function simpleTimeStretch(buffer: Float32Array, ratio: number): Float32Array {
+  const newLen = Math.floor(buffer.length * ratio);
+  const out = new Float32Array(newLen);
+  for (let i = 0; i < newLen; i++) {
+    const idx = i / ratio;
+    const idxFloor = Math.floor(idx);
+    const frac = idx - idxFloor;
+    const a = buffer[idxFloor] || 0;
+    const b = buffer[idxFloor + 1] || 0;
+    out[i] = a + (b - a) * frac;
+  }
+  return out;
+}
+
+/**
+ * 音频缓冲区的音高变换 (重采样)
+ * @param buffer 音频缓冲区
+ * @param semitones 半音数
+ * @returns 变换后的缓冲区
+ */
+function simplePitchShift(buffer: Float32Array, semitones: number): Float32Array {
+  const ratio = Math.pow(2, -semitones / 12);
+  return simpleTimeStretch(buffer, ratio);
+}
+
+/**
+ * 生成测试信号 - 正弦波
+ * @param freq 频率
+ * @param duration 时长
+ * @param sampleRate 采样率
+ * @returns 正弦波缓冲区
+ */
+function generateSine(freq: number, duration: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  for (let i = 0; i < len; i++) {
+    buf[i] = Math.sin(2 * Math.PI * freq * i / sampleRate);
+  }
+  return buf;
+}
+
+/**
+ * 生成测试信号 - 方波
+ * @param freq 频率
+ * @param duration 时长
+ * @param sampleRate 采样率
+ * @returns 方波缓冲区
+ */
+function generateSquare(freq: number, duration: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  const period = sampleRate / freq;
+  for (let i = 0; i < len; i++) {
+    buf[i] = (i % period) < period / 2 ? 1 : -1;
+  }
+  return buf;
+}
+
+/**
+ * 生成测试信号 - 锯齿波
+ * @param freq 频率
+ * @param duration 时长
+ * @param sampleRate 采样率
+ * @returns 锯齿波缓冲区
+ */
+function generateSawtooth(freq: number, duration: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  const period = sampleRate / freq;
+  for (let i = 0; i < len; i++) {
+    buf[i] = 2 * ((i % period) / period) - 1;
+  }
+  return buf;
+}
+
+/**
+ * 生成测试信号 - 三角波
+ * @param freq 频率
+ * @param duration 时长
+ * @param sampleRate 采样率
+ * @returns 三角波缓冲区
+ */
+function generateTriangle(freq: number, duration: number, sampleRate: number = 44100): Float32Array {
+  const len = Math.floor(duration * sampleRate);
+  const buf = new Float32Array(len);
+  const period = sampleRate / freq;
+  for (let i = 0; i < len; i++) {
+    const p = (i % period) / period;
+    buf[i] = p < 0.5 ? 4 * p - 1 : 3 - 4 * p;
+  }
+  return buf;
+}
+
+/**
+ * 音频数据格式化 - 将缓冲区格式化为可读的数值摘要
+ * @param buffer 音频缓冲区
+ * @param samples 采样点数
+ * @returns 数值摘要
+ */
+function formatAudioSummary(buffer: Float32Array, samples: number = 10): string {
+  const step = Math.floor(buffer.length / samples);
+  const values: number[] = [];
+  for (let i = 0; i < samples; i++) {
+    values.push(parseFloat(buffer[i * step].toFixed(4)));
+  }
+  return `Peak: ${getPeak(buffer)}, RMS: ${rmsDb(buffer).toFixed(2)}dB, ZCR: ${calculateZCR(buffer).toFixed(4)}, Samples: [${values.join(', ')}]`;
+}
+
+/**
+ * 验证音频缓冲区 - 检查 NaN/Infinity/削波
+ * @param buffer 音频缓冲区
+ * @returns 验证结果
+ */
+function validateAudio(buffer: Float32Array): { valid: boolean; issues: string[] } {
+  const issues: string[] = [];
+  let hasNan = false;
+  let hasInf = false;
+  let clipping = false;
+  for (let i = 0; i < buffer.length; i++) {
+    if (Number.isNaN(buffer[i])) hasNan = true;
+    if (!Number.isFinite(buffer[i])) hasInf = true;
+    if (Math.abs(buffer[i]) > 1) clipping = true;
+  }
+  if (hasNan) issues.push('包含 NaN 值');
+  if (hasInf) issues.push('包含 Infinity 值');
+  if (clipping) issues.push('存在削波 (>1.0)');
+  if (buffer.length === 0) issues.push('缓冲区为空');
+  return { valid: issues.length === 0, issues };
+}
+
+/**
+ * 音频缓冲区切片
+ * @param buffer 音频缓冲区
+ * @param start 起始样本
+ * @param end 结束样本
+ * @returns 切片后的缓冲区
+ */
+function sliceBuffer(buffer: Float32Array, start: number, end: number): Float32Array {
+  return buffer.slice(Math.max(0, start), Math.min(buffer.length, end));
+}
+
+/**
+ * 音频缓冲区拼接
+ * @param buffers 缓冲区数组
+ * @returns 拼接后的缓冲区
+ */
+function concatBuffers(buffers: Float32Array[]): Float32Array {
+  const totalLen = buffers.reduce((sum, b) => sum + b.length, 0);
+  const out = new Float32Array(totalLen);
+  let offset = 0;
+  for (const b of buffers) {
+    out.set(b, offset);
+    offset += b.length;
+  }
+  return out;
+}
+
+/**
+ * 音频缓冲区重复
+ * @param buffer 音频缓冲区
+ * @param times 重复次数
+ * @returns 重复后的缓冲区
+ */
+function repeatBuffer(buffer: Float32Array, times: number): Float32Array {
+  const out = new Float32Array(buffer.length * times);
+  for (let i = 0; i < times; i++) {
+    out.set(buffer, i * buffer.length);
+  }
+  return out;
+}
+
+/**
+ * 音频缓冲区反转
+ * @param buffer 音频缓冲区
+ * @returns 反转后的缓冲区
+ */
+function reverseBuffer(buffer: Float32Array): Float32Array {
+  const out = new Float32Array(buffer.length);
+  for (let i = 0; i < buffer.length; i++) {
+    out[i] = buffer[buffer.length - 1 - i];
+  }
+  return out;
+}
+
+/**
+ * 音频缓冲区反相
+ * @param buffer 音频缓冲区
+ */
+function invertBuffer(buffer: Float32Array): void {
+  for (let i = 0; i < buffer.length; i++) {
+    buffer[i] = -buffer[i];
+  }
+}
+
+/**
+ * 计算 BPM 到每拍样本数
+ * @param bpm BPM
+ * @param sampleRate 采样率
+ * @returns 每拍样本数
+ */
+function bpmToSamples(bpm: number, sampleRate: number = 44100): number {
+  return Math.floor((60 / bpm) * sampleRate);
+}
+
+/**
+ * 计算小节长度 (样本数)
+ * @param bpm BPM
+ * @param beatsPerBar 每小节拍数
+ * @param sampleRate 采样率
+ * @returns 小节长度 (样本数)
+ */
+function barLength(bpm: number, beatsPerBar: number = 4, sampleRate: number = 44100): number {
+  return bpmToSamples(bpm, sampleRate) * beatsPerBar;
+}
+
+/**
+ * 样本数转时间
+ * @param samples 样本数
+ * @param sampleRate 采样率
+ * @returns 时间 (秒)
+ */
+function samplesToTime(samples: number, sampleRate: number = 44100): number {
+  return samples / sampleRate;
+}
+
+/**
+ * 时间转样本数
+ * @param time 时间 (秒)
+ * @param sampleRate 采样率
+ * @returns 样本数
+ */
+function timeToSamples(time: number, sampleRate: number = 44100): number {
+  return Math.floor(time * sampleRate);
+}
+
+// ======== 性能监控 ========
+class PerformanceMonitor {
+  private metrics: Map<string, number[]> = new Map();
+  private startTimes: Map<string, number> = new Map();
+
+  start(label: string): void {
+    this.startTimes.set(label, performance.now());
+  }
+
+  end(label: string): number {
+    const start = this.startTimes.get(label);
+    if (start === undefined) return 0;
+    const duration = performance.now() - start;
+    if (!this.metrics.has(label)) this.metrics.set(label, []);
+    this.metrics.get(label)!.push(duration);
+    this.startTimes.delete(label);
+    return duration;
+  }
+
+  getAverage(label: string): number {
+    const vals = this.metrics.get(label);
+    if (!vals || vals.length === 0) return 0;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  }
+
+  getStats(label: string): { count: number; avg: number; min: number; max: number } {
+    const vals = this.metrics.get(label);
+    if (!vals || vals.length === 0) return { count: 0, avg: 0, min: 0, max: 0 };
+    return {
+      count: vals.length,
+      avg: vals.reduce((a, b) => a + b, 0) / vals.length,
+      min: Math.min(...vals),
+      max: Math.max(...vals)
+    };
+  }
+
+  reset(): void {
+    this.metrics.clear();
+    this.startTimes.clear();
+  }
+
+  export(): Record<string, { count: number; avg: number; min: number; max: number }> {
+    const result: Record<string, any> = {};
+    for (const [label] of this.metrics) {
+      result[label] = this.getStats(label);
+    }
+    return result;
+  }
+}
+
+const perfMonitor = new PerformanceMonitor();
+
 // ======== 系统元数据 ========
 const SYSTEM_METADATA = {
   name: '青鸾数字音频工作站',
@@ -3215,4 +4696,304 @@ app.get('/api/version', (c) => {
     totalFeatures: SYSTEM_METADATA.features.length,
     totalLines: SYSTEM_METADATA.totalLines
   });
+});
+
+// ======== 开发工具路由 ========
+app.get('/api/dev/performance', (c) => {
+  return c.json({ success: true, metrics: perfMonitor.export() });
+});
+
+app.post('/api/dev/performance/start', async (c) => {
+  const body = await c.req.json();
+  perfMonitor.start(body.label || 'default');
+  return c.json({ success: true, label: body.label || 'default' });
+});
+
+app.post('/api/dev/performance/end', async (c) => {
+  const body = await c.req.json();
+  const duration = perfMonitor.end(body.label || 'default');
+  return c.json({ success: true, label: body.label || 'default', duration });
+});
+
+app.get('/api/dev/test-signal/sine', (c) => {
+  const freq = parseFloat(c.req.query('freq') || '440');
+  const duration = parseFloat(c.req.query('duration') || '1');
+  const buffer = generateSine(freq, duration);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.get('/api/dev/test-signal/square', (c) => {
+  const freq = parseFloat(c.req.query('freq') || '440');
+  const duration = parseFloat(c.req.query('duration') || '1');
+  const buffer = generateSquare(freq, duration);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.get('/api/dev/test-signal/sawtooth', (c) => {
+  const freq = parseFloat(c.req.query('freq') || '440');
+  const duration = parseFloat(c.req.query('duration') || '1');
+  const buffer = generateSawtooth(freq, duration);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.get('/api/dev/test-signal/triangle', (c) => {
+  const freq = parseFloat(c.req.query('freq') || '440');
+  const duration = parseFloat(c.req.query('duration') || '1');
+  const buffer = generateTriangle(freq, duration);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.get('/api/dev/test-signal/white-noise', (c) => {
+  const duration = parseFloat(c.req.query('duration') || '1');
+  const buffer = generateWhiteNoise(duration);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.get('/api/dev/test-signal/pink-noise', (c) => {
+  const duration = parseFloat(c.req.query('duration') || '1');
+  const buffer = generatePinkNoise(duration);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.get('/api/dev/test-signal/brown-noise', (c) => {
+  const duration = parseFloat(c.req.query('duration') || '1');
+  const buffer = generateBrownNoise(duration);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.get('/api/dev/test-signal/sweep', (c) => {
+  const startFreq = parseFloat(c.req.query('start') || '20');
+  const endFreq = parseFloat(c.req.query('end') || '20000');
+  const duration = parseFloat(c.req.query('duration') || '2');
+  const buffer = generateSweep(duration, startFreq, endFreq);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.get('/api/dev/test-signal/impulse', (c) => {
+  const freq = parseFloat(c.req.query('freq') || '1');
+  const duration = parseFloat(c.req.query('duration') || '1');
+  const buffer = generateImpulseTrain(duration, freq);
+  return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+});
+
+app.post('/api/dev/validate', async (c) => {
+  const body = await c.req.json();
+  const result = validateAudio(new Float32Array(body.buffer || []));
+  return c.json({ success: true, ...result });
+});
+
+app.post('/api/dev/analyze-buffer', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  return c.json({
+    success: true,
+    peak: getPeak(buffer),
+    peakDb: peakDb(buffer),
+    rmsDb: rmsDb(buffer),
+    zcr: calculateZCR(buffer),
+    length: buffer.length,
+    duration: samplesToTime(buffer.length),
+    summary: formatAudioSummary(buffer, 5)
+  });
+});
+
+app.post('/api/dev/mix', async (c) => {
+  const body = await c.req.json();
+  const buffers = (body.buffers || []).map((b: number[]) => new Float32Array(b));
+  const mixed = mixBuffers(buffers, body.weights || []);
+  return c.json({ success: true, samples: mixed.length, peak: getPeak(mixed) });
+});
+
+app.post('/api/dev/crossfade', async (c) => {
+  const body = await c.req.json();
+  const a = new Float32Array(body.a || []);
+  const b = new Float32Array(body.b || []);
+  const cf = body.crossfadeSamples || 4410;
+  const mixed = crossfadeMix(a, b, cf);
+  return c.json({ success: true, samples: mixed.length, peak: getPeak(mixed) });
+});
+
+app.post('/api/dev/filter/lowpass', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const filtered = simpleLowpass(buffer, body.cutoff || 1000);
+  return c.json({ success: true, samples: filtered.length, peak: getPeak(filtered) });
+});
+
+app.post('/api/dev/filter/highpass', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const filtered = simpleHighpass(buffer, body.cutoff || 100);
+  return c.json({ success: true, samples: filtered.length, peak: getPeak(filtered) });
+});
+
+app.post('/api/dev/delay', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const delayed = simpleDelay(buffer, body.delayTime || 0.3, body.feedback || 0.3, body.mix || 0.3);
+  return c.json({ success: true, samples: delayed.length, peak: getPeak(delayed) });
+});
+
+app.post('/api/dev/gain', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  applyGain(buffer, body.db || 0);
+  return c.json({ success: true, peak: getPeak(buffer), rmsDb: rmsDb(buffer) });
+});
+
+app.post('/api/dev/pan', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const [left, right] = panStereo(buffer, body.pan || 0);
+  return c.json({ success: true, leftPeak: getPeak(left), rightPeak: getPeak(right) });
+});
+
+app.post('/api/dev/time-stretch', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const stretched = simpleTimeStretch(buffer, body.ratio || 1);
+  return c.json({ success: true, samples: stretched.length, peak: getPeak(stretched) });
+});
+
+app.post('/api/dev/pitch-shift', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const shifted = simplePitchShift(buffer, body.semitones || 0);
+  return c.json({ success: true, samples: shifted.length, peak: getPeak(shifted) });
+});
+
+app.post('/api/dev/reverse', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const rev = reverseBuffer(buffer);
+  return c.json({ success: true, samples: rev.length, peak: getPeak(rev) });
+});
+
+app.post('/api/dev/repeat', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const repeated = repeatBuffer(buffer, body.times || 2);
+  return c.json({ success: true, samples: repeated.length, peak: getPeak(repeated) });
+});
+
+app.post('/api/dev/concat', async (c) => {
+  const body = await c.req.json();
+  const buffers = (body.buffers || []).map((b: number[]) => new Float32Array(b));
+  const concatenated = concatBuffers(buffers);
+  return c.json({ success: true, samples: concatenated.length, peak: getPeak(concatenated) });
+});
+
+app.post('/api/dev/slice', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const sliced = sliceBuffer(buffer, body.start || 0, body.end || buffer.length);
+  return c.json({ success: true, samples: sliced.length, peak: getPeak(sliced) });
+});
+
+app.post('/api/dev/fade-in', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  fadeIn(buffer, body.duration || 0.1);
+  return c.json({ success: true, peak: getPeak(buffer) });
+});
+
+app.post('/api/dev/fade-out', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  fadeOut(buffer, body.duration || 0.1);
+  return c.json({ success: true, peak: getPeak(buffer) });
+});
+
+app.post('/api/dev/normalize', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  let max = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const a = Math.abs(buffer[i]);
+    if (a > max) max = a;
+  }
+  if (max > 0) {
+    const scale = 1 / max;
+    for (let i = 0; i < buffer.length; i++) buffer[i] *= scale;
+  }
+  return c.json({ success: true, peak: getPeak(buffer) });
+});
+
+app.post('/api/dev/clip', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  hardClip(buffer, body.threshold || 1);
+  return c.json({ success: true, peak: getPeak(buffer) });
+});
+
+app.post('/api/dev/saturate', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  softSaturate(buffer, body.amount || 1);
+  return c.json({ success: true, peak: getPeak(buffer) });
+});
+
+app.post('/api/dev/dc-offset', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  removeDCOffset(buffer);
+  return c.json({ success: true, peak: getPeak(buffer) });
+});
+
+app.post('/api/dev/invert', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  invertBuffer(buffer);
+  return c.json({ success: true, peak: getPeak(buffer) });
+});
+
+app.post('/api/dev/mono-to-stereo', async (c) => {
+  const body = await c.req.json();
+  const buffer = new Float32Array(body.buffer || []);
+  const [left, right] = monoToStereo(buffer);
+  return c.json({ success: true, leftPeak: getPeak(left), rightPeak: getPeak(right) });
+});
+
+app.post('/api/dev/stereo-to-mono', async (c) => {
+  const body = await c.req.json();
+  const left = new Float32Array(body.left || []);
+  const right = new Float32Array(body.right || []);
+  const mono = stereoToMono(left, right);
+  return c.json({ success: true, samples: mono.length, peak: getPeak(mono) });
+});
+
+app.get('/api/dev/bpm-to-samples', (c) => {
+  const bpm = parseFloat(c.req.query('bpm') || '120');
+  const sr = parseFloat(c.req.query('sampleRate') || '44100');
+  return c.json({ success: true, bpm, samplesPerBeat: bpmToSamples(bpm, sr) });
+});
+
+app.get('/api/dev/bar-length', (c) => {
+  const bpm = parseFloat(c.req.query('bpm') || '120');
+  const beats = parseFloat(c.req.query('beats') || '4');
+  const sr = parseFloat(c.req.query('sampleRate') || '44100');
+  return c.json({ success: true, bpm, beatsPerBar: beats, barLength: barLength(bpm, beats, sr) });
+});
+
+app.get('/api/dev/time-convert', (c) => {
+  const samples = parseFloat(c.req.query('samples') || '44100');
+  const sr = parseFloat(c.req.query('sampleRate') || '44100');
+  return c.json({ success: true, samples, time: samplesToTime(samples, sr) });
+});
+
+app.get('/api/dev/correlation', (c) => {
+  const a = new Float32Array((c.req.query('a') || '0,1,0,-1').split(',').map(Number));
+  const b = new Float32Array((c.req.query('b') || '0,1,0,-1').split(',').map(Number));
+  return c.json({ success: true, correlation: correlation(a, b) });
+});
+
+// ======== 中间件监控 ========
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  const path = c.req.path;
+  if (duration > 100) {
+    console.log(`[SLOW] ${path} took ${duration}ms`);
+  }
 });

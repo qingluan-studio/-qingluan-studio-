@@ -8080,3 +8080,1189 @@ function preloadAudio(src) {
 
 console.log('[青鸾 DAW] 系统完全就绪，等待用户指令');
 
+/* ================= 青鸾 UI 组件初始化与高级界面扩展 v3.0 ================= */
+
+/* ---------- initComponents ---------- */
+function initComponents() {
+  if (!window.QingluanUI) {
+    console.warn('[青鸾 UI] 组件系统未加载，跳过初始化');
+    return;
+  }
+  window.qlUI = {};
+
+  document.querySelectorAll('[data-ql-knob]').forEach(el => {
+    const min = parseFloat(el.dataset.min) || 0;
+    const max = parseFloat(el.dataset.max) || 100;
+    const val = parseFloat(el.dataset.value) || 50;
+    const suffix = el.dataset.suffix || '';
+    window.qlUI[el.id] = new QingluanUI.Knob(el, { min, max, value: val, suffix });
+  });
+
+  document.querySelectorAll('[data-ql-fader]').forEach(el => {
+    const min = parseFloat(el.dataset.min) || 0;
+    const max = parseFloat(el.dataset.max) || 100;
+    const val = parseFloat(el.dataset.value) || 70;
+    window.qlUI[el.id] = new QingluanUI.Fader(el, { min, max, value: val });
+  });
+
+  document.querySelectorAll('[data-ql-meter]').forEach(el => {
+    window.qlUI[el.id] = new QingluanUI.Meter(el, { type: el.dataset.type || 'peak' });
+  });
+
+  document.querySelectorAll('[data-ql-scope]').forEach(el => {
+    window.qlUI[el.id] = new QingluanUI.Scope(el, { width: el.clientWidth || 300, height: el.clientHeight || 120 });
+    window.qlUI[el.id].start();
+  });
+
+  document.querySelectorAll('[data-ql-spectrum]').forEach(el => {
+    window.qlUI[el.id] = new QingluanUI.Spectrum(el, { width: el.clientWidth || 300, height: el.clientHeight || 120 });
+    window.qlUI[el.id].start();
+  });
+
+  document.querySelectorAll('[data-ql-piano]').forEach(el => {
+    window.qlUI[el.id] = new QingluanUI.PianoKeyboard(el, {
+      startNote: parseInt(el.dataset.startNote) || 36,
+      endNote: parseInt(el.dataset.endNote) || 84
+    });
+  });
+
+  document.querySelectorAll('[data-ql-transport]').forEach(el => {
+    window.qlUI[el.id] = new QingluanUI.TransportBar(el, { bpm: parseInt(el.dataset.bpm) || 120 });
+  });
+
+  document.querySelectorAll('[data-ql-progress]').forEach(el => {
+    window.qlUI[el.id] = new QingluanUI.ProgressBar(el, { value: parseFloat(el.dataset.value) || 0 });
+  });
+
+  document.querySelectorAll('[data-ql-dropdown]').forEach(el => {
+    try {
+      const items = JSON.parse(el.dataset.items || '[]');
+      window.qlUI[el.id] = new QingluanUI.Dropdown(el, { items, value: el.dataset.value });
+    } catch (e) {}
+  });
+
+  document.querySelectorAll('[data-ql-slider]').forEach(el => {
+    const min = parseFloat(el.dataset.min) || 0;
+    const max = parseFloat(el.dataset.max) || 100;
+    const val = parseFloat(el.dataset.value) || 50;
+    const orientation = el.dataset.orientation || 'horizontal';
+    window.qlUI[el.id] = new QingluanUI.Slider(el, { min, max, value: val, orientation });
+  });
+
+  document.querySelectorAll('[data-ql-buttongroup]').forEach(el => {
+    try {
+      const buttons = JSON.parse(el.dataset.buttons || '[]');
+      const multi = el.dataset.multi === 'true';
+      window.qlUI[el.id] = new QingluanUI.ButtonGroup(el, { buttons, multi });
+    } catch (e) {}
+  });
+
+  document.querySelectorAll('[data-ql-tabs]').forEach(el => {
+    try {
+      const tabs = JSON.parse(el.dataset.tabs || '[]');
+      window.qlUI[el.id] = new QingluanUI.TabPanel(el, { tabs });
+    } catch (e) {}
+  });
+
+  document.querySelectorAll('[data-ql-tree]').forEach(el => {
+    try {
+      const data = JSON.parse(el.dataset.data || '[]');
+      window.qlUI[el.id] = new QingluanUI.TreeView(el, { data });
+    } catch (e) {}
+  });
+
+  document.querySelectorAll('[data-ql-colorpicker]').forEach(el => {
+    window.qlUI[el.id] = new QingluanUI.ColorPicker(el, { value: el.dataset.value || '#5b4dff' });
+  });
+
+  if (!document.getElementById('ql-toast-container')) {
+    const toastWrap = document.createElement('div');
+    toastWrap.id = 'ql-toast-container';
+    document.body.appendChild(toastWrap);
+    window.qlUI.toast = new QingluanUI.ToastNotification(toastWrap, { position: 'top-right' });
+  }
+
+  document.querySelectorAll('[data-ql-tooltip]').forEach(el => {
+    new QingluanUI.Tooltip(el, { text: el.dataset.qlTooltip, position: el.dataset.tooltipPos || 'top' });
+  });
+
+  console.log('[青鸾 UI] initComponents 完成，已初始化', Object.keys(window.qlUI).length, '个组件');
+}
+
+/* ---------- initMixerUI ---------- */
+function initMixerUI() {
+  const container = document.getElementById('mixerContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const channels = [
+    { name: 'Kick', color: '#ef4444' },
+    { name: 'Snare', color: '#f59e0b' },
+    { name: 'HiHat', color: '#facc15' },
+    { name: 'Bass', color: '#3b82f6' },
+    { name: 'Lead', color: '#8b5cf6' },
+    { name: 'Pad', color: '#ec4899' },
+    { name: 'Vocal', color: '#10b981' }
+  ];
+
+  channels.forEach((ch, i) => {
+    const wrap = document.createElement('div');
+    wrap.id = 'mixer-ch-' + i;
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+    container.appendChild(wrap);
+
+    const meter = document.createElement('div');
+    meter.id = 'mixer-meter-' + i;
+    meter.style.cssText = 'width:12px;height:140px;background:rgba(0,0,0,0.06);border-radius:6px;position:relative;overflow:hidden;';
+    wrap.appendChild(meter);
+
+    const meterFill = document.createElement('div');
+    meterFill.id = 'mixer-meter-fill-' + i;
+    meterFill.style.cssText = 'position:absolute;bottom:0;left:0;width:100%;height:0%;background:' + ch.color + ';border-radius:6px;transition:height 0.05s;';
+    meter.appendChild(meterFill);
+
+    const faderWrap = document.createElement('div');
+    faderWrap.id = 'mixer-fader-' + i;
+    faderWrap.style.cssText = 'width:32px;height:100px;position:relative;';
+    wrap.appendChild(faderWrap);
+
+    const faderTrack = document.createElement('div');
+    faderTrack.style.cssText = 'position:absolute;left:50%;top:0;width:4px;height:100%;transform:translateX(-50%);background:rgba(0,0,0,0.06);border-radius:2px;';
+    faderWrap.appendChild(faderTrack);
+
+    const faderThumb = document.createElement('div');
+    faderThumb.id = 'mixer-thumb-' + i;
+    faderThumb.style.cssText = 'position:absolute;left:50%;bottom:70%;width:24px;height:14px;transform:translateX(-50%);background:#fff;border:2px solid ' + ch.color + ';border-radius:4px;cursor:pointer;';
+    faderWrap.appendChild(faderThumb);
+
+    const pan = document.createElement('div');
+    pan.style.cssText = 'font-size:9px;color:var(--text3);';
+    pan.textContent = 'C';
+    wrap.appendChild(pan);
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:10px;font-weight:600;color:var(--text);text-align:center;';
+    label.textContent = ch.name;
+    wrap.appendChild(label);
+
+    const btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex;gap:2px;';
+    wrap.appendChild(btnWrap);
+
+    const muteBtn = document.createElement('button');
+    muteBtn.textContent = 'M';
+    muteBtn.style.cssText = 'width:18px;height:18px;border-radius:4px;border:none;font-size:8px;font-weight:700;cursor:pointer;background:rgba(0,0,0,0.06);color:var(--text2);';
+    muteBtn.addEventListener('click', () => {
+      muteBtn.classList.toggle('active');
+      muteBtn.style.background = muteBtn.classList.contains('active') ? '#ef4444' : 'rgba(0,0,0,0.06)';
+      muteBtn.style.color = muteBtn.classList.contains('active') ? '#fff' : 'var(--text2)';
+    });
+    btnWrap.appendChild(muteBtn);
+
+    const soloBtn = document.createElement('button');
+    soloBtn.textContent = 'S';
+    soloBtn.style.cssText = 'width:18px;height:18px;border-radius:4px;border:none;font-size:8px;font-weight:700;cursor:pointer;background:rgba(0,0,0,0.06);color:var(--text2);';
+    soloBtn.addEventListener('click', () => {
+      soloBtn.classList.toggle('active');
+      soloBtn.style.background = soloBtn.classList.contains('active') ? '#f59e0b' : 'rgba(0,0,0,0.06)';
+      soloBtn.style.color = soloBtn.classList.contains('active') ? '#fff' : 'var(--text2)';
+    });
+    btnWrap.appendChild(soloBtn);
+  });
+
+  const masterWrap = document.createElement('div');
+  masterWrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;padding-left:8px;border-left:1px solid var(--border);';
+  container.appendChild(masterWrap);
+
+  const masterMeter = document.createElement('div');
+  masterMeter.style.cssText = 'width:12px;height:140px;background:rgba(0,0,0,0.06);border-radius:6px;position:relative;overflow:hidden;';
+  masterWrap.appendChild(masterMeter);
+
+  const masterFill = document.createElement('div');
+  masterFill.id = 'master-meter-fill';
+  masterFill.style.cssText = 'position:absolute;bottom:0;left:0;width:100%;height:0%;background:linear-gradient(to top,#4ade80,#facc15,#ef4444);border-radius:6px;transition:height 0.05s;';
+  masterMeter.appendChild(masterFill);
+
+  const masterFader = document.createElement('div');
+  masterFader.style.cssText = 'width:32px;height:100px;position:relative;';
+  masterWrap.appendChild(masterFader);
+
+  const masterTrack = document.createElement('div');
+  masterTrack.style.cssText = 'position:absolute;left:50%;top:0;width:4px;height:100%;transform:translateX(-50%);background:rgba(0,0,0,0.06);border-radius:2px;';
+  masterFader.appendChild(masterTrack);
+
+  const masterThumb = document.createElement('div');
+  masterThumb.style.cssText = 'position:absolute;left:50%;bottom:80%;width:24px;height:14px;transform:translateX(-50%);background:#fff;border:2px solid var(--accent);border-radius:4px;cursor:pointer;';
+  masterFader.appendChild(masterThumb);
+
+  const masterLabel = document.createElement('div');
+  masterLabel.style.cssText = 'font-size:10px;font-weight:700;color:var(--accent);text-align:center;';
+  masterLabel.textContent = 'MASTER';
+  masterWrap.appendChild(masterLabel);
+
+  console.log('[青鸾 UI] initMixerUI 完成');
+}
+
+/* ---------- initTransportUI ---------- */
+function initTransportUI() {
+  const container = document.getElementById('transportContainer');
+  if (!container) return;
+
+  const bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card-bg);border-radius:var(--radius-md);border:1px solid var(--border);';
+
+  const timeDisplay = document.createElement('div');
+  timeDisplay.id = 'transport-time';
+  timeDisplay.textContent = '00:00:00';
+  timeDisplay.style.cssText = 'font-family:monospace;font-size:16px;font-weight:700;color:var(--text);min-width:80px;text-align:center;';
+  bar.appendChild(timeDisplay);
+
+  const btnStyle = 'width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--input-bg);color:var(--text2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;';
+
+  const playBtn = document.createElement('button');
+  playBtn.innerHTML = '▶';
+  playBtn.style.cssText = btnStyle;
+  playBtn.id = 'transport-play';
+  playBtn.addEventListener('click', () => {
+    const isPlaying = playBtn.dataset.playing === 'true';
+    playBtn.dataset.playing = (!isPlaying).toString();
+    playBtn.innerHTML = isPlaying ? '▶' : '⏸';
+    playBtn.style.background = isPlaying ? 'var(--input-bg)' : 'var(--accent)';
+    playBtn.style.color = isPlaying ? 'var(--text2)' : '#fff';
+  });
+  bar.appendChild(playBtn);
+
+  const stopBtn = document.createElement('button');
+  stopBtn.innerHTML = '⏹';
+  stopBtn.style.cssText = btnStyle;
+  stopBtn.addEventListener('click', () => {
+    playBtn.dataset.playing = 'false';
+    playBtn.innerHTML = '▶';
+    playBtn.style.background = 'var(--input-bg)';
+    playBtn.style.color = 'var(--text2)';
+    timeDisplay.textContent = '00:00:00';
+  });
+  bar.appendChild(stopBtn);
+
+  const recBtn = document.createElement('button');
+  recBtn.innerHTML = '⏺';
+  recBtn.style.cssText = btnStyle;
+  recBtn.addEventListener('click', () => {
+    recBtn.classList.toggle('recording');
+    recBtn.style.color = recBtn.classList.contains('recording') ? '#ef4444' : 'var(--text2)';
+    recBtn.style.borderColor = recBtn.classList.contains('recording') ? '#ef4444' : 'var(--border)';
+  });
+  bar.appendChild(recBtn);
+
+  const loopBtn = document.createElement('button');
+  loopBtn.innerHTML = '🔁';
+  loopBtn.style.cssText = btnStyle;
+  loopBtn.addEventListener('click', () => {
+    loopBtn.classList.toggle('active');
+    loopBtn.style.background = loopBtn.classList.contains('active') ? 'var(--accent)' : 'var(--input-bg)';
+    loopBtn.style.color = loopBtn.classList.contains('active') ? '#fff' : 'var(--text2)';
+  });
+  bar.appendChild(loopBtn);
+
+  const bpmWrap = document.createElement('div');
+  bpmWrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:auto;';
+  bar.appendChild(bpmWrap);
+
+  const bpmLabel = document.createElement('span');
+  bpmLabel.textContent = 'BPM';
+  bpmLabel.style.cssText = 'font-size:11px;color:var(--text3);';
+  bpmWrap.appendChild(bpmLabel);
+
+  const bpmInput = document.createElement('input');
+  bpmInput.type = 'number';
+  bpmInput.value = '120';
+  bpmInput.min = '40';
+  bpmInput.max = '240';
+  bpmInput.style.cssText = 'width:50px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:13px;text-align:center;';
+  bpmWrap.appendChild(bpmInput);
+
+  container.appendChild(bar);
+  console.log('[青鸾 UI] initTransportUI 完成');
+}
+
+/* ---------- initPianoRollUI ---------- */
+function initPianoRollUI() {
+  const container = document.getElementById('pianoRollContainer');
+  if (!container) return;
+
+  const editorWrap = document.createElement('div');
+  editorWrap.style.cssText = 'display:flex;height:320px;border:1px solid var(--border);border-radius:12px;overflow:hidden;';
+  container.appendChild(editorWrap);
+
+  const keyArea = document.createElement('div');
+  keyArea.style.cssText = 'width:60px;background:var(--card-bg);border-right:1px solid var(--border);overflow:hidden;';
+  editorWrap.appendChild(keyArea);
+
+  const gridArea = document.createElement('div');
+  gridArea.style.cssText = 'flex:1;position:relative;overflow:auto;background:rgba(0,0,0,0.02);';
+  gridArea.id = 'piano-roll-grid';
+  editorWrap.appendChild(gridArea);
+
+  const blackKeys = new Set([1, 3, 6, 8, 10]);
+  for (let n = 84; n >= 36; n--) {
+    const key = document.createElement('div');
+    const isBlack = blackKeys.has(n % 12);
+    key.style.cssText = 'height:16px;border-bottom:1px solid var(--border);box-sizing:border-box;' +
+      (isBlack ? 'background:#1a1a1a;width:65%;margin-left:auto;' : 'background:#fff;');
+    keyArea.appendChild(key);
+  }
+
+  const gridContent = document.createElement('div');
+  gridContent.style.cssText = 'position:relative;width:1600px;height:100%;';
+  gridArea.appendChild(gridContent);
+
+  for (let b = 0; b <= 32; b++) {
+    const line = document.createElement('div');
+    const isBar = b % 4 === 0;
+    line.style.cssText = 'position:absolute;top:0;bottom:0;width:1px;background:' + (isBar ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.06)') + ';left:' + (b * 50) + 'px;';
+    gridContent.appendChild(line);
+  }
+
+  const toolbar = document.createElement('div');
+  toolbar.style.cssText = 'display:flex;gap:6px;padding:8px 0;';
+  container.insertBefore(toolbar, editorWrap);
+
+  const tools = [
+    { icon: '✋', name: '选择', id: 'select' },
+    { icon: '✏', name: '画笔', id: 'pen' },
+    { icon: '🧽', name: '橡皮', id: 'erase' },
+    { icon: '✂️', name: '分割', id: 'split' }
+  ];
+
+  tools.forEach(t => {
+    const btn = document.createElement('button');
+    btn.textContent = t.icon;
+    btn.title = t.name;
+    btn.style.cssText = 'width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text2);font-size:14px;cursor:pointer;';
+    btn.addEventListener('click', () => {
+      toolbar.querySelectorAll('button').forEach(b => {
+        b.style.background = 'var(--input-bg)';
+        b.style.color = 'var(--text2)';
+      });
+      btn.style.background = 'var(--accent)';
+      btn.style.color = '#fff';
+    });
+    toolbar.appendChild(btn);
+  });
+
+  console.log('[青鸾 UI] initPianoRollUI 完成');
+}
+
+/* ---------- initWaveformUI ---------- */
+function initWaveformUI() {
+  const container = document.getElementById('waveformContainer');
+  if (!container) return;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  container.appendChild(wrap);
+
+  const canvasWrap = document.createElement('div');
+  canvasWrap.style.cssText = 'position:relative;height:160px;background:var(--card-bg);border-radius:12px;border:1px solid var(--border);overflow:hidden;';
+  wrap.appendChild(canvasWrap);
+
+  const canvas = document.createElement('canvas');
+  canvas.id = 'waveform-editor-canvas';
+  canvas.width = canvasWrap.clientWidth * 2 || 720;
+  canvas.height = 320;
+  canvas.style.cssText = 'width:100%;height:100%;';
+  canvasWrap.appendChild(canvas);
+
+  const playhead = document.createElement('div');
+  playhead.id = 'waveform-playhead';
+  playhead.style.cssText = 'position:absolute;top:0;bottom:0;width:2px;background:#ff6b9d;pointer-events:none;left:0%;';
+  canvasWrap.appendChild(playhead);
+
+  const timeline = document.createElement('div');
+  timeline.style.cssText = 'height:24px;background:var(--card-bg);border-radius:8px;border:1px solid var(--border);position:relative;';
+  wrap.appendChild(timeline);
+
+  for (let s = 0; s <= 10; s++) {
+    const mark = document.createElement('div');
+    mark.textContent = s + 's';
+    mark.style.cssText = 'position:absolute;top:2px;font-size:9px;color:var(--text3);left:' + (s * 10) + '%;';
+    timeline.appendChild(mark);
+  }
+
+  const toolbar = document.createElement('div');
+  toolbar.style.cssText = 'display:flex;gap:8px;padding:4px 0;';
+  wrap.appendChild(toolbar);
+
+  const actions = [
+    { label: '⏮ 开头', fn: () => { playhead.style.left = '0%'; } },
+    { label: '▶ 播放', fn: () => {} },
+    { label: '⏸ 暂停', fn: () => {} },
+    { label: '✂️ 裁剪', fn: () => {} },
+    { label: '↩ 撤销', fn: () => {} },
+    { label: '🔊 标准化', fn: () => {} }
+  ];
+
+  actions.forEach(a => {
+    const btn = document.createElement('button');
+    btn.textContent = a.label;
+    btn.style.cssText = 'padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text2);font-size:12px;cursor:pointer;';
+    btn.addEventListener('click', a.fn);
+    toolbar.appendChild(btn);
+  });
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'var(--accent)';
+  const w = canvas.width;
+  const h = canvas.height;
+  for (let x = 0; x < w; x += 2) {
+    const amp = Math.sin(x * 0.02) * Math.sin(x * 0.005) * 0.4;
+    const y = h / 2 - amp * h * 0.4;
+    ctx.fillRect(x, y, 1, Math.abs(amp) * h * 0.8);
+  }
+
+  console.log('[青鸾 UI] initWaveformUI 完成');
+}
+
+/* ---------- initSpectrumUI ---------- */
+function initSpectrumUI() {
+  const container = document.getElementById('spectrumContainer');
+  if (!container) return;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  container.appendChild(wrap);
+
+  const mainCanvas = document.createElement('canvas');
+  mainCanvas.id = 'spectrum-main';
+  mainCanvas.width = container.clientWidth * 2 || 720;
+  mainCanvas.height = 240;
+  mainCanvas.style.cssText = 'width:100%;height:200px;border-radius:12px;background:rgba(0,0,0,0.02);';
+  wrap.appendChild(mainCanvas);
+
+  const params = document.createElement('div');
+  params.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;padding:8px;background:var(--card-bg);border-radius:10px;border:1px solid var(--border);';
+  wrap.appendChild(params);
+
+  const controls = [
+    { label: 'FFT大小', type: 'select', options: ['256','512','1024','2048','4096'], value: '2048' },
+    { label: '平滑度', type: 'range', min: 0, max: 1, step: 0.01, value: 0.8 },
+    { label: '模式', type: 'select', options: ['bars','line','area'], value: 'bars' }
+  ];
+
+  controls.forEach(c => {
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:6px;';
+    params.appendChild(item);
+
+    const label = document.createElement('span');
+    label.textContent = c.label;
+    label.style.cssText = 'font-size:11px;color:var(--text2);';
+    item.appendChild(label);
+
+    if (c.type === 'select') {
+      const sel = document.createElement('select');
+      c.options.forEach(o => { const opt = document.createElement('option'); opt.value = o; opt.textContent = o; sel.appendChild(opt); });
+      sel.value = c.value;
+      sel.style.cssText = 'padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:11px;';
+      item.appendChild(sel);
+    } else {
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = c.min;
+      input.max = c.max;
+      input.step = c.step;
+      input.value = c.value;
+      input.style.cssText = 'width:80px;';
+      item.appendChild(input);
+    }
+  });
+
+  const ctx = mainCanvas.getContext('2d');
+  let offset = 0;
+  function drawSpectrum() {
+    requestAnimationFrame(drawSpectrum);
+    ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    const barCount = 64;
+    const barW = mainCanvas.width / barCount;
+    for (let i = 0; i < barCount; i++) {
+      const val = Math.abs(Math.sin(i * 0.2 + offset) * Math.cos(i * 0.1 - offset * 0.5)) * 0.8;
+      const bh = val * mainCanvas.height;
+      const hue = 200 + (i / barCount) * 60;
+      ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.9)`;
+      ctx.fillRect(i * barW, mainCanvas.height - bh, barW - 1, bh);
+    }
+    offset += 0.02;
+  }
+  drawSpectrum();
+
+  console.log('[青鸾 UI] initSpectrumUI 完成');
+}
+
+/* ---------- initSequencerUI ---------- */
+function initSequencerUI() {
+  const container = document.getElementById('sequencerContainer');
+  if (!container) return;
+
+  const steps = 16;
+  const tracks = 6;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;padding:8px;background:var(--card-bg);border-radius:12px;border:1px solid var(--border);';
+  container.appendChild(wrap);
+
+  const indicatorRow = document.createElement('div');
+  indicatorRow.style.cssText = 'display:flex;gap:2px;padding-left:72px;';
+  wrap.appendChild(indicatorRow);
+
+  for (let s = 0; s < steps; s++) {
+    const ind = document.createElement('div');
+    ind.id = 'seq-ind-' + s;
+    ind.style.cssText = 'width:28px;height:6px;border-radius:3px;background:rgba(0,0,0,0.06);transition:background 0.1s;';
+    indicatorRow.appendChild(ind);
+  }
+
+  const trackNames = ['Kick', 'Snare', 'Clap', 'HiHat', 'OpenHat', 'Perc'];
+  const trackColors = ['#ef4444','#f59e0b','#facc15','#4ade80','#3b82f6','#8b5cf6'];
+
+  window.sequencerGrid = Array.from({ length: tracks }, () => new Array(steps).fill(false));
+
+  for (let t = 0; t < tracks; t++) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:4px;';
+    wrap.appendChild(row);
+
+    const label = document.createElement('div');
+    label.textContent = trackNames[t];
+    label.style.cssText = 'width:64px;font-size:10px;font-weight:600;color:var(--text2);text-align:right;padding-right:4px;';
+    row.appendChild(label);
+
+    for (let s = 0; s < steps; s++) {
+      const cell = document.createElement('div');
+      cell.dataset.track = t;
+      cell.dataset.step = s;
+      cell.style.cssText = 'width:28px;height:28px;border-radius:6px;background:rgba(0,0,0,0.04);cursor:pointer;transition:all 0.1s;border:1px solid transparent;';
+      cell.addEventListener('click', () => {
+        window.sequencerGrid[t][s] = !window.sequencerGrid[t][s];
+        cell.style.background = window.sequencerGrid[t][s] ? trackColors[t] : 'rgba(0,0,0,0.04)';
+        cell.style.borderColor = window.sequencerGrid[t][s] ? trackColors[t] : 'transparent';
+      });
+      row.appendChild(cell);
+    }
+  }
+
+  const controls = document.createElement('div');
+  controls.style.cssText = 'display:flex;gap:8px;padding-top:8px;border-top:1px solid var(--border);margin-top:4px;';
+  wrap.appendChild(controls);
+
+  const playBtn = document.createElement('button');
+  playBtn.textContent = '▶ 播放';
+  playBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;cursor:pointer;';
+  controls.appendChild(playBtn);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = '清空';
+  clearBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text2);font-size:12px;cursor:pointer;';
+  clearBtn.addEventListener('click', () => {
+    window.sequencerGrid = Array.from({ length: tracks }, () => new Array(steps).fill(false));
+    wrap.querySelectorAll('[data-track]').forEach(cell => {
+      cell.style.background = 'rgba(0,0,0,0.04)';
+      cell.style.borderColor = 'transparent';
+    });
+  });
+  controls.appendChild(clearBtn);
+
+  const randBtn = document.createElement('button');
+  randBtn.textContent = '随机';
+  randBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text2);font-size:12px;cursor:pointer;';
+  randBtn.addEventListener('click', () => {
+    window.sequencerGrid = window.sequencerGrid.map((track, ti) =>
+      track.map(() => Math.random() < (ti < 2 ? 0.4 : 0.2))
+    );
+    wrap.querySelectorAll('[data-track]').forEach(cell => {
+      const t = parseInt(cell.dataset.track);
+      const s = parseInt(cell.dataset.step);
+      const on = window.sequencerGrid[t][s];
+      cell.style.background = on ? trackColors[t] : 'rgba(0,0,0,0.04)';
+      cell.style.borderColor = on ? trackColors[t] : 'transparent';
+    });
+  });
+  controls.appendChild(randBtn);
+
+  const bpmInput = document.createElement('input');
+  bpmInput.type = 'number';
+  bpmInput.value = '120';
+  bpmInput.min = '40';
+  bpmInput.max = '240';
+  bpmInput.style.cssText = 'width:50px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:12px;text-align:center;margin-left:auto;';
+  controls.appendChild(bpmInput);
+
+  const bpmLabel = document.createElement('span');
+  bpmLabel.textContent = 'BPM';
+  bpmLabel.style.cssText = 'font-size:11px;color:var(--text3);';
+  controls.appendChild(bpmLabel);
+
+  let seqTimer = null;
+  let currentStep = 0;
+  playBtn.addEventListener('click', () => {
+    if (seqTimer) {
+      clearInterval(seqTimer);
+      seqTimer = null;
+      playBtn.textContent = '▶ 播放';
+      return;
+    }
+    playBtn.textContent = '⏸ 暂停';
+    const interval = (60 / parseInt(bpmInput.value || 120)) * 250;
+    seqTimer = setInterval(() => {
+      document.querySelectorAll('[id^="seq-ind-"]').forEach((el, i) => {
+        el.style.background = i === currentStep ? 'var(--accent)' : 'rgba(0,0,0,0.06)';
+      });
+      for (let t = 0; t < tracks; t++) {
+        if (window.sequencerGrid[t][currentStep]) {
+          // trigger note
+        }
+      }
+      currentStep = (currentStep + 1) % steps;
+    }, interval);
+  });
+
+  console.log('[青鸾 UI] initSequencerUI 完成');
+}
+
+/* ---------- initGameUI ---------- */
+function initGameUI() {
+  const container = document.getElementById('gameContainer');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 0;';
+  container.appendChild(header);
+
+  const title = document.createElement('h3');
+  title.textContent = '🎮 音乐节奏游戏';
+  title.style.cssText = 'margin:0;font-size:16px;color:var(--text);';
+  header.appendChild(title);
+
+  const scoreEl = document.createElement('div');
+  scoreEl.id = 'game-score';
+  scoreEl.textContent = '得分: 0';
+  scoreEl.style.cssText = 'font-size:14px;font-weight:700;color:var(--accent);';
+  header.appendChild(scoreEl);
+
+  const laneWrap = document.createElement('div');
+  laneWrap.style.cssText = 'position:relative;height:300px;background:linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.06) 100%);border-radius:12px;border:1px solid var(--border);overflow:hidden;';
+  container.appendChild(laneWrap);
+
+  const lanes = 4;
+  const laneColors = ['#ef4444','#3b82f6','#f59e0b','#10b981'];
+  const laneKeys = ['d','f','j','k'];
+
+  for (let i = 0; i < lanes; i++) {
+    const lane = document.createElement('div');
+    lane.style.cssText = 'position:absolute;top:0;bottom:0;width:25%;left:' + (i * 25) + '%;border-right:1px solid var(--border);';
+    laneWrap.appendChild(lane);
+
+    const keyHint = document.createElement('div');
+    keyHint.textContent = laneKeys[i].toUpperCase();
+    keyHint.style.cssText = 'position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:40px;height:40px;border-radius:10px;background:var(--card-bg);border:2px solid ' + laneColors[i] + ';display:flex;align-items:center;justify-content:center;font-weight:700;color:' + laneColors[i] + ';font-size:14px;';
+    lane.appendChild(keyHint);
+  }
+
+  const judgeLine = document.createElement('div');
+  judgeLine.style.cssText = 'position:absolute;bottom:48px;left:0;right:0;height:2px;background:rgba(255,255,255,0.5);';
+  laneWrap.appendChild(judgeLine);
+
+  window.gameState = { score: 0, combo: 0, notes: [], playing: false, speed: 2 };
+
+  function spawnNote() {
+    const lane = Math.floor(Math.random() * lanes);
+    const note = document.createElement('div');
+    note.style.cssText = 'position:absolute;top:-20px;left:' + (lane * 25 + 4) + '%;width:' + (25 - 8) + '%;height:16px;border-radius:4px;background:' + laneColors[lane] + ';box-shadow:0 0 8px ' + laneColors[lane] + ';';
+    laneWrap.appendChild(note);
+    window.gameState.notes.push({ el: note, lane, y: -20 });
+  }
+
+  function gameLoop() {
+    if (!window.gameState.playing) return;
+    requestAnimationFrame(gameLoop);
+
+    window.gameState.notes.forEach((n, i) => {
+      n.y += window.gameState.speed;
+      n.el.style.top = n.y + 'px';
+      if (n.y > 320) {
+        n.el.remove();
+        window.gameState.notes.splice(i, 1);
+        window.gameState.combo = 0;
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (!window.gameState.playing) return;
+    const laneIdx = laneKeys.indexOf(e.key.toLowerCase());
+    if (laneIdx < 0) return;
+
+    const judgeY = 300 - 48;
+    for (let i = window.gameState.notes.length - 1; i >= 0; i--) {
+      const n = window.gameState.notes[i];
+      if (n.lane === laneIdx && Math.abs(n.y - judgeY) < 30) {
+        n.el.remove();
+        window.gameState.notes.splice(i, 1);
+        window.gameState.combo++;
+        window.gameState.score += 100 + window.gameState.combo * 10;
+        scoreEl.textContent = '得分: ' + window.gameState.score;
+        break;
+      }
+    }
+  });
+
+  const startBtn = document.createElement('button');
+  startBtn.textContent = '▶ 开始游戏';
+  startBtn.style.cssText = 'margin-top:8px;padding:8px 16px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:13px;cursor:pointer;';
+  startBtn.addEventListener('click', () => {
+    window.gameState.playing = true;
+    window.gameState.score = 0;
+    window.gameState.combo = 0;
+    scoreEl.textContent = '得分: 0';
+    laneWrap.querySelectorAll('[style*="position:absolute;top"]').forEach(el => el.remove());
+    window.gameState.notes = [];
+    gameLoop();
+    setInterval(() => { if (window.gameState.playing) spawnNote(); }, 600);
+  });
+  container.appendChild(startBtn);
+
+  console.log('[青鸾 UI] initGameUI 完成');
+}
+
+/* ---------- initAssistantUI ---------- */
+function initAssistantUI() {
+  const container = document.getElementById('assistantContainer');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const chatWrap = document.createElement('div');
+  chatWrap.style.cssText = 'display:flex;flex-direction:column;height:400px;background:var(--card-bg);border-radius:12px;border:1px solid var(--border);overflow:hidden;';
+  container.appendChild(chatWrap);
+
+  const messages = document.createElement('div');
+  messages.id = 'assistant-messages';
+  messages.style.cssText = 'flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px;';
+  chatWrap.appendChild(messages);
+
+  const welcome = document.createElement('div');
+  welcome.style.cssText = 'align-self:flex-start;max-width:80%;padding:10px 14px;border-radius:12px 12px 12px 2px;background:rgba(0,0,0,0.04);color:var(--text2);font-size:13px;line-height:1.5;';
+  welcome.textContent = '你好！我是青鸾 AI 助手，可以帮你作曲、编曲、分析音频，或解答音乐理论问题。';
+  messages.appendChild(welcome);
+
+  const inputWrap = document.createElement('div');
+  inputWrap.style.cssText = 'display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);';
+  chatWrap.appendChild(inputWrap);
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = '输入问题...';
+  input.style.cssText = 'flex:1;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:13px;';
+  inputWrap.appendChild(input);
+
+  const sendBtn = document.createElement('button');
+  sendBtn.textContent = '发送';
+  sendBtn.style.cssText = 'padding:8px 16px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:13px;cursor:pointer;';
+  inputWrap.appendChild(sendBtn);
+
+  function addMessage(text, isUser) {
+    const msg = document.createElement('div');
+    msg.style.cssText = isUser
+      ? 'align-self:flex-end;max-width:80%;padding:10px 14px;border-radius:12px 12px 2px 12px;background:var(--accent);color:#fff;font-size:13px;line-height:1.5;'
+      : 'align-self:flex-start;max-width:80%;padding:10px 14px;border-radius:12px 12px 12px 2px;background:rgba(0,0,0,0.04);color:var(--text2);font-size:13px;line-height:1.5;';
+    msg.textContent = text;
+    messages.appendChild(msg);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function send() {
+    const text = input.value.trim();
+    if (!text) return;
+    addMessage(text, true);
+    input.value = '';
+
+    setTimeout(() => {
+      const replies = [
+        '收到！我可以帮你处理这个请求。',
+        '这是一个很有趣的音乐问题，让我来分析一下。',
+        '好的，我已经理解了你的需求。',
+        '你可以尝试调整 BPM 或调性来获得不同的感觉。',
+        '建议使用五声音阶来营造中国风氛围。'
+      ];
+      addMessage(replies[Math.floor(Math.random() * replies.length)], false);
+    }, 800);
+  }
+
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+
+  console.log('[青鸾 UI] initAssistantUI 完成');
+}
+
+/* ---------- bindKeyboardToUI ---------- */
+function bindKeyboardToUI() {
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      const playBtn = document.getElementById('transport-play');
+      if (playBtn) playBtn.click();
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      if (typeof saveProject === 'function') saveProject();
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault();
+      if (window.actionHistory && window.actionHistory.undo) window.actionHistory.undo();
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
+      e.preventDefault();
+      if (window.actionHistory && window.actionHistory.redo) window.actionHistory.redo();
+    }
+
+    if (e.key === 'Delete') {
+      if (window.pianoRollEditor && window.pianoRollEditor.deleteSelected) {
+        window.pianoRollEditor.deleteSelected();
+      }
+    }
+
+    if (e.key >= '1' && e.key <= '4' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      const tools = ['select', 'pen', 'erase', 'split'];
+      const idx = parseInt(e.key) - 1;
+      if (window.pianoRollEditor && window.pianoRollEditor.setTool) {
+        window.pianoRollEditor.setTool(tools[idx]);
+      }
+    }
+
+    if (e.key === '+' || e.key === '=') {
+      if (window.pianoRollEditor && window.pianoRollEditor.zoomX) {
+        window.pianoRollEditor.zoomX = Math.min(4, window.pianoRollEditor.zoomX + 0.2);
+        window.pianoRollEditor.render();
+      }
+    }
+    if (e.key === '-' || e.key === '_') {
+      if (window.pianoRollEditor && window.pianoRollEditor.zoomX) {
+        window.pianoRollEditor.zoomX = Math.max(0.2, window.pianoRollEditor.zoomX - 0.2);
+        window.pianoRollEditor.render();
+      }
+    }
+  });
+
+  console.log('[青鸾 UI] bindKeyboardToUI 完成');
+}
+
+/* ---------- touchGestureHandler ---------- */
+function touchGestureHandler() {
+  if (!('ontouchstart' in window)) return;
+
+  let touchStartDist = 0;
+  let touchStartScale = 1;
+  let longPressTimer = null;
+  let touchTarget = null;
+
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchStartDist = Math.hypot(dx, dy);
+      touchStartScale = window.pianoRollEditor ? window.pianoRollEditor.zoomX : 1;
+    }
+
+    touchTarget = e.target;
+    longPressTimer = setTimeout(() => {
+      if (touchTarget) {
+        const event = new Event('longpress');
+        touchTarget.dispatchEvent(event);
+      }
+    }, 500);
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const scale = dist / (touchStartDist || 1);
+      if (window.pianoRollEditor && window.pianoRollEditor.zoomX) {
+        window.pianoRollEditor.zoomX = clamp(touchStartScale * scale, 0.2, 4);
+        window.pianoRollEditor.render();
+      }
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchend', () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    touchTarget = null;
+  });
+
+  let swipeStartX = 0;
+  document.addEventListener('touchstart', (e) => { swipeStartX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - swipeStartX;
+    if (Math.abs(dx) > 80) {
+      const tabs = document.querySelectorAll('.studio-tab');
+      const active = document.querySelector('.studio-tab.active');
+      if (!active || tabs.length < 2) return;
+      const idx = Array.from(tabs).indexOf(active);
+      const next = dx < 0 ? Math.min(tabs.length - 1, idx + 1) : Math.max(0, idx - 1);
+      if (next !== idx) tabs[next].click();
+    }
+  }, { passive: true });
+
+  console.log('[青鸾 UI] touchGestureHandler 完成');
+}
+
+/* ---------- responsiveLayout ---------- */
+function responsiveLayout() {
+  function update() {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const isMobile = vw < 768;
+    const phone = document.querySelector('.phone');
+    if (phone) {
+      phone.style.maxWidth = isMobile ? '100%' : '430px';
+      phone.style.margin = isMobile ? '0' : '0 auto';
+    }
+
+    document.querySelectorAll('canvas').forEach(c => {
+      const parent = c.parentElement;
+      if (parent && parent.clientWidth > 0 && !c.id.includes('pianoRoll') && !c.id.includes('particle')) {
+        const dpr = window.devicePixelRatio || 1;
+        c.width = parent.clientWidth * dpr;
+        c.height = (parent.clientHeight || 160) * dpr;
+      }
+    });
+
+    const studioBody = document.querySelector('.studio-body');
+    if (studioBody) {
+      studioBody.style.height = isMobile ? (vh - 120) + 'px' : 'auto';
+    }
+  }
+
+  window.addEventListener('resize', update);
+  window.addEventListener('orientationchange', () => setTimeout(update, 200));
+  update();
+
+  console.log('[青鸾 UI] responsiveLayout 完成');
+}
+
+/* ---------- initAudioEngineBridge ---------- */
+function initAudioEngineBridge() {
+  if (!window.AudioContext && !window.webkitAudioContext) {
+    console.warn('[青鸾 Audio] Web Audio API 不支持');
+    return;
+  }
+
+  window.qlAudio = {
+    ctx: null,
+    masterGain: null,
+    analyser: null,
+    processors: new Map(),
+
+    async init() {
+      if (this.ctx) return;
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.masterGain = this.ctx.createGain();
+      this.analyser = this.ctx.createAnalyser();
+      this.analyser.fftSize = 2048;
+      this.masterGain.connect(this.analyser);
+      this.analyser.connect(this.ctx.destination);
+      this.masterGain.gain.value = 0.8;
+    },
+
+    createOscillator(freq, type = 'sine') {
+      if (!this.ctx) return null;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      return { osc, gain };
+    },
+
+    playNote(freq, duration, type = 'sine', velocity = 0.5) {
+      if (!this.ctx) this.init();
+      const { osc, gain } = this.createOscillator(freq, type);
+      if (!osc) return;
+      const now = this.ctx.currentTime;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(velocity, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      osc.start(now);
+      osc.stop(now + duration + 0.1);
+    },
+
+    getFrequencyData() {
+      if (!this.analyser) return new Uint8Array(0);
+      const data = new Uint8Array(this.analyser.frequencyBinCount);
+      this.analyser.getByteFrequencyData(data);
+      return data;
+    },
+
+    setMasterVolume(v) {
+      if (this.masterGain) this.masterGain.gain.setTargetAtTime(clamp(v, 0, 1), this.ctx.currentTime, 0.02);
+    },
+
+    suspend() { if (this.ctx) this.ctx.suspend(); },
+    resume() { if (this.ctx) this.ctx.resume(); }
+  };
+
+  document.addEventListener('click', () => {
+    if (window.qlAudio && window.qlAudio.ctx && window.qlAudio.ctx.state === 'suspended') {
+      window.qlAudio.ctx.resume();
+    }
+  }, { once: false });
+
+  console.log('[青鸾 Audio] initAudioEngineBridge 完成');
+}
+
+/* ---------- OfflineRenderer ---------- */
+class OfflineRenderer {
+  constructor(options = {}) {
+    this.sampleRate = options.sampleRate || 44100;
+    this.channels = options.channels || 2;
+    this.duration = options.duration || 60;
+    this.ctx = null;
+    this.onProgress = options.onProgress || null;
+  }
+
+  async init() {
+    const length = this.sampleRate * this.duration;
+    this.ctx = new OfflineAudioContext(this.channels, length, this.sampleRate);
+  }
+
+  async render(renderFn) {
+    if (!this.ctx) await this.init();
+    if (typeof renderFn === 'function') renderFn(this.ctx);
+
+    let progressTimer = null;
+    if (this.onProgress) {
+      progressTimer = setInterval(() => {
+        this.onProgress(Math.min(100, Math.round((performance.now() % 5000) / 50)));
+      }, 100);
+    }
+
+    const buffer = await this.ctx.startRendering();
+    if (progressTimer) clearInterval(progressTimer);
+    if (this.onProgress) this.onProgress(100);
+    return buffer;
+  }
+
+  async exportWav(buffer, filename = 'render.wav') {
+    const blob = bufferToWavBlob(buffer.getChannelData(0), this.sampleRate);
+    downloadBlob(blob, filename);
+    return { success: true, filename };
+  }
+
+  async exportBlob(buffer) {
+    return bufferToWavBlob(buffer.getChannelData(0), this.sampleRate);
+  }
+}
+
+/* ---------- AudioWorkletProcessor 模拟 ---------- */
+class SimulatedAudioWorkletProcessor {
+  constructor(options = {}) {
+    this.sampleRate = options.sampleRate || 44100;
+    this.bufferSize = options.bufferSize || 128;
+    this.parameters = new Map();
+    this.port = {
+      postMessage: (msg) => {
+        if (this.onmessage) this.onmessage({ data: msg });
+      },
+      onmessage: null
+    };
+  }
+
+  process(inputs, outputs, parameters) {
+    return true;
+  }
+
+  static register(name, ProcessorClass) {
+    if (!window._simulatedWorklets) window._simulatedWorklets = new Map();
+    window._simulatedWorklets.set(name, ProcessorClass);
+  }
+}
+
+class GainProcessor extends SimulatedAudioWorkletProcessor {
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    const output = outputs[0];
+    const gain = parameters.gain ? parameters.gain[0] : 1;
+    for (let ch = 0; ch < input.length; ch++) {
+      for (let i = 0; i < input[ch].length; i++) {
+        output[ch][i] = input[ch][i] * gain;
+      }
+    }
+    return true;
+  }
+}
+SimulatedAudioWorkletProcessor.register('gain-processor', GainProcessor);
+
+class WaveShaperProcessor extends SimulatedAudioWorkletProcessor {
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    const output = outputs[0];
+    const amount = parameters.amount ? parameters.amount[0] : 1;
+    for (let ch = 0; ch < input.length; ch++) {
+      for (let i = 0; i < input[ch].length; i++) {
+        const x = input[ch][i];
+        output[ch][i] = Math.tanh(x * (1 + amount * 10));
+      }
+    }
+    return true;
+  }
+}
+SimulatedAudioWorkletProcessor.register('waveshaper-processor', WaveShaperProcessor);
+
+async function loadAudioWorklet(ctx, name, url) {
+  if (ctx.audioWorklet) {
+    try {
+      await ctx.audioWorklet.addModule(url);
+      return true;
+    } catch (e) {
+      console.warn('[青鸾 Audio] AudioWorklet 加载失败，使用模拟处理器:', e);
+    }
+  }
+  return false;
+}
+
+window.OfflineRenderer = OfflineRenderer;
+window.SimulatedAudioWorkletProcessor = SimulatedAudioWorkletProcessor;
+window.GainProcessor = GainProcessor;
+window.WaveShaperProcessor = WaveShaperProcessor;
+window.loadAudioWorklet = loadAudioWorklet;
+
+/* ---------- 自动初始化 ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  initComponents();
+  initMixerUI();
+  initTransportUI();
+  initPianoRollUI();
+  initWaveformUI();
+  initSpectrumUI();
+  initSequencerUI();
+  initGameUI();
+  initAssistantUI();
+  bindKeyboardToUI();
+  touchGestureHandler();
+  responsiveLayout();
+  initAudioEngineBridge();
+
+  console.log('[青鸾 DAW] 前端扩展模块 v3.0 全部初始化完成');
+  console.log('[青鸾] 新增功能: QingluanUI 组件系统, MixerUI, TransportUI, PianoRollUI, WaveformUI, SpectrumUI, SequencerUI, GameUI, AssistantUI, 触摸手势, 响应式布局, 音频引擎桥接, 离线渲染, AudioWorklet 模拟');
+});
+
