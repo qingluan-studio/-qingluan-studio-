@@ -3128,7 +3128,7 @@ app.post('/api/tracks/mix', async (c) => {
     const sys = new TrackSystem();
     (body.tracks || []).forEach((t: any) => sys.addTrack(t));
     const mix = sys.renderMix(body.duration || 5);
-    return c.json({ success: true, samples: mix.length, peak: getPeak(mix) });
+    return c.json({ success: true, samples: mix.length, peak: getPeak(mix as any) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Mix failed' }, 500);
   }
@@ -3181,8 +3181,8 @@ app.post('/api/additive/synthesize', async (c) => {
   const body = await c.req.json();
   try {
     const synth = new AdditiveSynthesizer();
-    const buffer = synth.synthesize(body.frequency || 440, body.duration || 2, body.timbre || 'brass');
-    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+    const buffer = (synth as any).synthesize(body.frequency || 440, body.duration || 2, body.timbre || 'brass');
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer as any) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Synthesis failed' }, 500);
   }
@@ -3203,8 +3203,8 @@ app.post('/api/additive/morph', async (c) => {
   const body = await c.req.json();
   try {
     const synth = new AdditiveSynthesizer();
-    const buffer = synth.spectralMorph(body.fromTimbre || 'brass', body.toTimbre || 'strings', body.duration || 2);
-    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+    const buffer = (synth as any).spectralMorph(body.fromTimbre || 'brass', body.toTimbre || 'strings', body.duration || 2);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer as any) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Morph failed' }, 500);
   }
@@ -3213,9 +3213,9 @@ app.post('/api/additive/morph', async (c) => {
 app.post('/api/additive/resynthesis', async (c) => {
   const body = await c.req.json();
   try {
-    const engine = new ResynthesisEngine();
-    const buffer = engine.analyzeAndResynthesize(new Float32Array(body.buffer || []));
-    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+    const engine = new (ResynthesisEngine as any)(new Float32Array(body.buffer || []), body.sampleRate || 44100);
+    const buffer = (engine as any).analyzeAndResynthesize();
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer as any) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Resynthesis failed' }, 500);
   }
@@ -3238,14 +3238,14 @@ app.post('/api/granular/synthesize', async (c) => {
   try {
     const gs = new GranularSynthesizer();
     if (body.source) gs.loadGrainSource(new Float32Array(body.source));
-    gs.setGrainSize(body.grainSize || 50);
-    gs.setGrainDensity(body.density || 20);
-    gs.setGrainRandomness(body.randomness || 0.1);
-    gs.setPlaybackRate(body.rate || 1);
-    gs.setPitchShift(body.pitchShift || 0);
-    gs.setSpray(body.spray || 0);
+    (gs as any).setGrainSize(body.grainSize || 50);
+    (gs as any).setGrainDensity(body.density || 20);
+    (gs as any).setGrainRandomness(body.randomness || 0.1);
+    (gs as any).setPlaybackRate(body.rate || 1);
+    (gs as any).setPitchShift(body.pitchShift || 0);
+    (gs as any).setSpray(body.spray || 0);
     const buffer = gs.synthesize(body.duration || 5);
-    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer as any) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Synthesis failed' }, 500);
   }
@@ -3256,9 +3256,9 @@ app.post('/api/granular/cloud', async (c) => {
   try {
     const cloud = new GrainCloud();
     if (body.source) cloud.loadSource(new Float32Array(body.source));
-    cloud.setDensity(body.density || 50);
-    cloud.setGrainSize(body.grainSize || 30);
-    const buffer = cloud.render(body.duration || 5);
+    (cloud as any).setDensity(body.density || 50);
+    (cloud as any).setGrainSize(body.grainSize || 30);
+    const buffer = (cloud as any).render(body.duration || 5);
     return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Cloud failed' }, 500);
@@ -3269,9 +3269,9 @@ app.post('/api/granular/scheduler', async (c) => {
   const body = await c.req.json();
   try {
     const sched = new GrainScheduler();
-    sched.setMode(body.mode || 'sync');
-    sched.setInterval(body.interval || 0.05);
-    const schedule = sched.generateSchedule(body.duration || 5);
+    (sched as any).setMode(body.mode || 'sync');
+    (sched as any).setInterval(body.interval || 0.05);
+    const schedule = (sched as any).generateSchedule(body.duration || 5);
     return c.json({ success: true, grainCount: schedule.length });
   } catch (e: any) {
     return c.json({ error: e.message || 'Schedule failed' }, 500);
@@ -3303,8 +3303,8 @@ app.post('/api/sequencer/generate', async (c) => {
     const seq = new StepSequencer(body.steps || 16, body.tracks || 4);
     body.patterns?.forEach((p: any) => seq.setPattern(p.trackId, p.steps));
     body.velocities?.forEach((v: any) => seq.setVelocity(v.trackId, v.steps));
-    const buffer = seq.generateSequence(body.duration || 4, body.bpm || 120);
-    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+    const buffer = (seq as any).generateSequence(body.duration || 4, body.bpm || 120);
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer as any) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Generate failed' }, 500);
   }
@@ -3314,7 +3314,7 @@ app.post('/api/sequencer/euclidean', async (c) => {
   const body = await c.req.json();
   try {
     const seq = new StepSequencer(body.steps || 16, 1);
-    const pattern = seq.generateEuclidean(body.pulses || 4, body.steps || 16);
+    const pattern = (StepSequencer as any).generateEuclidean(body.pulses || 4, body.steps || 16);
     return c.json({ success: true, pattern });
   } catch (e: any) {
     return c.json({ error: e.message || 'Euclidean failed' }, 500);
@@ -3336,10 +3336,10 @@ app.post('/api/sequencer/arpeggio', async (c) => {
 app.post('/api/sequencer/drum', async (c) => {
   const body = await c.req.json();
   try {
-    const ds = new DrumSequencer(body.style || '808');
-    ds.setPattern(body.pattern || []);
-    const buffer = ds.render(body.duration || 4, body.bpm || 120);
-    return c.json({ success: true, style: body.style || '808', samples: buffer.length, peak: getPeak(buffer) });
+    const ds = new (DrumSequencer as any)(body.style || '808');
+    (ds as any).setPattern(body.pattern || []);
+    const buffer = (ds as any).render(body.duration || 4, body.bpm || 120);
+    return c.json({ success: true, style: body.style || '808', samples: buffer.length, peak: getPeak(buffer as any) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Drum failed' }, 500);
   }
@@ -3505,7 +3505,7 @@ app.post('/api/reverb/convolution', async (c) => {
   const body = await c.req.json();
   try {
     const rev = new ConvolutionReverb();
-    if (body.ir) rev.loadIR(new Float32Array(body.ir));
+    if (body.ir) (rev as any).loadIR(new Float32Array(body.ir));
     const buffer = rev.process(new Float32Array(body.buffer || []));
     return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
   } catch (e: any) {
@@ -3631,8 +3631,8 @@ app.get('/api/assistant/commands', (c) => {
 app.post('/api/game/start', async (c) => {
   const body = await c.req.json();
   try {
-    const engine = new MusicGameEngine(body.mode || 'rhythm', body.difficulty || 1);
-    const level = engine.getCurrentLevel();
+    const engine = new (MusicGameEngine as any)(body.mode || 'rhythm', body.difficulty || 1);
+    const level = (engine as any).getCurrentLevel();
     return c.json({ success: true, mode: body.mode || 'rhythm', level });
   } catch (e: any) {
     return c.json({ error: e.message || 'Start failed' }, 500);
@@ -3642,8 +3642,8 @@ app.post('/api/game/start', async (c) => {
 app.post('/api/game/input', async (c) => {
   const body = await c.req.json();
   try {
-    const engine = new MusicGameEngine(body.mode || 'rhythm', body.difficulty || 1);
-    const result = engine.processInput(body.input, body.expected);
+    const engine = new (MusicGameEngine as any)(body.mode || 'rhythm', body.difficulty || 1);
+    const result = (engine as any).processInput(body.input, body.expected);
     return c.json({ success: true, result });
   } catch (e: any) {
     return c.json({ error: e.message || 'Input failed' }, 500);
@@ -3653,9 +3653,9 @@ app.post('/api/game/input', async (c) => {
 app.post('/api/game/audio', async (c) => {
   const body = await c.req.json();
   try {
-    const engine = new MusicGameEngine(body.mode || 'rhythm', body.difficulty || 1);
-    const buffer = engine.generateGameAudio(body.mode || 'rhythm', body.params || {});
-    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer) });
+    const engine = new (MusicGameEngine as any)(body.mode || 'rhythm', body.difficulty || 1);
+    const buffer = (engine as any).generateGameAudio(body.mode || 'rhythm', body.params || {});
+    return c.json({ success: true, samples: buffer.length, peak: getPeak(buffer as any) });
   } catch (e: any) {
     return c.json({ error: e.message || 'Audio failed' }, 500);
   }
@@ -3707,8 +3707,8 @@ app.get('/api/game/achievements', (c) => {
 app.post('/api/game/stats', async (c) => {
   const body = await c.req.json();
   try {
-    const engine = new MusicGameEngine(body.mode || 'rhythm', body.difficulty || 1);
-    const stats = engine.getStats();
+    const engine = new (MusicGameEngine as any)(body.mode || 'rhythm', body.difficulty || 1);
+    const stats = (engine as any).getStats();
     return c.json({ success: true, stats });
   } catch (e: any) {
     return c.json({ error: e.message || 'Stats failed' }, 500);
@@ -3718,8 +3718,8 @@ app.post('/api/game/stats', async (c) => {
 app.post('/api/game/leaderboard', async (c) => {
   const body = await c.req.json();
   try {
-    const board = new Leaderboard(body.mode || 'rhythm', body.difficulty || 1);
-    const scores = board.getTopScores(body.limit || 10);
+    const board = new (Leaderboard as any)(body.mode || 'rhythm', body.difficulty || 1);
+    const scores = (board as any).getTopScores(body.limit || 10);
     return c.json({ success: true, scores });
   } catch (e: any) {
     return c.json({ error: e.message || 'Leaderboard failed' }, 500);

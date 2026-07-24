@@ -1439,23 +1439,4 @@ export function staffYForPitch(pitch: number, clef: 'treble' | 'bass' = 'treble'
   return -(pitch - middleC) * 0.5;
 }
 
-// ============================================================================
-// 导出
-// ============================================================================
-
-export {
-  GameLevel,
-  GameScore,
-  Achievement,
-  Leaderboard,
-  BaseGameMode,
-  RhythmGame,
-  PitchGame,
-  ChordGame,
-  ScaleGame,
-  IntervalGame,
-  SightReadingGame,
-  EarTrainingGame,
-};
-
 export default MusicGameEngine;
